@@ -41,8 +41,11 @@ mac系统会输入
 
 日常调用时，请使用import pure_ocean_breeze.pure_ocean_breeze as pp
 
-一键回测 a=pure_moonnight(fac,10,boxcox=True)
+一键回测 a=pp.pure_moonnight(fac,10,boxcox=True)
 fac为因子矩阵，10为分成10组，boxcox表示是否做市值中性化。
 
-因子合成运算，使用pure_fallmount()
+pp.read_daily(path=None,close=0,open=0,high=0,low=0,tr=0)将其中任何一个为0的参数改为1，可以读取对应的复权价，或者换手率。
+
+因子合成运算，使用pp.pure_fallmount()
 具体方法可以联系作者，懒得写说明了
+
