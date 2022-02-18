@@ -44,7 +44,11 @@ mac系统会输入
 一键回测 a=pp.pure_moonnight(fac,10,boxcox=True)
 fac为因子矩阵，10为分成10组，boxcox表示是否做市值中性化。
 
+首次回测时，会话费大概30-60分钟左右的时间，来生成交易状态的数据，并存储在本地，以便以后回测时直接调用。
+
 pp.read_daily(path=None,close=0,open=0,high=0,low=0,tr=0)将其中任何一个为0的参数改为1，可以读取对应的复权价，或者换手率。
+
+数据库文件更新后，请调用pp.read_daily.clear_cache()来清除之前的缓存。
 
 因子合成运算，使用pp.pure_fallmount()
 具体方法可以联系作者，懒得写说明了
