@@ -22,20 +22,12 @@ import h5py
 from cachier import cachier
 import pickle
 
-def initialize():
-    daily_data_file=input('请设置日频数据存放路径(请最终以斜杠结尾)：')
-    minute_data_file=input('请设置分钟数据存放路径(请最终以斜杠结尾)：')
-    factor_data_file=input('请设置因子数据存放路径(请最终以斜杠结尾)：')
-    barra_data_file=input('请设置barra数据存放路径(请最终以斜杠结尾)：')
-    save_dict={'daily_data_file':daily_data_file,'minute_data_file':minute_data_file,'factor_data_file':factor_data_file,'barra_data_file':barra_data_file}
-    save_dict_file=open('paths.settings','wb')
-    pickle.dump(save_dict,save_dict_file)
-    save_dict_file.close()
-    logger.success('恭喜你，回测框架初始化完成，可以开始使用了👏')
+
 
 class HomePlace(object):
     def __init__(self):
-        path_file=open('paths.settings','rb')
+        user_file=os.path.expanduser('~')+'/'
+        path_file=open(user_file+'paths.settings','rb')
         paths=pickle.load(path_file)
         self.__dict__=paths
 
@@ -130,11 +122,11 @@ def read_daily(path=None,open=0,close=0,high=0,low=0,tr=0):
         return read_mat(path)
     elif open:
         trs=read_mat('AllStock_DailyTR.mat')
-        opens=read_mat('AllStock_DailyClose_dividend.mat')
+        opens=read_mat('AllStock_DailyOpen_dividend.mat')
         return np.sign(trs)*opens
     elif close:
         trs=read_mat('AllStock_DailyTR.mat')
-        closes=read_mat('AllStock_DailyOpen_dividend.mat')
+        closes=read_mat('AllStock_DailyClose_dividend.mat')
         return np.sign(trs)*closes
     elif high:
         trs=read_mat('AllStock_DailyTR.mat')
@@ -166,6 +158,7 @@ def read_h5(path):
 
 class pure_moon():
     __slots__=[
+        'homeplace'
         'path_prefix',
         'codes_path',
         'tradedays_path',
@@ -233,10 +226,10 @@ class pure_moon():
     def __init__(cls):
         now=datetime.datetime.now()
         now=datetime.datetime.strftime(now,format='%Y-%m-%d %H:%M:%S')
-        self.homeplace=HomePlace()
+        cls.homeplace=HomePlace()
         # logger.add('pure_moon'+now+'.log')
         # 绝对路径前缀
-        cls.path_prefix = self.homeplace.daily_data_file
+        cls.path_prefix = cls.homeplace.daily_data_file
         # 股票代码文件
         cls.codes_path = 'AllStockCode.mat'
         # 交易日期文件
@@ -567,6 +560,7 @@ class pure_moon():
     def get_neutral_factors(self):
         '''对因子进行市值中性化'''
         self.factors = self.factors.set_index('date')
+        self.factors.index=self.factors.index+pd.DateOffset(months=1)
         self.factors = self.factors.resample('M').last()
         self.factors = self.factors * self.tris_monthly
         self.factors = self.factors.reset_index()
@@ -588,6 +582,7 @@ class pure_moon():
     def deal_with_factors(self):
         '''删除不符合交易条件的因子数据'''
         self.factors = self.factors.set_index('date')
+        self.factors.index=self.factors.index+pd.DateOffset(months=1)
         self.factors = self.factors.resample('M').last()
         self.factors = self.factors * self.tris_monthly
         self.factors = self.factors.stack().reset_index()
@@ -599,6 +594,7 @@ class pure_moon():
         '''中性化之后的因子处理方法'''
         self.factors = self.factors.set_index(['date', 'code'])
         self.factors = self.factors.unstack()
+        self.factors.index=self.factors.index+pd.DateOffset(months=1)
         self.factors = self.factors.resample('M').last()
         self.factors.columns = list(map(lambda x: x[1], list(self.factors.columns)))
         self.factors = self.factors.stack().reset_index()
@@ -679,7 +675,7 @@ class pure_moon():
     @classmethod
     # @lru_cache(maxsize=None)
     @tool_box(slogan=None)
-    @history_remain(slogan='abandoned')
+    # @history_remain(slogan='abandoned')
     def next_month_end(cls, x):
         '''找到下个月最后一天'''
         x1 = x = x + relativedelta(months=1)
@@ -699,7 +695,7 @@ class pure_moon():
         old = pd.merge(limit, data1, how='inner', on=['date', 'code'])
         old = old.set_index('data_index')
         old = old[['group', 'date', 'code']]
-        # old.date = list(map(cls.next_month_end, list(old.date)))
+        old.date = list(map(cls.next_month_end, list(old.date)))
         return old
 
     # @lru_cache(maxsize=None)
@@ -1333,20 +1329,22 @@ class pure_winter():
     @history_remain(slogan='abandoned')
     def set_factors_df(self, df):
         '''传入因子dataframe，应为三列，第一列是时间，第二列是股票代码，第三列是因子值'''
-        df.columns = ['date', 'code', 'fac']
-        df = df.set_index(['date', 'code'])
-        df = df.unstack().reset_index()
-        df.date = df.date.apply(self.last_month_end)
-        df = df.set_index(['date']).stack()
-        self.factors = df
+        df1=df.copy()
+        df1.columns = ['date', 'code', 'fac']
+        df1 = df1.set_index(['date', 'code'])
+        df1 = df1.unstack().reset_index()
+        df1.date = df1.date.apply(self.last_month_end)
+        df1 = df1.set_index(['date']).stack()
+        self.factors = df1.copy()
 
     def set_factors_df_wide(self, df):
         '''传入因子数据，时间为索引，代码为列名'''
-        df.index=df.index-pd.DateOffset(months=1)
-        df=df.resample('M').last()
-        df=df.stack().reset_index()
-        df.columns = ['date', 'code','fac']
-        self.factors=df
+        df1=df.copy()
+        # df1.index=df1.index-pd.DateOffset(months=1)
+        df1=df1.resample('M').last()
+        df1=df1.stack().reset_index()
+        df1.columns = ['date', 'code','fac']
+        self.factors=df1.copy()
 
     def daily_to_monthly(self, df):
         '''将日度的barra因子月度化'''
@@ -1424,7 +1422,7 @@ class pure_snowtrain(pure_winter):
     def __init__(self, factors):
         '''直接输入原始因子数据'''
         super(pure_snowtrain, self).__init__()
-        self.set_factors_df_wide(factors)
+        self.set_factors_df_wide(factors.copy())
         self.run()
 
     def __call__(self, fallmount=0):
@@ -1533,7 +1531,7 @@ class pure_moonlight(pure_moon):
 
 class pure_moonnight():
     '''封装选股框架'''
-
+    __slots__ = ['shen']
     def __init__(self, factors, groups_num, neutralize=False, boxcox=False,by10=False, y2=False, plt=True, plotly=False,
                  filename='分组净值图', time_start=None, time_end=None, print_comments=True):
         '''直接输入因子数据'''

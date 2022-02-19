@@ -1,0 +1,9 @@
+numpy
+pandas
+scipy
+statsmodels
+plotly
+matplotlib
+loguru
+h5py
+cachier
