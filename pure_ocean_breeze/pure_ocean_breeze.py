@@ -647,7 +647,7 @@ def read_index_three(day=None):
     '''读取三大指数的原始行情数据，返回并保存在本地'''
     if day is None:
         day=STATES['START']
-    res=pd.read_feather(homeplace.daily_data_file+'3510.feather').set_index('date')
+    res=pd.read_feather(homeplace.daily_data_file+'3510行情.feather').set_index('date')
     hs300,zz500,zz1000=res.沪深300,res.中证500,res.中证1000
     hs300=hs300[hs300.index>=pd.Timestamp(str(day))]
     zz500=zz500[zz500.index>=pd.Timestamp(str(day))]
@@ -672,37 +672,43 @@ def read_industry_prices(day=None,monthly=True):
         df=df.resample('M').last()
     return df
 
-def make_relative_comments(ret_fac,hs300=0,zz500=0,zz1000=0,day=False):
+def make_relative_comments(ret_fac,hs300=0,zz500=0,zz1000=0,day=None):
     if hs300:
-        net_index=read_index_three(day=day)[0].iloc[:,0]
+        net_index=read_index_three(day=day)[0]
     elif zz500:
-        net_index=read_index_three(day=day)[1].iloc[:,0]
+        net_index=read_index_three(day=day)[1]
     elif zz1000:
-        net_index=read_index_three(day=day)[2].iloc[:,0]
+        net_index=read_index_three(day=day)[2]
     else:
         raise IOError('你总得指定一个股票池吧？')
     ret_index=net_index.pct_change()
     ret=ret_fac-ret_index
     ret=ret.dropna()
     net=(1+ret).cumprod()
-    net=net/net.iloc[0]
+    ntop=pd.Series(1,index=[net.index.min()-pd.DateOffset(months=1)])
+    rtop=pd.Series(0,index=[net.index.min()-pd.DateOffset(months=1)])
+    net=pd.concat([ntop,net]).resample('M').last()
+    ret=pd.concat([rtop,ret]).resample('M').last()
     com=comments_on_twins(net,ret)
     return com
 
-def make_relative_comments_plot(ret_fac,hs300=0,zz500=0,zz1000=0,day=False):
+def make_relative_comments_plot(ret_fac,hs300=0,zz500=0,zz1000=0,day=None):
     if hs300:
-        net_index=read_index_three(day=day)[0].iloc[:,0]
+        net_index=read_index_three(day=day)[0]
     elif zz500:
-        net_index=read_index_three(day=day)[1].iloc[:,0]
+        net_index=read_index_three(day=day)[1]
     elif zz1000:
-        net_index=read_index_three(day=day)[2].iloc[:,0]
+        net_index=read_index_three(day=day)[2]
     else:
         raise IOError('你总得指定一个股票池吧？')
     ret_index=net_index.pct_change()
     ret=ret_fac-ret_index
     ret=ret.dropna()
     net=(1+ret).cumprod()
-    net=net/net.iloc[0]
+    ntop=pd.Series(1,index=[net.index.min()-pd.DateOffset(months=1)])
+    rtop=pd.Series(0,index=[net.index.min()-pd.DateOffset(months=1)])
+    net=pd.concat([ntop,net]).resample('M').last()
+    ret=pd.concat([rtop,ret]).resample('M').last()
     com=comments_on_twins(net,ret)
     net.plot()
     plt.show()
@@ -790,14 +796,14 @@ def indus_name(df,col_name=None):
     '''将2021版申万行业的代码，转化为对应行业的名字'''
     names=pd.DataFrame({
         'indus_we_cant_same':
-        ['801170.SI','801010.SI','801140.SI','801080.SI','801780.SI','801110.SI','801230.SI','801950.SI',
-        '801180.SI','801040.SI','801740.SI','801890.SI','801770.SI','801960.SI','801200.SI','801120.SI','801710.SI',
-        '801720.SI','801880.SI','801750.SI','801050.SI','801790.SI','801150.SI','801980.SI','801030.SI','801730.SI',
-        '801160.SI','801130.SI','801210.SI','801970.SI','801760.SI'],
+            ['801170.SI','801010.SI','801140.SI','801080.SI','801780.SI','801110.SI','801230.SI','801950.SI',
+             '801180.SI','801040.SI','801740.SI','801890.SI','801770.SI','801960.SI','801200.SI','801120.SI','801710.SI',
+             '801720.SI','801880.SI','801750.SI','801050.SI','801790.SI','801150.SI','801980.SI','801030.SI','801730.SI',
+             '801160.SI','801130.SI','801210.SI','801970.SI','801760.SI'],
         '行业名称':
-        ['交通运输','农林牧渔','轻工制造','电子','银行','家用电器','综合','煤炭','房地产','钢铁','国防军工','机械设备',
-        '通信','石油石化','商贸零售','食品饮料','建筑材料','建筑装饰','汽车','计算机','有色金属','非银金融','医药生物','美容护理',
-        '基础化工','电力设备','公用事业','纺织服饰','社会服务','环保','传媒']
+            ['交通运输','农林牧渔','轻工制造','电子','银行','家用电器','综合','煤炭','房地产','钢铁','国防军工','机械设备',
+             '通信','石油石化','商贸零售','食品饮料','建筑材料','建筑装饰','汽车','计算机','有色金属','非银金融','医药生物','美容护理',
+             '基础化工','电力设备','公用事业','纺织服饰','社会服务','环保','传媒']
     }).sort_values(['indus_we_cant_same'])
     if col_name:
         names=names.rename(columns={'indus_we_cant_same':col_name})
@@ -809,12 +815,12 @@ def indus_name(df,col_name=None):
     return df
 
 INDUS_DICT={k:v for k,v in zip(['801170.SI','801010.SI','801140.SI','801080.SI','801780.SI','801110.SI','801230.SI','801950.SI',
-        '801180.SI','801040.SI','801740.SI','801890.SI','801770.SI','801960.SI','801200.SI','801120.SI','801710.SI',
-        '801720.SI','801880.SI','801750.SI','801050.SI','801790.SI','801150.SI','801980.SI','801030.SI','801730.SI',
-        '801160.SI','801130.SI','801210.SI','801970.SI','801760.SI'],['交通运输','农林牧渔','轻工制造','电子','银行','家用电器','综合','煤炭','房地产',
-                                                                      '钢铁','国防军工','机械设备','通信','石油石化','商贸零售','食品饮料','建筑材料',
-                                                                      '建筑装饰','汽车','计算机','有色金属','非银金融','医药生物','美容护理','基础化工',
-                                                                      '电力设备','公用事业','纺织服饰','社会服务','环保','传媒'])}
+                                '801180.SI','801040.SI','801740.SI','801890.SI','801770.SI','801960.SI','801200.SI','801120.SI','801710.SI',
+                                '801720.SI','801880.SI','801750.SI','801050.SI','801790.SI','801150.SI','801980.SI','801030.SI','801730.SI',
+                                '801160.SI','801130.SI','801210.SI','801970.SI','801760.SI'],['交通运输','农林牧渔','轻工制造','电子','银行','家用电器','综合','煤炭','房地产',
+                                                                                              '钢铁','国防军工','机械设备','通信','石油石化','商贸零售','食品饮料','建筑材料',
+                                                                                              '建筑装饰','汽车','计算机','有色金属','非银金融','医药生物','美容护理','基础化工',
+                                                                                              '电力设备','公用事业','纺织服饰','社会服务','环保','传媒'])}
 
 INDEX_DICT={'000300.SH':'沪深300','000905.SH':'中证500','000852.SH':'中证1000'}
 
@@ -1363,7 +1369,7 @@ class pure_moon():
         '''生成一个月综合判断的表格'''
         cls.sts_monthly = cls.daily_to_monthly(cls.sts, cls.sts_monthly_by10_file, cls.judge_month_st_by10)
         cls.states_monthly = cls.daily_to_monthly(cls.states, cls.states_monthly_by10_file,
-                                                    cls.judge_month_state_by10)
+                                                  cls.judge_month_state_by10)
         cls.ages_monthly = cls.ages.resample('M').last()
         cls.ages_monthly = np.sign(cls.ages_monthly.applymap(lambda x: x - 60)).replace(-1, 0)
         cls.tris_monthly = cls.sts_monthly * cls.states_monthly * cls.ages_monthly
@@ -2060,7 +2066,7 @@ class pure_fall():
         将分钟数据变成日频因子，并且添加到日频因子表里
         通常应该每天生成一个指标，最后一只股票会生成一个series
         '''
-        
+
         if add_priclose:
             for mat in tqdm.tqdm(self.minute_files,desc='来日纵使千千阙歌，飘于远方我路上；来日纵使千千晚星，亮过今晚月亮。都不及今宵这刻美丽🌙'):
                 try:
@@ -2239,6 +2245,8 @@ class pure_fall():
                 if not STATES['NO_LOG']:
                     logger.info(
                         f'上次存储的因子值到{self.daily_factors.index.max()}，而分钟数据最新到{now_minute_data}，开始更新……')
+                old_end=datetime.datetime.strftime(self.daily_factors.index.max(),'%Y%m%d')
+                now_minute_datas=[i for i in now_minute_datas if i>old_end]
                 dfs=[]
                 for c in tqdm.tqdm(now_minute_datas,desc='桂棹兮兰桨，击空明兮遂流光🌊'):
                     df=self.get_single_day_factor(func,c)
@@ -2564,6 +2572,8 @@ class pure_fall_flexible(object):
             self.factor=self.factor_old
             new_end_date=datetime.datetime.strftime(self.factor.index.max(),'%Y%m%d')
             logger.info(f'当前截止到{new_end_date}的因子值已经是最新的了')
+
+
 class pure_sunbath():
     def __init__(
             self,
@@ -2963,6 +2973,8 @@ class pure_sunbath():
                 if not STATES['NO_LOG']:
                     logger.info(
                         f'上次存储的因子值到{self.daily_factors.index.max()}，而分钟数据最新到{now_minute_data}，开始更新……')
+                old_end=datetime.datetime.strftime(self.daily_factors.index.max(),'%Y%m%d')
+                now_minute_datas=[i for i in now_minute_datas if i>old_end]
                 dfs=[]
                 for c in tqdm.tqdm(now_minute_datas,desc='桂棹兮兰桨，击空明兮遂流光🌊'):
                     df=self.get_single_day_factor(func,c)
@@ -4093,8 +4105,8 @@ class pure_winter():
         self.corr_by_step = self.corr_pri.groupby(['date']).apply(lambda x: x.corr().head(1))
         self.__corr = self.corr_by_step.mean()
         self.__corr.index=['因子自身','贝塔','估值','杠杆',
-                         '盈利','成长','流动性','反转','波动率',
-                         '市值','非线性市值']
+                           '盈利','成长','流动性','反转','波动率',
+                           '市值','非线性市值']
 
     @property
     def corr(self):
@@ -4390,7 +4402,7 @@ class pure_moonnight():
     __slots__ = ['shen']
     def __init__(self, factors, groups_num=10, neutralize=False, boxcox=False,by10=False, value_weighted=False,y2=False, plt_plot=True, plotly_plot=False,
                  filename='分组净值图', time_start=None, time_end=None, print_comments=True,comments_writer=None,net_values_writer=None,rets_writer=None,
-            comments_sheetname=None,net_values_sheetname=None,rets_sheetname=None,on_paper=False,sheetname=None):
+                 comments_sheetname=None,net_values_sheetname=None,rets_sheetname=None,on_paper=False,sheetname=None):
         '''直接输入因子数据'''
         if isinstance(factors,pure_fallmount):
             factors=factors().copy()
@@ -5304,8 +5316,8 @@ def database_update_minute_files(startdate:str=None,enddate:str=None,to_mat=True
         df_sql=df_sql.where(df_sql>-1e38,np.nan)
         try:
             df_sql.to_sql(name=stock,con=s.engine,if_exists='append',index=False,
-                     dtype={'date':INT,'open':FLOAT(2),'high':FLOAT(2),'low':FLOAT(2),'close':FLOAT(2),
-                            'amount':INT,'money':FLOAT(2),'num':INT})
+                          dtype={'date':INT,'open':FLOAT(2),'high':FLOAT(2),'low':FLOAT(2),'close':FLOAT(2),
+                                 'amount':INT,'money':FLOAT(2),'num':INT})
         except Exception:
             if s.get_data(stock).shape[0]==0:
                 df_sql.to_sql(name=stock,con=s.engine,if_exists='replace',index=False,
@@ -5322,7 +5334,7 @@ def database_update_minute_files(startdate:str=None,enddate:str=None,to_mat=True
         m=minute_data_sql[minute_data_sql.date==day]
         m=m.drop(columns=['date'])
         m.to_sql(name=str(day),con=sa.engine,if_exists='replace',index=False,
-                  dtype={'open':FLOAT(2),'high':FLOAT(2),'low':FLOAT(2),'close':FLOAT(2),'amount':INT,'money':FLOAT(2),'num':INT,'code':VARCHAR(9)})
+                 dtype={'open':FLOAT(2),'high':FLOAT(2),'low':FLOAT(2),'close':FLOAT(2),'amount':INT,'money':FLOAT(2),'num':INT,'code':VARCHAR(9)})
     if to_clickhouse:
         minute_data_sql=np.around(minute_data_sql,2)
         minute_data_sql['date']=(minute_data_sql['date']*100).astype(int).ffill()
