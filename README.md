@@ -47,8 +47,6 @@
 
 >#### 相关链接🔗
 >* [pypi链接](https://pypi.org/project/pure-ocean-breeze/)
->* [因子合集1](https://mp.weixin.qq.com/s/5oM5qyfQL_zxEGT4HYxqEQ)
->* [因子合集2](https://mp.weixin.qq.com/mp/appmsgalbum?__biz=Mzg2MDMyMjU0Ng==&action=getalbum&album_id=2441294745860882432&scene=173&from_msgid=2247497619&from_itemidx=1&count=3&nolastread=1#wechat_redirect)
 
 >### 更新日志🗓
 >* v2.6.4 — 2022.08.02
