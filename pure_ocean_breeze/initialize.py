@@ -11,6 +11,13 @@ def initialize():
         daily_data_file=input("请设置日频数据存放路径(请最终以斜杠结尾，请不要输入反斜杠'\',请都替换为'/')：")
     if daily_data_file[-1]!='/':
         daily_data_file=daily_data_file+'/'
+    #分钟数据路径
+    minute_data_file=input("请设置分钟数据存放路径(请最终以斜杠结尾，请不要输入反斜杠'\',请都替换为'/')：")
+    while '/' not in minute_data_file:
+        print("请不要输入反斜杠'\'，请替换为'/'，并以'/'结尾")
+        minute_data_file=input("请设置分钟数据存放路径(请最终以斜杠结尾，请不要输入反斜杠'\',请都替换为'/')：")
+    if minute_data_file[-1]!='/':
+        minute_data_file=minute_data_file+'/'
     #因子数据路径
     factor_data_file=input("请设置因子数据存放路径(请最终以斜杠结尾，请不要输入反斜杠'\',请都替换为'/')：")
     while '/' not in factor_data_file:
