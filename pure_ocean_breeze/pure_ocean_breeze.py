@@ -48,6 +48,9 @@ rqdatac.init()
 # TODO: 补充每个部分的数据类型和文档，并尝试用AI Python Docstring生成文档
 # TODO: 补充分行业的行业内测试，封装为类（包括各行业Rank IC和行业多头超额，以及多头超额名单（可选是否中性化））
 # TODO: 彻底替换其中的minute_data_file，重写pure_fall类，变为只更新用的类
+# TODO: 对函数和类重新分类排序，按照功能划分
+# TODO: 重写函数说明和注释
+# TODO: 写文档
 
 STATES = {
     "NO_LOG": False,
