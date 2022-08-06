@@ -12,7 +12,6 @@ alphalens
 dcube
 tenacity
 pickledb
-smtplib
 pymysql
 sqlalchemy
 pretty_errors

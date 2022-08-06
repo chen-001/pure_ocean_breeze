@@ -1,22 +1,11 @@
 # action的名称
-name: Upload Python Package pure_ocean_breeze
+name: Upload Python Package
 
 on:
-  # 当master分支有push时，触发action
+  # 当setup.py分支有push时，触发action
   push: 
-
     paths:
       - 'setup.py'
-  
-  # 当一个pr被合并到master时，触发action
-  #pull_request:
-  #  branches:
-  #    - master
-  
-  #  当发布时，触发action
-  #release:
-  #  types: [created]
-
 
 jobs:
   deploy:

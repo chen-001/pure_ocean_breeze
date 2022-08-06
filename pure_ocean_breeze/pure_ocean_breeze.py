@@ -1330,7 +1330,7 @@ def other_periods_comments_nets(
         closes[closes.index.isin(fac.index)],
         quantiles=group_num,
         periods=(period,),
-    )
+    
     df = df.reset_index()
     ics = df.groupby(["date"])[[f"{period}D", "factor"]].apply(
         lambda x: x.corr(method="spearman").iloc[0, 1]
