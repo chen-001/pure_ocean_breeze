@@ -5,8 +5,8 @@ on:
   # 当master分支有push时，触发action
   push: 
 
-    path:
-      - setup.py
+    paths:
+      - 'setup.py'
   
   # 当一个pr被合并到master时，触发action
   #pull_request:
