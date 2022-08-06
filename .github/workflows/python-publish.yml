@@ -4,8 +4,7 @@ name: Upload Python Package pure_ocean_breeze
 on:
   # 当master分支有push时，触发action
   push: 
-    branches:
-      - master
+
     path:
       - setup.py
   
