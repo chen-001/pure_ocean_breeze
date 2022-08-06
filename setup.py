@@ -14,7 +14,7 @@ setup(
     py_modules=['pure_ocean_breeze','pure_ocean_breeze.pure_ocean_breeze','pure_ocean_breeze.initialize'],
     url='https://github.com/chen-001/pure_ocean_breeze.git',
     # project_urls={'Documentation':'https://www.craft.do/s/xazRpMa29CO895','Say Thanks!':'https://www.craft.do/s/jqbL7e1mBuzbtB'},
-    install_requires=['numpy','pandas','scipy','statsmodels','plotly','matplotlib','feather','loguru','h5py','cachier','knockknock','dcube','tenacity'],
+    install_requires=['numpy','pandas','scipy','statsmodels','plotly','matplotlib','feather','loguru','h5py','cachier','knockknock','dcube','tenacity','alphalens','pickledb','pymysql','sqlalchemy','pretty_errors'],
     python_requires='>=3',
     license='MIT',
     packages=setuptools.find_packages(),
