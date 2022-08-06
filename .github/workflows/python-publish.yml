@@ -6,6 +6,8 @@ on:
   push: 
     branches:
       - master
+    path:
+      - setup.py
   
   # 当一个pr被合并到master时，触发action
   #pull_request:
