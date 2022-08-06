@@ -28,8 +28,6 @@ jobs:
           python-version: '3.x'
       - name: Install dependencies
         run: |
-          echo ${secrets.PYPI_USERNAME}
-          echo ${secrets.PYPI_PASSWORD}
           python -m pip install --upgrade pip
           pip install build
       - name: Build package
