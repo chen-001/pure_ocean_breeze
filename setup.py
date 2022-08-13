@@ -6,7 +6,7 @@ import setuptools
 
 setup(
     name='pure_ocean_breeze',
-    version='2.6.6',
+    version='2.6.7',
     description='芷琦哥的回测框架',
     long_description='详见homepage\nhttps://github.com/chen-001/pure_ocean_breeze.git',
     author='chenzongwei',

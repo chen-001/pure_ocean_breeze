@@ -12,6 +12,8 @@ from functools import partial, reduce
 from collections import Iterable
 import datetime
 from dateutil.relativedelta import relativedelta
+import matplotlib as mpl
+mpl.rcParams.update(mpl.rcParamsDefault)
 import matplotlib.pyplot as plt
 import plotly.express as pe
 import plotly.io as pio
@@ -20,7 +22,8 @@ from loguru import logger
 import time
 from functools import lru_cache, wraps
 
-plt.rcParams["font.sans-serif"] = ["SimHei"]  # 用来正常显示中文标签
+# plt.rcParams["font.sans-serif"] = ["SimHei"]  # 用来正常显示中文标签
+plt.style.use(['science','no-latex','notebook'])
 plt.rcParams["axes.unicode_minus"] = False  # 用来正常显示负号
 import h5py
 from cachier import cachier
@@ -51,6 +54,10 @@ rqdatac.init()
 # TODO: 对函数和类重新分类排序，按照功能划分
 # TODO: 重写函数说明和注释
 # TODO: 写文档
+# TODO: 增加读取初级因子值（生成多个因子值时，拆分出不同的初级因子，放在最终因子数据的文件夹下，每个因子一个文件夹）
+# TODO: 拆分不同模块
+# TODO: 拆分更新日志
+
 
 STATES = {
     "NO_LOG": False,
@@ -958,7 +965,7 @@ def make_relative_comments_plot(ret_fac, hs300=0, zz500=0, zz1000=0, day=None):
     net = pd.concat([ntop, net]).resample("M").last()
     ret = pd.concat([rtop, ret]).resample("M").last()
     com = comments_on_twins(net, ret)
-    net.plot()
+    net.plot(rot=60)
     plt.show()
     return net
 
@@ -1269,7 +1276,7 @@ def show_corr(fac1, fac2, method="spearman", plt_plot=True):
     twins = pd.merge(both1, befo1, on=["date", "code"]).set_index(["date", "code"])
     corr = twins.groupby("date").apply(lambda x: x.corr(method=method).iloc[0, 1])
     if plt_plot:
-        corr.plot()
+        corr.plot(rot=60)
         plt.show()
     return corr.mean()
 
@@ -1333,7 +1340,7 @@ def other_periods_comments_nets(
         closes[closes.index.isin(fac.index)],
         quantiles=group_num,
         periods=(period,),
-    
+    )
     df = df.reset_index()
     ics = df.groupby(["date"])[[f"{period}D", "factor"]].apply(
         lambda x: x.corr(method="spearman").iloc[0, 1]
@@ -1350,7 +1357,7 @@ def other_periods_comments_nets(
         df = df.assign(多空对冲=df.分组1 - df[f"分组{group_num}"])
     nets = (df + 1).cumprod()
     nets = nets.apply(lambda x: x / x.iloc[0])
-    nets.plot()
+    nets.plot(rot=60)
     plt.show()
     comments = comments_on_twins_periods(nets.多空对冲, df.多空对冲, period)
     comments = pd.concat(
@@ -2214,7 +2221,7 @@ class pure_moon:
     @main_process(slogan=None)
     def plot_net_values(self, y2, filename):
         """使用matplotlib来画图，y2为是否对多空组合采用双y轴"""
-        self.group_net_values.plot(secondary_y=y2)
+        self.group_net_values.plot(secondary_y=y2,rot=60)
         filename_path = filename + ".png"
         if not STATES["NO_SAVE"]:
             plt.savefig(filename_path)
@@ -3004,6 +3011,8 @@ class pure_fall_frequent(object):
         dates_new_len = len(self.dates_new)
         if dates_new_len > 1:
             cut_points = list(range(0, dates_new_len, chunksize)) + [dates_new_len - 1]
+            if cut_points[-1] == cut_points[-2]:
+                cut_points = cut_points[:-1]
             cuts = tuple(zip(cut_points[:-1], cut_points[1:]))
             print(f"共{len(cuts)}段")
             self.cut_points = cut_points
@@ -3021,8 +3030,8 @@ class pure_fall_frequent(object):
                     df = (
                         df.groupby(["date", "code"])
                         .progress_apply(the_func)
-                        .reset_index()
                     )
+                    df = df.to_frame('fac').reset_index()
                     df.columns = ["date", "code", "fac"]
                     df = df.pivot(columns="code", index="date", values="fac")
                     df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
@@ -3036,7 +3045,8 @@ class pure_fall_frequent(object):
                     else:
                         df = self.chc.get_data(sql_order)
                     df = ((df.set_index("code")) / 100).reset_index()
-                    df = df.groupby(["date", "code"]).apply(the_func).reset_index()
+                    df = df.groupby(["date", "code"]).apply(the_func)
+                    df = df.to_frame('fac').reset_index()
                     df.columns = ["date", "code", "fac"]
                     df = df.pivot(columns="code", index="date", values="fac")
                     df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
@@ -3059,7 +3069,8 @@ class pure_fall_frequent(object):
                     df = self.chc.get_data(sql_order)
                 df = ((df.set_index("code")) / 100).reset_index()
                 tqdm.tqdm.pandas()
-                df = df.groupby(["date", "code"]).progress_apply(the_func).reset_index()
+                df = df.groupby(["date", "code"]).progress_apply(the_func)
+                df = df.to_frame('fac').reset_index()
                 df.columns = ["date", "code", "fac"]
                 df = df.pivot(columns="code", index="date", values="fac")
                 df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
@@ -3071,7 +3082,8 @@ class pure_fall_frequent(object):
                 else:
                     df = self.chc.get_data(sql_order)
                 df = ((df.set_index("code")) / 100).reset_index()
-                df = df.groupby(["date", "code"]).apply(the_func).reset_index()
+                df = df.groupby(["date", "code"]).apply(the_func)
+                df = df.to_frame('fac').reset_index()
                 df.columns = ["date", "code", "fac"]
                 df = df.pivot(columns="code", index="date", values="fac")
                 df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
@@ -3150,6 +3162,8 @@ class pure_fall_flexible(object):
         dates_new_len = len(self.dates_new)
         if dates_new_len > 0:
             cut_points = list(range(0, dates_new_len, chunksize)) + [dates_new_len - 1]
+            if cut_points[-1] == cut_points[-2]:
+                cut_points = cut_points[:-1]
             self.cut_points = cut_points
             self.factor_new = []
             # 开始计算因子值
@@ -5743,7 +5757,7 @@ class pure_cloud(object):
         if print_comments:
             print(self.long_short_comments)
         if plt_plot:
-            self.group_nets.plot()
+            self.group_nets.plot(rot=60)
             plt.savefig(filename + ".png")
             plt.show()
         if plotly_plot:
@@ -7680,12 +7694,12 @@ def database_save_final_factors(df: pd.DataFrame, name: str, order: int):
     logger.success(f"今日计算的因子值保存，最新一天为{final_date}")
 
 
-"""读取最终因子值"""
+"""读取初级&最终因子值"""
 
 
 def database_read_final_factors(
     name: str = None, order: int = None, output=True, new=False
-) -> pd.DataFrame:
+) -> tuple[pd.DataFrame,str]:
     """根据因子名字，或因子序号，读取最终因子的因子值"""
     homeplace = HomePlace()
     facs = os.listdir(homeplace.final_factor_file)
@@ -7719,6 +7733,7 @@ def database_read_final_factors(
     df = pd.read_feather(path)
     df.columns = ["date"] + list(df.columns)[1:]
     df = df.set_index(["date"])
+    df = df[sorted(list(df.columns))]
     final_date = df.index.max()
     final_date = datetime.datetime.strftime(final_date, "%Y%m%d")
     if output:
@@ -7768,9 +7783,23 @@ def database_read_final_factors(
             logger.success(f"截至{final_date}的因子值已保存")
         return df, fac_name
     else:
-        return df
+        return df,''
 
 
+def database_read_primary_factors(
+    name: str = None
+) -> pd.DataFrame:
+    """根据因子名字，或因子序号，读取初级因子的因子值"""
+    homeplace = HomePlace()
+    name = name+'_初级.feather'
+    df = pd.read_feather(homeplace.factor_data_file+name)
+    df = df.rename(columns={list(df.columns)[0]:'date'})
+    df = df.set_index('date')
+    df = df[sorted(list(df.columns))]
+    return df
+    
+    
+    
 """发送邮件的模块"""
 
 
