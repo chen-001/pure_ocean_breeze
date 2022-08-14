@@ -1,14 +1,5 @@
----
-title: pure_ocean_breeze documentation
-summary: python回测框架pure_ocean_breeze的说明文档
-authors: 陈宗伟
-date: 2022-08-14
-some_url: 
-    - https://github.com/chen-001/pure_ocean_breeze
-    - https://pypi.org/project/pure-ocean-breeze/
-
-
 site_name: pure_ocean_breeze documentation
+site_url: https://chen-001.github.io/pure_ocean_breeze/
 nav:
     - 主页: index.md
 
