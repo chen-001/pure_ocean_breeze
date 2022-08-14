@@ -5,11 +5,11 @@ on:
   # 在从本地main分支被push到GitHub仓库时
   push:
     paths:
-      - docs/
+      - 'docs/'
   # 在main分支合并别人提的pr时
   pull_request:
     paths:
-      - docs/
+      - 'docs/'
 # 工作流的具体内容
 jobs:
   deploy:
