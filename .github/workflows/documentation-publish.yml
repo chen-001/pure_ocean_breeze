@@ -5,11 +5,11 @@ on:
   # 在从本地main分支被push到GitHub仓库时
   push:
     branches:
-      - main
+      - master
   # 在main分支合并别人提的pr时
   pull_request:
     branches:
-      - main
+      - master
 # 工作流的具体内容
 jobs:
   deploy:
