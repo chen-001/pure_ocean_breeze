@@ -1,0 +1,22 @@
+site_name: pure_ocean_breeze documentation
+site_url: https://chen-001.github.io/pure_ocean_breeze/
+nav:
+    - 主页: index.md
+
+    - 说明文档:
+
+        - 状态&配置: 说明文档/state.md
+        - 数据: 说明文档/data.md
+        - 加工&测试&评价: 说明文档/labour.md
+
+    - 关于: about.md
+
+theme:
+  name: material
+markdown_extensions:
+  - pymdownx.arithmatex:
+      generic: true
+extra_javascript:
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+  - https://cdn.jsdelivr.net/gh/TRHX/CDN-for-itrhx.com@3.0.8/js/maodian.js
