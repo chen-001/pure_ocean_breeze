@@ -1,5 +1,6 @@
 site_name: pure_ocean_breeze documentation
 site_url: https://chen-001.github.io/pure_ocean_breeze/
+repo_url: https://github.com/chen-001/pure_ocean_breeze
 nav:
     - 星空: index.md
 
@@ -17,7 +18,9 @@ nav:
 
 theme:
   name: material
-  locale: zh_CN
+  language: 'zh'
+  # locale: zh_CN
+  analytics: {gtag: 'G-274394082'}
 markdown_extensions:
   - pymdownx.arithmatex:
       generic: true
@@ -25,3 +28,8 @@ extra_javascript:
   - https://polyfill.io/v3/polyfill.min.js?features=es6
   - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
   - https://cdn.jsdelivr.net/gh/TRHX/CDN-for-itrhx.com@3.0.8/js/maodian.js
+
+
+extra:
+  search:
+    language: 'jp'
