@@ -1,15 +1,19 @@
 site_name: pure_ocean_breeze documentation
 site_url: https://chen-001.github.io/pure_ocean_breeze/
 nav:
-    - 主页: index.md
+    - 星空: index.md
 
-    - 说明文档:
+    - 罗盘:
 
-        - 状态&配置: 说明文档/state.md
-        - 数据: 说明文档/data.md
-        - 加工&测试&评价: 说明文档/labour.md
+        - 状态&配置: 罗盘/state.md
+        - 数据: 罗盘/data.md
+        - 加工&测试&评价: 罗盘/labour.md
 
-    - 关于: about.md
+    - 火把: 
+        - 项目: 火把/project.md
+        - 构想&未来: 火把/futures.md
+        - 分享: 火把/shares.md
+        - 作者: 火把/author.md
 
 theme:
   name: material
