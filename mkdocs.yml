@@ -1,33 +1,50 @@
 site_name: pure_ocean_breeze documentation
 site_url: https://chen-001.github.io/pure_ocean_breeze/
 repo_url: https://github.com/chen-001/pure_ocean_breeze
+site_description: 关于量价因子的一片星空
+site_author: chenzongwei
 nav:
     - 星空: index.md
 
     - 罗盘:
 
-        - 状态&配置: 罗盘/state.md
-        - 数据: 罗盘/data.md
-        - 加工&测试&评价: 罗盘/labour.md
+        - 初始化:
+            - initialize: 罗盘/初始化/initialize.md
+        - 配置&参数: 
+            - state: 罗盘/配置&参数/state.md
+            - homeplace: 罗盘/配置&参数/homeplace.md
+        - 数据: 
+            - database: 罗盘/数据/database.md
+            - dicts: 罗盘/数据/dicts.md
+            - read_data: 罗盘/数据/read_data.md
+            - write_data: 罗盘/数据/write_data.md
+            - tools: 罗盘/数据/tools.md
+        - 加工&测试&评价: 
+            - process: 罗盘/加工&测试&评价/process.md
+            - comment: 罗盘/加工&测试&评价/comment.md
+        - 通讯:
+            - mail: 罗盘/通讯/mail.md
 
     - 火把: 
         - 项目: 火把/project.md
         - 构想&未来: 火把/futures.md
-        - 分享: 火把/shares.md
+        - 分享: 火把/shares.md        
         - 作者: 火把/author.md
 
-theme:
-  name: material
-  language: 'zh'
-  # locale: zh_CN
-  analytics: {gtag: 'G-274394082'}
-markdown_extensions:
-  - pymdownx.arithmatex:
-      generic: true
+# theme:
+#   name: material
+#   language: 'zh'
+#   # locale: zh_CN
+#   analytics: {gtag: 'G-274394082'}
+# markdown_extensions:
+#   - pymdownx.arithmatex:
+#       generic: true
 extra_javascript:
   - https://polyfill.io/v3/polyfill.min.js?features=es6
   - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
   - https://cdn.jsdelivr.net/gh/TRHX/CDN-for-itrhx.com@3.0.8/js/maodian.js
+  - js/baidu.js
+  - https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.0/MathJax.js?config=TeX-MML-AM_CHTML
 
 
 # extra:
@@ -35,8 +52,83 @@ extra_javascript:
 #     language: 'jp'
 
 plugins:
-    - search:
-        lang:
-            - en
-            - ja
-        separator: '[\s\-\.]+'
+  - mkdocstrings
+  - search:
+      lang:
+          - en
+          - ja
+      separator: '[\s\-\.]+'
+
+
+
+theme:
+  name: material
+  # custom_dir: overrides
+  # logo: assets/images/summation.png
+  palette: 
+    - scheme: default # 日间模式
+      primary: indigo # 上方的
+      accent: red # 链接等可交互元件的高亮色
+      toggle:
+        icon: material/weather-night # 图标
+        name: 切换至夜间模式 # 鼠标悬浮提示
+    - scheme: slate # 夜间模式
+      primary: indigo
+      accent: red
+      toggle:
+        icon: material/weather-sunny
+        name: 切换至日间模式
+  features:
+    - content.code.annotate # 代码块内的注释
+    - navigation.tabs # 使用Tab来进行分类
+    - navigation.top # 返回顶部的按钮 在上滑时出现
+    - navigation.indexes # Tab会有一个index.md 而不是在打开Tab时打开第一篇文章
+    - navigation.expand # 打开Tab时左侧目录全部展开
+    - search.suggest # 搜索输入一些字母时推荐补全整个单词
+    - search.highlight # 搜索出的文章关键词加入高亮
+  language: zh # 一些提示性的文字会变成中文
+  # icon:
+  #   repo: fontawesome/brands/github
+
+edit_uri: ""  # 编辑按钮跳转的链接
+
+copyright: Copyright &copy; 2022 chenzongwei # 左下角的版权声明
+
+extra:
+  analytics:
+    provider: google
+    property: G-8R9VRSN3S0
+  social: # icons
+    - icon: fontawesome/brands/github
+      link: https://github.com/chen-001/pure_ocean_breeze
+      name: GitHub项目主页
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/pure-ocean-breeze/
+      name: Pypi项目主页
+
+
+  
+markdown_extensions:
+  - md_in_html
+  - attr_list # 给图片后面添加{width="300"}设置大小
+  - pymdownx.arithmatex: # latex支持
+      generic: true
+  - footnotes
+  - toc:
+      permalink: true # 固定标题位置为当前位置
+      toc_depth: 3
+  - pymdownx.highlight: # 代码块高亮
+      linenums: true # 显示行号
+      auto_title: true # 显示编程语言名称
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+        custom_fences:
+            - name: mermaid
+              class: mermaid
+              format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true 
+  - meta # 支持Markdown文件上方自定义标题标签等
+
+# extra_javascript:

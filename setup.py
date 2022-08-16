@@ -23,7 +23,7 @@ setup(
     author="chenzongwei",
     author_email="winterwinter999@163.com",
     url="https://github.com/chen-001/pure_ocean_breeze.git",
-    # project_urls={'Documentation':'https://www.craft.do/s/xazRpMa29CO895'},
+    project_urls={'Documentation':'https://chen-001.github.io/pure_ocean_breeze/'},
     install_requires=[
         "numpy",
         "pandas",

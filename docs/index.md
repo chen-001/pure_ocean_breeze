@@ -14,5 +14,5 @@
 #### 相关链接🔗
 >* [PyPi库主页](https://pypi.org/project/pure-ocean-breeze/)
 >* [Github项目主页](https://github.com/chen-001/pure_ocean_breeze)
->* [Github同步到Pypi操作手册](Github同步Pypi操作手册/Github同步Pypi操作手册.md)
+>* [Github同步到Pypi操作手册](https://github.com/chen-001/pure_ocean_breeze/blob/master/Github同步Pypi操作手册/Github同步Pypi操作手册.md)
 
