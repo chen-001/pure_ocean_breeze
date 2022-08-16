@@ -57,6 +57,8 @@ rqdatac.init()
 # TODO: 增加读取初级因子值（生成多个因子值时，拆分出不同的初级因子，放在最终因子数据的文件夹下，每个因子一个文件夹）
 # TODO: 拆分不同模块
 # TODO: 拆分更新日志
+# TODO: 一键读取指数成分股
+# TODO: 一键读入上市天数、st状态、交易状态
 
 
 STATES = {
@@ -505,7 +507,7 @@ def comments_on_twins_periods(series, series1, periods=None):
     )
 
 
-def daily_factor_on300500(
+def daily_factor_on300500_old(
     fac, hs300=False, zz500=False, zz800=False, zz1000=False, gz2000=False, other=False
 ):
     """输入日频因子，把日频因子变为仅在300或者500上的股票池"""
@@ -669,6 +671,173 @@ def daily_factor_on300500(
         else:
             raise ValueError("总得指定一下是哪个成分股吧🤒")
     return df
+
+
+def daily_factor_on300500(
+    fac, hs300=False, zz500=False, zz800=False, zz1000=False, gz2000=False, other=False
+):
+    """输入日频因子，把日频因子变为仅在300或者500上的股票池"""
+    last = fac.resample("M").last()
+    homeplace = HomePlace()
+    if fac.shape[0] / last.shape[0] > 2:
+        if hs300:
+            df = (
+                pd.read_feather(homeplace.daily_data_file + "沪深300日成分股.feather")
+                .set_index("index")
+                .replace(0, np.nan)
+            )
+            df = df * fac
+            df = df.dropna(how="all")
+        elif zz500:
+            df = (
+                pd.read_feather(homeplace.daily_data_file + "中证500日成分股.feather")
+                .set_index("index")
+                .replace(0, np.nan)
+            )
+            df = df * fac
+            df = df.dropna(how="all")
+        elif zz800:
+            df1 = pd.read_feather(
+                homeplace.daily_data_file + "沪深300日成分股.feather"
+            ).set_index("index")
+            df2 = pd.read_feather(
+                homeplace.daily_data_file + "中证500日成分股.feather"
+            ).set_index("index")
+            df = df1 + df2
+            df = df.replace(0, np.nan)
+            df = df * fac
+            df = df.dropna(how="all")
+        elif zz1000:
+            df = (
+                pd.read_feather(homeplace.daily_data_file + "中证1000日成分股.feather")
+                .set_index("index")
+                .replace(0, np.nan)
+            )
+            df = df * fac
+            df = df.dropna(how="all")
+        elif gz2000:
+            df = (
+                pd.read_feather(homeplace.daily_data_file + "国证2000日成分股.feather")
+                .set_index("index")
+                .replace(0, np.nan)
+            )
+            df = df * fac
+            df = df.dropna(how="all")
+        elif other:
+            tr = read_daily(tr=1).fillna(0).replace(0, 1)
+            tr = np.sign(tr)
+            df1 = (
+                tr
+                * pd.read_feather(
+                    homeplace.daily_data_file + "沪深300日成分股.feather"
+                ).set_index("index")
+            ).fillna(0)
+            df2 = (
+                tr
+                * pd.read_feather(
+                    homeplace.daily_data_file + "中证500日成分股.feather"
+                ).set_index("index")
+            ).fillna(0)
+            df3 = (
+                tr
+                * pd.read_feather(
+                    homeplace.daily_data_file + "中证1000日成分股.feather"
+                ).set_index("index")
+            ).fillna(0)
+            df = (1 - df1) * (1 - df2) * (1 - df3) * tr
+            df = df.replace(0, np.nan) * fac
+            df = df.dropna(how="all")
+        else:
+            raise ValueError("总得指定一下是哪个成分股吧🤒")
+    else:
+        if hs300:
+            df = (
+                pd.read_feather(homeplace.daily_data_file + "沪深300日成分股.feather")
+                .set_index("index")
+                .replace(0, np.nan)
+                .resample("M")
+                .last()
+            )
+            df = df * fac
+            df = df.dropna(how="all")
+        elif zz500:
+            df = (
+                pd.read_feather(homeplace.daily_data_file + "中证500日成分股.feather")
+                .set_index("index")
+                .replace(0, np.nan)
+                .resample("M")
+                .last()
+            )
+            df = df * fac
+            df = df.dropna(how="all")
+        elif zz800:
+            df1 = (
+                pd.read_feather(homeplace.daily_data_file + "沪深300日成分股.feather")
+                .set_index("index")
+                .resample("M")
+                .last()
+            )
+            df2 = (
+                pd.read_feather(homeplace.daily_data_file + "中证500日成分股.feather")
+                .set_index("index")
+                .resample("M")
+                .last()
+            )
+            df = df1 + df2
+            df = df.replace(0, np.nan)
+            df = df * fac
+            df = df.dropna(how="all")
+        elif zz1000:
+            df = (
+                pd.read_feather(homeplace.daily_data_file + "中证1000日成分股.feather")
+                .set_index("index")
+                .replace(0, np.nan)
+                .resample("M")
+                .last()
+            )
+            df = df * fac
+            df = df.dropna(how="all")
+        elif gz2000:
+            df = (
+                pd.read_feather(homeplace.daily_data_file + "国证2000日成分股.feather")
+                .set_index("index")
+                .replace(0, np.nan)
+                .resample("M")
+                .last()
+            )
+            df = df * fac
+            df = df.dropna(how="all")
+        elif other:
+            tr = read_daily(tr=1).fillna(0).replace(0, 1).resample("M").last()
+            tr = np.sign(tr)
+            df1 = (
+                tr
+                * pd.read_feather(homeplace.daily_data_file + "沪深300日成分股.feather")
+                .set_index("index")
+                .resample("M")
+                .last()
+            ).fillna(0)
+            df2 = (
+                tr
+                * pd.read_feather(homeplace.daily_data_file + "中证500日成分股.feather")
+                .set_index("index")
+                .resample("M")
+                .last()
+            ).fillna(0)
+            df3 = (
+                tr
+                * pd.read_feather(homeplace.daily_data_file + "中证1000日成分股.feather")
+                .set_index("index")
+                .resample("M")
+                .last()
+            ).fillna(0)
+            df = (1 - df1) * (1 - df2) * (1 - df3)
+            df = df.replace(0, np.nan) * fac
+            df = df.dropna(how="all")
+        else:
+            raise ValueError("总得指定一下是哪个成分股吧🤒")
+    return df
+
 
 
 def select_max(df1, df2):
@@ -1206,7 +1375,7 @@ INDUS_DICT = {
     )
 }
 
-INDEX_DICT = {"000300.SH": "沪深300", "000905.SH": "中证500", "000852.SH": "中证1000"}
+INDEX_DICT = {"000300.SH": "沪深300", "000905.SH": "中证500", "000852.SH": "中证1000", "399303.SZ": "国证2000"}
 
 
 def multidfs_to_one(*args):
@@ -7605,7 +7774,7 @@ def database_update_industry_member():
 
 
 @retry
-def download_single_index_member(code):
+def download_single_index_member_monthly(code):
     file = homeplace.daily_data_file + INDEX_DICT[code] + "月成分股.feather"
     old = pd.read_feather(file).set_index("index")
     old_date = old.index.max()
@@ -7673,10 +7842,36 @@ def download_single_index_member(code):
                 logger.success(f"已将{INDEX_DICT[code]}月成分股更新至{end_date}")
 
 
+def database_update_index_members_monthly():
+    for k in list(INDEX_DICT.keys()):
+        download_single_index_member_monthly(k)
+
+
+
+def download_single_index_member(code):
+    file = homeplace.daily_data_file + INDEX_DICT[code] + "日成分股.feather"
+    if code.endswith('.SH'):
+        code=code[:6]+'.XSHG'
+    elif code.endswith('.SZ'):
+        code=code[:6]+'.XSHE'
+    now=datetime.datetime.now()
+    df=rqdatac.index_components(code, start_date='20100101', end_date=now, market='cn')
+    ress=[]
+    for k,v in df.items():
+        res=pd.DataFrame(1,index=[pd.Timestamp(k)],columns=v)
+        ress.append(res)
+    ress=pd.concat(ress)
+    ress.columns=[convert_code(i)[0] for i in list(ress.columns)]
+    tr=np.sign(read_daily(tr=1,start=20100101))
+    rt=np.sign(tr+ress)
+    now_str=datetime.datetime.strftime(now,'%Y%m%d')
+    tr.reset_index().to_feather(file)
+    logger.success(f'已将{INDEX_DICT[convert_code(code)[0]]}日成分股更新至{now_str}')
+    
+    
 def database_update_index_members():
     for k in list(INDEX_DICT.keys()):
         download_single_index_member(k)
-
 
 """保存最终因子值"""
 
