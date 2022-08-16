@@ -1,9 +1,11 @@
 name: Deploy to Github Pages
 on:
   push:
-    paths:
-      - docs/
+    # paths:
+      # - docs/
       # - 'mkdocs.yml'
+    branches:
+      - master
 jobs:
   deploy:
     runs-on: ubuntu-latest
