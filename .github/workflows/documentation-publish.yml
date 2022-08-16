@@ -3,7 +3,7 @@ on:
   push:
     paths:
       - 'docs/'
-      - 'mkdocs.yml'
+      # - 'mkdocs.yml'
 jobs:
   deploy:
     runs-on: ubuntu-latest
