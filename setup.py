@@ -1,20 +1,29 @@
+__updated__ = '2022-08-16 16:16:32'
+
 from setuptools import setup
 import setuptools
+import re
+import os
 
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
+    
+def get_version(package):
+    """Return package version as listed in `__version__` in `init.py`."""
+    init_py = open(os.path.join(package, '__init__.py')).read()
+    return re.search("__version__ = ['\"]([^'\"]+)['\"]", init_py).group(1)
 
 setup(
     name="pure_ocean_breeze",
-    version="2.6.8",
+    version=get_version("pure_ocean_breeze"),
     description="芷琦哥的回测框架",
     # long_description="详见homepage\nhttps://github.com/chen-001/pure_ocean_breeze.git",
     long_description=long_description,
     long_description_content_type="text/markdown",
     author="chenzongwei",
-    author_email="17695480342@163.com",
+    author_email="winterwinter999@163.com",
     url="https://github.com/chen-001/pure_ocean_breeze.git",
-    # project_urls={'Documentation':'https://www.craft.do/s/xazRpMa29CO895','Say Thanks!':'https://www.craft.do/s/jqbL7e1mBuzbtB'},
+    # project_urls={'Documentation':'https://www.craft.do/s/xazRpMa29CO895'},
     install_requires=[
         "numpy",
         "pandas",

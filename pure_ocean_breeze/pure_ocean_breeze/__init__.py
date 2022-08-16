@@ -6,3 +6,4 @@ __all__ = ["initialize", "pure_ocean_breeze"]
 
 from pure_ocean_breeze.pure_ocean_breeze import initialize
 from pure_ocean_breeze.pure_ocean_breeze import pure_ocean_breeze
+from pure_ocean_breeze.pure_ocean_breeze.pure_ocean_breeze import *
