@@ -1,4 +1,4 @@
-__updated__ = '2022-08-16 15:36:17'
+__updated__ = "2022-08-16 15:50:56"
 
 import numpy as np
 import pandas as pd
@@ -15,21 +15,22 @@ from pure_ocean_breeze.state.state import STATES
 from pure_ocean_breeze.state.homeplace import HomePlace
 from pure_ocean_breeze.state.decorators import *
 
-homeplace=HomePlace()
+homeplace = HomePlace()
+
 
 @cachier()
 def read_daily(
-    path:str=None,
-    open:bool=0,
-    close:bool=0,
-    high:bool=0,
-    low:bool=0,
-    tr:bool=0,
-    sharenum:bool=0,
-    volume:bool=0,
-    unadjust:bool=0,
-    start:int=STATES["START"],
-)->pd.DataFrame:
+    path: str = None,
+    open: bool = 0,
+    close: bool = 0,
+    high: bool = 0,
+    low: bool = 0,
+    tr: bool = 0,
+    sharenum: bool = 0,
+    volume: bool = 0,
+    unadjust: bool = 0,
+    start: int = STATES["START"],
+) -> pd.DataFrame:
     """直接读取常用的量价读取日频数据，默认为复权价格，
     在 open,close,high,low,tr,sharenum,volume 中选择一个参数指定为1
 
@@ -146,9 +147,9 @@ def read_daily(
             return volumes
         else:
             raise IOError("阁下总得读点什么吧？🤒")
-        
-        
-def read_index_three(day:int=None)->tuple[pd.DataFrame]:
+
+
+def read_index_three(day: int = None) -> tuple[pd.DataFrame]:
     """读取三大指数的原始行情数据，返回并保存在本地
 
     Parameters
@@ -160,7 +161,7 @@ def read_index_three(day:int=None)->tuple[pd.DataFrame]:
     -------
     tuple[pd.DataFrame]
         分别返回沪深300、中证500、中证1000的行情数据
-    """    
+    """
     if day is None:
         day = STATES["START"]
     res = pd.read_feather(homeplace.daily_data_file + "3510行情.feather").set_index(
@@ -184,7 +185,7 @@ def read_index_three(day:int=None)->tuple[pd.DataFrame]:
     return hs300, zz500, zz1000
 
 
-def read_industry_prices(day:int=None, monthly:bool=1)->pd.DataFrame:
+def read_industry_prices(day: int = None, monthly: bool = 1) -> pd.DataFrame:
     """读取申万一级行业指数的日行情或月行情
 
     Parameters
@@ -198,7 +199,7 @@ def read_industry_prices(day:int=None, monthly:bool=1)->pd.DataFrame:
     -------
     pd.DataFrame
         申万一级行业的行情数据
-    """    
+    """
     if day is None:
         day = STATES["START"]
     df = pd.read_feather(homeplace.daily_data_file + "各行业行情数据.feather").set_index(
@@ -209,7 +210,7 @@ def read_industry_prices(day:int=None, monthly:bool=1)->pd.DataFrame:
     return df
 
 
-def get_industry_dummies(daily:bool=0, monthly:bool=0)->dict:
+def get_industry_dummies(daily: bool = 0, monthly: bool = 0) -> dict:
     """生成31个行业的哑变量矩阵，返回一个字典
 
     Parameters
@@ -259,8 +260,7 @@ def get_industry_dummies(daily:bool=0, monthly:bool=0)->dict:
     return ress
 
 
-
-def database_save_final_factors(df: pd.DataFrame, name: str, order: int)->None:
+def database_save_final_factors(df: pd.DataFrame, name: str, order: int) -> None:
     """保存最终因子的因子值
 
     Parameters
@@ -271,7 +271,7 @@ def database_save_final_factors(df: pd.DataFrame, name: str, order: int)->None:
         因子的名字，如“适度冒险”
     order : int
         因子的序号
-    """    
+    """
     homeplace = HomePlace()
     path = homeplace.final_factor_file + name + "_" + "多因子" + str(order) + ".feather"
     df.reset_index().to_feather(path)

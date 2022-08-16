@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = '2022-08-16 15:36:27'
+__updated__ = "2022-08-16 15:51:02"
 
 import h5py
 import pandas as pd
@@ -11,6 +11,7 @@ import datetime
 import scipy.io as scio
 import numpy as np
 import rqdatac
+
 rqdatac.init()
 
 
@@ -117,6 +118,7 @@ def get_value(df: pd.DataFrame, n: int) -> pd.DataFrame:
     pd.DataFrame
         仅有第n个值构成的pd.DataFrame
     """
+
     def get_value_single(x, n):
         try:
             return x[n]
@@ -127,7 +129,7 @@ def get_value(df: pd.DataFrame, n: int) -> pd.DataFrame:
     return df
 
 
-def indus_name(df:pd.DataFrame, col_name:str=None)->pd.DataFrame:
+def indus_name(df: pd.DataFrame, col_name: str = None) -> pd.DataFrame:
     """将2021版申万行业的代码，转化为对应行业的名字
 
     Parameters
@@ -141,7 +143,7 @@ def indus_name(df:pd.DataFrame, col_name:str=None)->pd.DataFrame:
     -------
     pd.DataFrame
         转化后的pd.DataFrame
-    """    
+    """
     names = pd.DataFrame(
         {
             "indus_we_cant_same": [
@@ -226,20 +228,20 @@ def indus_name(df:pd.DataFrame, col_name:str=None)->pd.DataFrame:
     return df
 
 
-def rqdatac_show_used()->float:
+def rqdatac_show_used() -> float:
     """查询流量使用情况
 
     Returns
     -------
     float
         当日已经使用的流量MB数
-    """    
+    """
     user2 = round(rqdatac.user.get_quota()["bytes_used"] / 1024 / 1024, 2)
     print(f"今日已使用rqsdk流量{user2}MB")
     return user2
 
 
-def add_suffix(code:str)->str:
+def add_suffix(code: str) -> str:
     """给没有后缀的股票代码加上wind后缀
 
     Parameters
@@ -251,7 +253,7 @@ def add_suffix(code:str)->str:
     -------
     str
         加完wind后缀的股票代码
-    """    
+    """
     if code.startswith("0") or code.startswith("3"):
         code = code + ".SZ"
     elif code.startswith("6"):
@@ -263,8 +265,9 @@ def add_suffix(code:str)->str:
     return code
 
 
-
-def 生成每日分类表(df:pd.DataFrame, code:str, entry:str, exit:str, kind:str)->pd.DataFrame:
+def 生成每日分类表(
+    df: pd.DataFrame, code: str, entry: str, exit: str, kind: str
+) -> pd.DataFrame:
     """df是要包含任意多列的表格，为dataframe格式，主要内容为，每一行是
     一只股票或一只基金的代码、分类、进入该分类的时间、移除该分类的时间，
     除此之外，还可以包含很多其他内容

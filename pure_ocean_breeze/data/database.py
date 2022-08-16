@@ -1,4 +1,4 @@
-__updated__ = '2022-08-16 15:37:00'
+__updated__ = "2022-08-16 15:50:43"
 
 import pandas as pd
 import pymysql
@@ -7,6 +7,7 @@ from sqlalchemy import FLOAT, INT, VARCHAR, BIGINT
 from loguru import logger
 import datetime
 from pure_ocean_breeze.state.state import STATES
+
 
 class sqlConfig(object):
     def __init__(
@@ -207,8 +208,8 @@ class sqlConfig(object):
             l = round(l, 2)
             print(f"共用时{l}秒")
         return res
-    
-    
+
+
 class ClickHouseClient(object):
     """clickhouse的一些功能，clickhouse写入数据前，需要先创建表格，表格如果不存在则不能写入
         clickhouse创建表格使用语句如下

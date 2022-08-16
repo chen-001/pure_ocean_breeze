@@ -1,7 +1,8 @@
-__updated__ = '2022-08-16 15:36:18'
+__updated__ = "2022-08-16 15:51:09"
 
 from turtle import home
 import rqdatac
+
 rqdatac.init()
 from loguru import logger
 import os
@@ -16,12 +17,14 @@ import pickledb
 import tqdm
 import dcube as dc
 from pure_ocean_breeze.state.homeplace import HomePlace
-homeplace=HomePlace()
+
+homeplace = HomePlace()
 pro = dc.pro_api(homeplace.api_token)
-from pure_ocean_breeze.data.database import sqlConfig,ClickHouseClient
+from pure_ocean_breeze.data.database import sqlConfig, ClickHouseClient
 from pure_ocean_breeze.data.read_data import read_daily
-from pure_ocean_breeze.data.dicts import INDUS_DICT,INDEX_DICT
+from pure_ocean_breeze.data.dicts import INDUS_DICT, INDEX_DICT
 from pure_ocean_breeze.data.tools import 生成每日分类表
+
 
 def database_update_minute_data_to_clickhouse(kind: str) -> None:
     """使用米筐更新分钟数据至clickhouse中
@@ -35,7 +38,7 @@ def database_update_minute_data_to_clickhouse(kind: str) -> None:
     ------
     IOError
         如果未指定股票还是指数，将报错
-    """    
+    """
     if kind == "stock":
         code_type = "CS"
     elif kind == "index":
@@ -103,8 +106,7 @@ def database_update_minute_data_to_clickhouse(kind: str) -> None:
     user2 = round(rqdatac.user.get_quota()["bytes_used"] / 1024 / 1024, 2)
     user12 = round(user2 - user1, 2)
     logger.info(f"今日已使用rqsdk流量{user2}MB，本项更新消耗流量{user12}MB")
-    
-    
+
 
 def database_update_minute_data_to_mysql(kind: str) -> None:
     """使用米筐更新分钟数据至mmysql中
@@ -118,7 +120,7 @@ def database_update_minute_data_to_mysql(kind: str) -> None:
     ------
     IOError
         如果未指定股票还是指数，将报错
-    """    
+    """
     if kind == "stock":
         code_type = "CS"
     elif kind == "index":
@@ -279,8 +281,8 @@ def database_update_minute_data_to_mysql(kind: str) -> None:
     user2 = round(rqdatac.user.get_quota()["bytes_used"] / 1024 / 1024, 2)
     user12 = round(user2 - user1, 2)
     logger.info(f"今日已使用rqsdk流量{user2}MB，本项更新消耗流量{user12}MB")
-    
-    
+
+
 @retry
 def download_single_daily(day):
     """更新单日的数据"""
@@ -355,7 +357,7 @@ def download_calendar(startdate, enddate):
         return df0
 
 
-def database_update_daily_files(startdate: str = None, enddate: str = None)->None:
+def database_update_daily_files(startdate: str = None, enddate: str = None) -> None:
     """更新数据库中的日频数据
 
     Parameters
@@ -369,7 +371,7 @@ def database_update_daily_files(startdate: str = None, enddate: str = None)->Non
     ------
     ValueError
         如果上次更新到本次更新没有新的交易日，将报错
-    """    
+    """
     read_daily.clear_cache()
     homeplace = HomePlace()
     config = pickledb.load(homeplace.update_data_file + "database_config.db", False)
@@ -604,8 +606,7 @@ def database_update_daily_files(startdate: str = None, enddate: str = None)->Non
     logger.success(
         f"日频数据已更新，现在最新的是{datetime.datetime.strftime(pd.Timestamp(enddate)-pd.Timedelta(days=1),format='%Y-%m-%d')}"
     )
-    
-    
+
 
 @retry
 def download_single_day_style(day):
@@ -787,8 +788,8 @@ def download_single_industry_member(ind):
         df = pro.index_member(index_code=ind)
         time.sleep(1)
         return df
-    
-    
+
+
 def database_update_industry_member():
     dfs = []
     for ind in tqdm.tqdm(INDUS_DICT.keys()):
@@ -812,9 +813,7 @@ def database_update_industry_member():
     new_date = dfs.date.max()
     new_date = datetime.datetime.strftime(new_date, "%Y%m%d")
     logger.success(f"申万一级行业成分股(哑变量)已经更新至{new_date}")
-    
-    
-    
+
 
 @retry
 def download_single_index_member_monthly(code):
@@ -890,38 +889,37 @@ def database_update_index_members_monthly():
         download_single_index_member_monthly(k)
 
 
-
 def download_single_index_member(code):
     file = homeplace.daily_data_file + INDEX_DICT[code] + "日成分股.feather"
-    if code.endswith('.SH'):
-        code=code[:6]+'.XSHG'
-    elif code.endswith('.SZ'):
-        code=code[:6]+'.XSHE'
-    now=datetime.datetime.now()
-    df=rqdatac.index_components(code, start_date='20100101', end_date=now, market='cn')
-    ress=[]
-    for k,v in df.items():
-        res=pd.DataFrame(1,index=[pd.Timestamp(k)],columns=v)
+    if code.endswith(".SH"):
+        code = code[:6] + ".XSHG"
+    elif code.endswith(".SZ"):
+        code = code[:6] + ".XSHE"
+    now = datetime.datetime.now()
+    df = rqdatac.index_components(
+        code, start_date="20100101", end_date=now, market="cn"
+    )
+    ress = []
+    for k, v in df.items():
+        res = pd.DataFrame(1, index=[pd.Timestamp(k)], columns=v)
         ress.append(res)
-    ress=pd.concat(ress)
-    ress.columns=[convert_code(i)[0] for i in list(ress.columns)]
-    tr=np.sign(read_daily(tr=1,start=20100101))
-    rt=np.sign(tr+ress)
-    now_str=datetime.datetime.strftime(now,'%Y%m%d')
+    ress = pd.concat(ress)
+    ress.columns = [convert_code(i)[0] for i in list(ress.columns)]
+    tr = np.sign(read_daily(tr=1, start=20100101))
+    rt = np.sign(tr + ress)
+    now_str = datetime.datetime.strftime(now, "%Y%m%d")
     tr.reset_index().to_feather(file)
-    logger.success(f'已将{INDEX_DICT[convert_code(code)[0]]}日成分股更新至{now_str}')
-    
-    
+    logger.success(f"已将{INDEX_DICT[convert_code(code)[0]]}日成分股更新至{now_str}")
+
+
 def database_update_index_members():
     for k in list(INDEX_DICT.keys()):
         download_single_index_member(k)
-        
-        
-        
+
 
 def database_read_final_factors(
-    name: str = None, order: int = None, output:bool=0, new:bool=0
-) -> tuple[pd.DataFrame,str]:
+    name: str = None, order: int = None, output: bool = 0, new: bool = 0
+) -> tuple[pd.DataFrame, str]:
     """根据因子名字，或因子序号，读取最终因子的因子值
 
     Parameters
@@ -939,7 +937,7 @@ def database_read_final_factors(
     -------
     tuple[pd.DataFrame,str]
         最终因子值和文件路径
-    """    
+    """
     homeplace = HomePlace()
     facs = os.listdir(homeplace.final_factor_file)
     if name is None and order is None:
@@ -1022,12 +1020,10 @@ def database_read_final_factors(
             logger.success(f"截至{final_date}的因子值已保存")
         return df, fac_name
     else:
-        return df,''
+        return df, ""
 
 
-def database_read_primary_factors(
-    name: str = None
-) -> pd.DataFrame:
+def database_read_primary_factors(name: str = None) -> pd.DataFrame:
     """根据因子名字，读取初级因子的因子值
 
     Parameters
@@ -1039,11 +1035,11 @@ def database_read_primary_factors(
     -------
     pd.DataFrame
         初级因子的因子值
-    """    
+    """
     homeplace = HomePlace()
-    name = name+'_初级.feather'
-    df = pd.read_feather(homeplace.factor_data_file+name)
-    df = df.rename(columns={list(df.columns)[0]:'date'})
-    df = df.set_index('date')
+    name = name + "_初级.feather"
+    df = pd.read_feather(homeplace.factor_data_file + name)
+    df = df.rename(columns={list(df.columns)[0]: "date"})
+    df = df.set_index("date")
     df = df[sorted(list(df.columns))]
     return df

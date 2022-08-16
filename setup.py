@@ -10,7 +10,7 @@ setup(
     description="芷琦哥的回测框架",
     # long_description="详见homepage\nhttps://github.com/chen-001/pure_ocean_breeze.git",
     long_description=long_description,
-    long_description_content_type="text/markdown"
+    long_description_content_type="text/markdown",
     author="chenzongwei",
     author_email="17695480342@163.com",
     url="https://github.com/chen-001/pure_ocean_breeze.git",

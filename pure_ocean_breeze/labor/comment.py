@@ -1,4 +1,4 @@
-__updated__ = '2022-08-16 15:36:15'
+__updated__ = "2022-08-16 15:51:29"
 
 import numpy as np
 import pandas as pd
@@ -6,12 +6,16 @@ import matplotlib as mpl
 
 mpl.rcParams.update(mpl.rcParamsDefault)
 import matplotlib.pyplot as plt
-plt.style.use(['science','no-latex','notebook'])
+
+plt.style.use(["science", "no-latex", "notebook"])
 plt.rcParams["axes.unicode_minus"] = False
-from pure_ocean_breeze.data.read_data import read_index_three,read_daily
+from pure_ocean_breeze.data.read_data import read_index_three, read_daily
 from pure_ocean_breeze.labor.process import pure_moonnight
 
-def comment_on_rets_and_nets(rets:pd.Series, nets:pd.Series, name:str='绩效')->pd.DataFrame:
+
+def comment_on_rets_and_nets(
+    rets: pd.Series, nets: pd.Series, name: str = "绩效"
+) -> pd.DataFrame:
     """输入月频的收益率序列和净值序列，输出年化收益、年化波动、信息比率、月度胜率和最大回撤率
     输入2个pd.Series，时间是索引
 
@@ -28,7 +32,7 @@ def comment_on_rets_and_nets(rets:pd.Series, nets:pd.Series, name:str='绩效')-
     -------
     pd.DataFrame
         包含年化收益、年化波动、信息比率、月度胜率和最大回撤率的评价指标
-    """    
+    """
     duration_nets = (nets.index[-1] - nets.index[0]).days
     year_nets = duration_nets / 365
     ret_yearly = (nets.iloc[-1] / nets.iloc[0]) ** (1 / year_nets) - 1
@@ -49,7 +53,7 @@ def comment_on_rets_and_nets(rets:pd.Series, nets:pd.Series, name:str='绩效')-
     return comments
 
 
-def comments_on_twins(nets:pd.Series, rets:pd.Series)->pd.Series:
+def comments_on_twins(nets: pd.Series, rets: pd.Series) -> pd.Series:
     """输入月频的收益率序列和净值序列，给出评价
     评价指标包括年化收益率、总收益率、年化波动率、年化夏普比率、最大回撤率、胜率
     输入2个pd.Series，时间是索引
@@ -65,9 +69,9 @@ def comments_on_twins(nets:pd.Series, rets:pd.Series)->pd.Series:
     -------
     pd.Series
         包含年化收益率、总收益率、年化波动率、年化夏普比率、最大回撤率、胜率的评价指标
-    """    
-    series=nets.copy()
-    series1=rets.copy()
+    """
+    series = nets.copy()
+    series1 = rets.copy()
     ret = (series.iloc[-1] - series.iloc[0]) / series.iloc[0]
     duration = (series.index[-1] - series.index[0]).days
     year = duration / 365
@@ -81,9 +85,11 @@ def comments_on_twins(nets:pd.Series, rets:pd.Series)->pd.Series:
         [ret, ret_yearly, vol, sharpe, win_rate, max_draw],
         index=["总收益率", "年化收益率", "年化波动率", "信息比率", "胜率", "最大回撤率"],
     )
-    
 
-def comments_on_twins_periods(nets:pd.Series, rets:pd.Series, periods:int)->pd.Series:
+
+def comments_on_twins_periods(
+    nets: pd.Series, rets: pd.Series, periods: int
+) -> pd.Series:
     """输入其他频率的收益率序列和净值序列，给出评价
     评价指标包括年化收益率、总收益率、年化波动率、年化夏普比率、最大回撤率、胜率
     输入2个pd.Series，时间是索引
@@ -101,9 +107,9 @@ def comments_on_twins_periods(nets:pd.Series, rets:pd.Series, periods:int)->pd.S
     -------
     pd.Series
         包含年化收益率、总收益率、年化波动率、年化夏普比率、最大回撤率、胜率的评价指标
-    """  
-    series=nets.copy()
-    series1=rets.copy()
+    """
+    series = nets.copy()
+    series1 = rets.copy()
     ret = (series.iloc[-1] - series.iloc[0]) / series.iloc[0]
     duration = (series.index[-1] - series.index[0]).days
     year = duration / 365
@@ -117,9 +123,15 @@ def comments_on_twins_periods(nets:pd.Series, rets:pd.Series, periods:int)->pd.S
         [ret, ret_yearly, vol, sharpe, win_rate, max_draw],
         index=["总收益率", "年化收益率", "年化波动率", "信息比率", "胜率", "最大回撤率"],
     )
-    
-    
-def make_relative_comments(ret_fac:pd.Series, hs300:bool=0, zz500:bool=0, zz1000:bool=0, day:int=None)->pd.Series:
+
+
+def make_relative_comments(
+    ret_fac: pd.Series,
+    hs300: bool = 0,
+    zz500: bool = 0,
+    zz1000: bool = 0,
+    day: int = None,
+) -> pd.Series:
     """对于一个给定的收益率序列，计算其相对于某个指数的超额表现
 
     Parameters
@@ -144,7 +156,7 @@ def make_relative_comments(ret_fac:pd.Series, hs300:bool=0, zz500:bool=0, zz1000
     ------
     IOError
         如果没指定任何一个指数，将报错
-    """    
+    """
     if hs300:
         net_index = read_index_three(day=day)[0]
     elif zz500:
@@ -165,7 +177,13 @@ def make_relative_comments(ret_fac:pd.Series, hs300:bool=0, zz500:bool=0, zz1000
     return com
 
 
-def make_relative_comments_plot(ret_fac:pd.Series, hs300:bool=0, zz500:bool=0, zz1000:bool=0, day:int=None)->pd.Series:
+def make_relative_comments_plot(
+    ret_fac: pd.Series,
+    hs300: bool = 0,
+    zz500: bool = 0,
+    zz1000: bool = 0,
+    day: int = None,
+) -> pd.Series:
     """对于一个给定的收益率序列，计算其相对于某个指数的超额表现，然后绘图，并返回超额净值序列
 
     Parameters
@@ -190,7 +208,7 @@ def make_relative_comments_plot(ret_fac:pd.Series, hs300:bool=0, zz500:bool=0, z
     ------
     IOError
         如果没指定任何一个指数，将报错
-    """    
+    """
     if hs300:
         net_index = read_index_three(day=day)[0]
     elif zz500:
@@ -213,7 +231,7 @@ def make_relative_comments_plot(ret_fac:pd.Series, hs300:bool=0, zz500:bool=0, z
     return net
 
 
-def comments_ten(shen:pure_moonnight)->pd.DataFrame:
+def comments_ten(shen: pure_moonnight) -> pd.DataFrame:
     """对回测的十分组结果分别给出评价
 
     Parameters
@@ -225,7 +243,7 @@ def comments_ten(shen:pure_moonnight)->pd.DataFrame:
     -------
     pd.DataFrame
         评价指标包括年化收益率、总收益率、年化波动率、年化夏普比率、最大回撤率、胜率
-    """    
+    """
     rets_cols = list(shen.shen.group_rets.columns)
     rets_cols = rets_cols[:-1]
     coms = []
@@ -240,14 +258,14 @@ def comments_ten(shen:pure_moonnight)->pd.DataFrame:
 
 
 def other_periods_comments_nets(
-    fac:pd.DataFrame,
-    way:str,
-    period:int,
-    comments_writer:pd.ExcelWriter=None,
-    nets_writer:pd.ExcelWriter=None,
-    sheetname:str=None,
-    group_num:int=10,
-)->tuple[pd.Series]:
+    fac: pd.DataFrame,
+    way: str,
+    period: int,
+    comments_writer: pd.ExcelWriter = None,
+    nets_writer: pd.ExcelWriter = None,
+    sheetname: str = None,
+    group_num: int = 10,
+) -> tuple[pd.Series]:
     """小型回测框架，不同频率下的评价指标，请输入行业市值中性化后的因子值
 
     Parameters
@@ -271,8 +289,9 @@ def other_periods_comments_nets(
     -------
     tuple[pd.Series]
         绩效和净值
-    """    
+    """
     import alphalens as al
+
     closes = read_daily(open=1).shift(-1)
     fac1 = fac.stack()
     df = al.utils.get_clean_factor_and_forward_returns(

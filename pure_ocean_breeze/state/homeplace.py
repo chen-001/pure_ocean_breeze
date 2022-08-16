@@ -1,11 +1,12 @@
-'''
+"""
 初始化时保存的路径
-'''
+"""
 
-__updated__ = '2022-08-16 15:38:08'
+__updated__ = "2022-08-16 15:52:53"
 
 import os
 import pickle
+
 
 class HomePlace(object):
     __slots__ = [

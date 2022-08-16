@@ -1,8 +1,8 @@
-'''
+"""
 一个量化多因子研究的框架，包含数据、回测、因子加工等方面的功能
-'''
+"""
 
-__all__ = ['data','labor','state','mail','pure_ocean_breeze']
+__all__ = ["data", "labor", "state", "mail", "pure_ocean_breeze"]
 
 from pure_ocean_breeze import state
 from pure_ocean_breeze import data

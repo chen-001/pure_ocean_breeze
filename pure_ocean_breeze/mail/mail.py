@@ -1,4 +1,4 @@
-__updated__ = '2022-08-16 15:21:37'
+__updated__ = "2022-08-16 15:52:02"
 
 from tenacity import retry
 from loguru import logger
@@ -7,6 +7,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.header import Header
 from email.mime.application import MIMEApplication
+
 
 class pure_mail(object):
     def __init__(self, host, user, pwd, port=465):

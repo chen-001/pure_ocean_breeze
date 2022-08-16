@@ -1,4 +1,4 @@
-__updated__ = "2022-08-16 15:36:16"
+__updated__ = "2022-08-16 15:53:12"
 
 import numpy as np
 import pandas as pd
@@ -2847,14 +2847,14 @@ class pure_coldwinter(object):
 class pure_snowtrain(pure_coldwinter):
     """直接返回纯净因子"""
 
-    def __init__(self, factors:pd.DataFrame)->None:
+    def __init__(self, factors: pd.DataFrame) -> None:
         """计算因子值与10种常用风格因子之间的相关性，并进行纯净化
 
         Parameters
         ----------
         factors : pd.DataFrame
             要考察的因子值，index为时间，columns为股票代码，values为因子值
-        """        
+        """
         super(pure_snowtrain, self).__init__()
         self.set_factors_df_wide(factors.copy())
         self.run()
@@ -2880,7 +2880,7 @@ class pure_newyear(object):
         group_num_single: int,
         namex: str = "主",
         namey: str = "次",
-    )->None:
+    ) -> None:
         """条件双变量排序法，先对所有股票，依照因子facx进行排序
         然后在每个组内，依照facy进行排序，最后统计各个组内的平均收益率
 
@@ -2898,7 +2898,7 @@ class pure_newyear(object):
             facx这一因子的名字, by default "主"
         namey : str, optional
             facy这一因子的名字, by default "次"
-        """        
+        """
         homex = pure_fallmount(facx)
         homey = pure_fallmount(facy)
         if group_num_single == 5:
@@ -2913,16 +2913,15 @@ class pure_newyear(object):
         sq.columns = [namey + str(i) for i in list(sq.columns)]
         self.square_rets = sq
 
-    def __call__(self)->pd.DataFrame:
+    def __call__(self) -> pd.DataFrame:
         """调用对象时，返回最终结果，正方形的分组年化收益率表
 
         Returns
         -------
         pd.DataFrame
             每个组的年化收益率
-        """        
+        """
         return self.square_rets.copy()
-
 
 
 class pure_dawn(object):
@@ -2958,7 +2957,7 @@ class pure_dawn(object):
     cut4=get_value(cut(),4)
     """
 
-    def __init__(self, fac1:pd.DataFrame, fac2:pd.DataFrame, *args:list)->None:
+    def __init__(self, fac1: pd.DataFrame, fac2: pd.DataFrame, *args: list) -> None:
         """几个因子的操作，每个月操作一次
 
         Parameters
@@ -2967,7 +2966,7 @@ class pure_dawn(object):
             因子值1，index为时间，columns为股票代码，values为因子值
         fac2 : pd.DataFrame
             因子2，index为时间，columns为股票代码，values为因子值
-        """        
+        """
         self.fac1 = fac1
         self.fac1 = self.fac1.stack().reset_index()
         self.fac1.columns = ["date", "code", "fac1"]
@@ -2982,14 +2981,14 @@ class pure_dawn(object):
         fac_all = fac_all.sort_values(["date", "code"])
         self.fac = fac_all.copy()
 
-    def __call__(self)->pd.DataFrame:
+    def __call__(self) -> pd.DataFrame:
         """返回最终月度因子值
 
         Returns
         -------
         pd.DataFrame
             最终因子值
-        """        
+        """
         return self.fac.copy()
 
     def get_fac_long_and_tradedays(self):
@@ -3047,7 +3046,7 @@ class pure_dawn(object):
         self.fac = self.fac.resample("M").last()
 
     @kk.desktop_sender(title="嘿，切割完成啦🛁")
-    def run(self, func:Callable, backsee:int=20)->None:
+    def run(self, func: Callable, backsee: int = 20) -> None:
         """执行计算的框架，产生因子值
 
         Parameters
@@ -3056,9 +3055,7 @@ class pure_dawn(object):
             每个月要进行的操作
         backsee : int, optional
             回看期，即每个月月底对过去多少天进行计算, by default 20
-        """        
+        """
         self.get_fac_long_and_tradedays()
         self.get_month_starts_and_ends(backsee=backsee)
         self.get_monthly_factor(func)
-
-
