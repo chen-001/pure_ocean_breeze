@@ -52,14 +52,25 @@ extra_javascript:
 #     language: 'jp'
 
 plugins:
-  - mkdocstrings
+  - autorefs
+  - mkdocstrings:
+      handlers:
+        python:
+          setup_commands:
+          - import sys
+          - sys.path.append("docs")
+          selection:
+            new_path_syntax: yes
+      watch:
+      - src/mkdocstrings
   - search:
       lang:
           - en
           - ja
       separator: '[\s\-\.]+'
 
-
+extra_css:
+  - css/mkdocstrings.css
 
 theme:
   name: material
