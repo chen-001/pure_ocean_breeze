@@ -62,7 +62,7 @@ plugins:
           selection:
             new_path_syntax: yes
       watch:
-      - src/mkdocstrings
+      - docs/src/mkdocstrings
   - search:
       lang:
           - en

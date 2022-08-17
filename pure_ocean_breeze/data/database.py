@@ -1,4 +1,4 @@
-__updated__ = "2022-08-16 15:50:43"
+__updated__ = "2022-08-17 15:55:31"
 
 import pandas as pd
 import pymysql
@@ -179,10 +179,34 @@ class sqlConfig(object):
     ) -> pd.DataFrame:
         """
         从数据库中读取数据，
-        table_name为表名，数字开头的加键盘左上角的`符号，形如`000001.SZ`或`20220717`
-        fields形如'date,close,open.amount'，不指定则默认读入所有列
-        startdate形如20130326，不指定则默认从头读
-        enddate形如20220721，不指定则默认读到尾
+        `table_name`为表名，数字开头的加键盘左上角的
+        ```sql
+        ` 
+        ```
+        符号
+        形如
+        ```sql
+        `000001.SZ`
+        ```
+        或
+        ```sql
+        `20220717`
+        ```
+        `fields`形如
+        ```sql
+        'date,close,open.amount'
+        ```
+        不指定则默认读入所有列
+        `startdate`形如
+        ```sql
+        `20130326`
+        ```
+        不指定则默认从头读
+        `enddate`形如
+        ```sql
+        `20220721`
+        ```
+        不指定则默认读到尾
         """
         if show_time:
             a = datetime.datetime.now()
@@ -213,23 +237,27 @@ class sqlConfig(object):
 class ClickHouseClient(object):
     """clickhouse的一些功能，clickhouse写入数据前，需要先创建表格，表格如果不存在则不能写入
         clickhouse创建表格使用语句如下
-    CREATE TABLE minute_data.minute_data
-    (   `date` int,
-        `num` int,
-        `code` VARCHAR(9),
-        `open` int,
-        `high` int,
-        `low` int,
-        `close` int,
-        `amount` bigint,
-        `money` bigint
-    ) ENGINE = ReplacingMergeTree()
-          PRIMARY KEY(date,num)
-          ORDER BY (date, num);
-        其中如果主键不制定，则会默认为第一个，主键不能重复，因此会自动保留最后一个。
-        创建表格后，需插入一行数，才算创建成功，否则依然不能写入，插入语句如下
-    INSERT INTO minute_data.minute_data (date, code, open, high, low, close, amount, money, num) VALUES
-                                             (0,0,0,0,0,0,0,0,0);
+        ```sql
+        CREATE TABLE minute_data.minute_data
+        (   `date` int,
+            `num` int,
+            `code` VARCHAR(9),
+            `open` int,
+            `high` int,
+            `low` int,
+            `close` int,
+            `amount` bigint,
+            `money` bigint
+        ) ENGINE = ReplacingMergeTree()
+            PRIMARY KEY(date,num)
+            ORDER BY (date, num);
+        ```
+            其中如果主键不制定，则会默认为第一个，主键不能重复，因此会自动保留最后一个。
+            创建表格后，需插入一行数，才算创建成功，否则依然不能写入，插入语句如下
+        ```sql
+        INSERT INTO minute_data.minute_data (date, code, open, high, low, close, amount, money, num) VALUES
+                                                (0,0,0,0,0,0,0,0,0);
+        ```
     """
 
     def __init__(

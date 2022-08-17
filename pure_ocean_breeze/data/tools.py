@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2022-08-16 15:51:02"
+__updated__ = "2022-08-17 16:01:16"
 
 import h5py
 import pandas as pd
@@ -26,7 +26,7 @@ def read_h5(path: str) -> dict:
 
     Returns
     -------
-    dict
+    `dict`
         A dictionary of pandas DataFrames.
     """
     res = {}
@@ -49,7 +49,7 @@ def read_h5_new(path: str) -> pd.DataFrame:
 
     Returns
     -------
-    pd.DataFrame
+    `pd.DataFrame`
         读取字典的第一个value
     """
     a = h5py.File(path)
@@ -68,7 +68,7 @@ def read_mat(path: str) -> pd.DataFrame:
 
     Returns
     -------
-    pd.DataFrame
+    `pd.DataFrame`
         字典的第4个value
     """
     return list(scio.loadmat(path).values())[3]
@@ -84,7 +84,7 @@ def convert_code(x: str) -> tuple[str, str]:
 
     Returns
     -------
-    tuple[str,str]
+    `tuple[str,str]`
         转换后的股票/指数代码，以及该代码属于股票还是指数
     """
     x1 = x.split("/")[-1].split(".")[0]
@@ -115,7 +115,7 @@ def get_value(df: pd.DataFrame, n: int) -> pd.DataFrame:
 
     Returns
     -------
-    pd.DataFrame
+    `pd.DataFrame`
         仅有第n个值构成的pd.DataFrame
     """
 
@@ -141,7 +141,7 @@ def indus_name(df: pd.DataFrame, col_name: str = None) -> pd.DataFrame:
 
     Returns
     -------
-    pd.DataFrame
+    `pd.DataFrame`
         转化后的pd.DataFrame
     """
     names = pd.DataFrame(
@@ -233,7 +233,7 @@ def rqdatac_show_used() -> float:
 
     Returns
     -------
-    float
+    `float`
         当日已经使用的流量MB数
     """
     user2 = round(rqdatac.user.get_quota()["bytes_used"] / 1024 / 1024, 2)
@@ -251,7 +251,7 @@ def add_suffix(code: str) -> str:
 
     Returns
     -------
-    str
+    `str`
         加完wind后缀的股票代码
     """
     if code.startswith("0") or code.startswith("3"):
@@ -268,13 +268,17 @@ def add_suffix(code: str) -> str:
 def 生成每日分类表(
     df: pd.DataFrame, code: str, entry: str, exit: str, kind: str
 ) -> pd.DataFrame:
-    """df是要包含任意多列的表格，为dataframe格式，主要内容为，每一行是
+    """
+    ```
+    df是要包含任意多列的表格，为dataframe格式，主要内容为，每一行是
     一只股票或一只基金的代码、分类、进入该分类的时间、移除该分类的时间，
     除此之外，还可以包含很多其他内容
     code是股票代码列的列名，为字符串格式；
     entry是股票进入该分类的日期的列名，为字符串格式
     exit是股票退出该分类的日期的列名，为字符串格式
-    kind是分类列的列名，为字符串格式"""
+    kind是分类列的列名，为字符串格式
+    ```
+    """
     df = df[[code, entry, exit, kind]]
     df = df.fillna(int(datetime.datetime.now().strftime("%Y%m%d")))
     try:

@@ -1,4 +1,4 @@
-__updated__ = '2022-08-16 16:16:32'
+__updated__ = '2022-08-17 15:44:43'
 
 from setuptools import setup
 import setuptools

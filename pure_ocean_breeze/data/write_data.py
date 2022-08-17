@@ -1,4 +1,4 @@
-__updated__ = "2022-08-16 15:51:09"
+__updated__ = "2022-08-17 16:02:30"
 
 from turtle import home
 import rqdatac
@@ -36,7 +36,7 @@ def database_update_minute_data_to_clickhouse(kind: str) -> None:
 
     Raises
     ------
-    IOError
+    `IOError`
         如果未指定股票还是指数，将报错
     """
     if kind == "stock":
@@ -118,7 +118,7 @@ def database_update_minute_data_to_mysql(kind: str) -> None:
 
     Raises
     ------
-    IOError
+    `IOError`
         如果未指定股票还是指数，将报错
     """
     if kind == "stock":
@@ -369,7 +369,7 @@ def database_update_daily_files(startdate: str = None, enddate: str = None) -> N
 
     Raises
     ------
-    ValueError
+    `ValueError`
         如果上次更新到本次更新没有新的交易日，将报错
     """
     read_daily.clear_cache()
@@ -935,7 +935,7 @@ def database_read_final_factors(
 
     Returns
     -------
-    tuple[pd.DataFrame,str]
+    `tuple[pd.DataFrame,str]`
         最终因子值和文件路径
     """
     homeplace = HomePlace()
@@ -1033,7 +1033,7 @@ def database_read_primary_factors(name: str = None) -> pd.DataFrame:
 
     Returns
     -------
-    pd.DataFrame
+    `pd.DataFrame`
         初级因子的因子值
     """
     homeplace = HomePlace()

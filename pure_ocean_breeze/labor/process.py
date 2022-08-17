@@ -1,4 +1,4 @@
-__updated__ = "2022-08-17 11:29:56"
+__updated__ = "2022-08-17 16:06:37"
 
 import numpy as np
 import pandas as pd
@@ -61,12 +61,12 @@ def daily_factor_on300500(
 
     Returns
     -------
-    pd.DataFrame
+    `pd.DataFrame`
         仅包含成分股后的因子值，非成分股的因子值为空
 
     Raises
     ------
-    ValueError
+    `ValueError`
         如果未指定任何一种指数的成分股，将报错
     """
     last = fac.resample("M").last()
@@ -243,7 +243,7 @@ def select_max(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
 
     Returns
     -------
-    pd.DataFrame
+    `pd.DataFrame`
         两个df每个value中的较大者
     """
     return (df1 + df2 + np.abs(df1 - df2)) / 2
@@ -261,7 +261,7 @@ def select_min(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
 
     Returns
     -------
-    pd.DataFrame
+    `pd.DataFrame`
         两个df每个value中的较小者
     """
     return (df1 + df2 - np.abs(df1 - df2)) / 2
@@ -282,12 +282,12 @@ def decap(df: pd.DataFrame, daily: bool = 0, monthly: bool = 0) -> pd.DataFrame:
 
     Returns
     -------
-    pd.DataFrame
+    `pd.DataFrame`
         市值中性化之后的因子
 
     Raises
     ------
-    NotImplementedError
+    `NotImplementedError`
         如果未指定日频或月频，将报错
     """
     tqdm.tqdm.pandas()
@@ -336,12 +336,12 @@ def decap_industry(
 
     Returns
     -------
-    pd.DataFrame
+    `pd.DataFrame`
         行业市值中性化之后的因子
 
     Raises
     ------
-    NotImplementedError
+    `NotImplementedError`
         如果未指定日频或月频，将报错
     """
     last = df.resample("M").last()
@@ -421,7 +421,7 @@ def deboth(df: pd.DataFrame) -> pd.DataFrame:
 
     Returns
     -------
-    pd.DataFrame
+    `pd.DataFrame`
         行业市值中性化之后的因子
     """
     shen = pure_moonnight(df, boxcox=1, plt_plot=0, print_comments=0)
@@ -438,7 +438,7 @@ def detect_nan(df: pd.DataFrame) -> bool:
 
     Returns
     -------
-    bool
+    `bool`
         检查结果，有空值为True，否则为False
     """
     x = np.sum(df.to_numpy().flatten())
@@ -468,7 +468,7 @@ def boom_four(
 
     Returns
     -------
-    tuple[pd.DataFrame]
+    `tuple[pd.DataFrame]`
         6个因子的元组
     """
     if min_periods is None:
@@ -506,7 +506,7 @@ def get_abs(df: pd.DataFrame, median: bool = 0, square: bool = 0) -> pd.DataFram
 
     Returns
     -------
-    pd.DataFrame
+    `pd.DataFrame`
         _description_
     """
     if not square:
@@ -526,7 +526,7 @@ def add_cross_standardlize(*args: list) -> pd.DataFrame:
 
     Returns
     -------
-    pd.DataFrame
+    `pd.DataFrame`
         合成后的因子
     """
     fms = [pure_fallmount(i) for i in args]
@@ -546,7 +546,7 @@ def get_normal(df: pd.DataFrame) -> pd.DataFrame:
 
     Returns
     -------
-    pd.DataFrame
+    `pd.DataFrame`
         每个横截面都呈现正态分布的因子
     """
     df = df.replace(0, np.nan)
@@ -572,7 +572,7 @@ def coin_reverse(
 
     Returns
     -------
-    pd.DataFrame
+    `pd.DataFrame`
         翻转后的因子值
     """
     if positive_negtive:
@@ -643,7 +643,7 @@ def multidfs_to_one(*args: list) -> pd.DataFrame:
 
     Returns
     -------
-    pd.DataFrame
+    `pd.DataFrame`
         合并后的df
     """
     dfs = [i.fillna(0) for i in args]
@@ -667,7 +667,7 @@ def to_tradeends(df: pd.DataFrame) -> pd.DataFrame:
 
     Returns
     -------
-    pd.DataFrame
+    `pd.DataFrame`
         修改为交易日标注后的pd.DataFrame
     """
     """"""
@@ -704,12 +704,12 @@ def market_kind(
 
     Returns
     -------
-    pd.DataFrame
+    `pd.DataFrame`
         限制范围后的因子值，其余为空
 
     Raises
     ------
-    ValueError
+    `ValueError`
         如果未指定任何股票池，将报错
     """
     trs = read_daily(tr=1)
@@ -744,7 +744,7 @@ def to_percent(x: float) -> float or str:
 
     Returns
     -------
-    float or str
+    `float` or `str`
         空值则依然为空，否则返回带%的字符串
     """
     if np.isnan(x):
@@ -772,7 +772,7 @@ def show_corr(
 
     Returns
     -------
-    float
+    `float`
         平均截面相关系数
     """
     both1 = fac1.stack().reset_index()
@@ -808,7 +808,7 @@ def show_corrs(
 
     Returns
     -------
-    pd.DataFrame
+    `pd.DataFrame`
         两两之间相关系数的表格
     """
     corrs = []
@@ -843,7 +843,7 @@ def calc_exp_list(window: int, half_life: int) -> np.ndarray:
 
     Returns
     -------
-    np.ndarray
+    `np.ndarray`
         半衰序列
     """
     exp_wt = np.asarray([0.5 ** (1 / half_life)] * window) ** np.arange(window)
@@ -862,7 +862,7 @@ def calcWeightedStd(series: pd.Series, weights: pd.Series or np.ndarray) -> floa
 
     Returns
     -------
-    float
+    `float`
         半衰加权标准差
     """
     weights /= np.sum(weights)
@@ -879,7 +879,7 @@ def get_list_std(delta_sts: list[pd.DataFrame]) -> pd.DataFrame:
 
     Returns
     -------
-    pd.DataFrame
+    `pd.DataFrame`
         每天每只股票多个因子的标准差
     """
     delta_sts_mean = sum(delta_sts) / len(delta_sts)
@@ -1928,7 +1928,7 @@ class pure_moonnight(object):
 
         Returns
         -------
-        pd.DataFrame
+        `pd.DataFrame`
             如果做了行业市值中性化，则行业市值中性化之后的因子数据，否则返回原因子数据
         """
         df = self.shen.factors_out.copy()
@@ -2145,14 +2145,9 @@ class pure_fall(object):
         func : Callable
             构造分钟数据使用的函数
 
-        Returns
-        -------
-        None
-            _description_
-
         Raises
         ------
-        IOError
+        `IOError`
             如果没有历史因子数据，将报错
         """
         """通过minute_data_stock_alter数据库一天一天计算因子值"""
@@ -2403,7 +2398,7 @@ class pure_fall_frequent(object):
 
         Returns
         -------
-        pd.DataFrame
+        `pd.DataFrame`
             经运算产生的因子值
         """
         return self.factor.copy()
@@ -2588,7 +2583,7 @@ class pure_fall_flexible(object):
 
         Returns
         -------
-        pd.DataFrame
+        `pd.DataFrame`
             计算出的因子值
         """
         return self.factor.copy()
@@ -2810,7 +2805,7 @@ class pure_coldwinter(object):
 
         Returns
         -------
-        pd.DataFrame
+        `pd.DataFrame`
             因子和10个常用风格因子的相关系数
         """
         return self.__corr.copy()
@@ -2866,7 +2861,7 @@ class pure_snowtrain(pure_coldwinter):
 
         Returns
         -------
-        pd.DataFrame
+        `pd.DataFrame`
             纯净化之后的因子值
         """
         return self.snow_fac.copy()
@@ -2920,7 +2915,7 @@ class pure_newyear(object):
 
         Returns
         -------
-        pd.DataFrame
+        `pd.DataFrame`
             每个组的年化收益率
         """
         return self.square_rets.copy()
@@ -2932,6 +2927,7 @@ class pure_dawn(object):
     可用于派生任何"以两个因子生成一个因子"的子类
     使用举例
     cut函数里，必须带有输入变量df,df有两个columns，一个名为'fac1'，一个名为'fac2'，df是最近一个回看期内的数据
+    ```python
     class Cut(pure_dawn):
 
     def cut(self,df):
@@ -2957,6 +2953,7 @@ class pure_dawn(object):
     cut2=get_value(cut(),2)
     cut3=get_value(cut(),3)
     cut4=get_value(cut(),4)
+    ```
     """
 
     def __init__(self, fac1: pd.DataFrame, fac2: pd.DataFrame, *args: list) -> None:
@@ -2988,7 +2985,7 @@ class pure_dawn(object):
 
         Returns
         -------
-        pd.DataFrame
+        `pd.DataFrame`
             最终因子值
         """
         return self.fac.copy()

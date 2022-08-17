@@ -1,4 +1,4 @@
-__updated__ = "2022-08-16 15:51:29"
+__updated__ = "2022-08-17 16:03:28"
 
 import numpy as np
 import pandas as pd
@@ -30,7 +30,7 @@ def comment_on_rets_and_nets(
 
     Returns
     -------
-    pd.DataFrame
+    `pd.DataFrame`
         包含年化收益、年化波动、信息比率、月度胜率和最大回撤率的评价指标
     """
     duration_nets = (nets.index[-1] - nets.index[0]).days
@@ -67,7 +67,7 @@ def comments_on_twins(nets: pd.Series, rets: pd.Series) -> pd.Series:
 
     Returns
     -------
-    pd.Series
+    `pd.Series`
         包含年化收益率、总收益率、年化波动率、年化夏普比率、最大回撤率、胜率的评价指标
     """
     series = nets.copy()
@@ -105,7 +105,7 @@ def comments_on_twins_periods(
 
     Returns
     -------
-    pd.Series
+    `pd.Series`
         包含年化收益率、总收益率、年化波动率、年化夏普比率、最大回撤率、胜率的评价指标
     """
     series = nets.copy()
@@ -149,12 +149,12 @@ def make_relative_comments(
 
     Returns
     -------
-    pd.Series
+    `pd.Series`
         评价指标包括年化收益率、总收益率、年化波动率、年化夏普比率、最大回撤率、胜率
 
     Raises
     ------
-    IOError
+    `IOError`
         如果没指定任何一个指数，将报错
     """
     if hs300:
@@ -201,12 +201,12 @@ def make_relative_comments_plot(
 
     Returns
     -------
-    pd.Series
+    `pd.Series`
         超额净值序列
 
     Raises
     ------
-    IOError
+    `IOError`
         如果没指定任何一个指数，将报错
     """
     if hs300:
@@ -241,7 +241,7 @@ def comments_ten(shen: pure_moonnight) -> pd.DataFrame:
 
     Returns
     -------
-    pd.DataFrame
+    `pd.DataFrame`
         评价指标包括年化收益率、总收益率、年化波动率、年化夏普比率、最大回撤率、胜率
     """
     rets_cols = list(shen.shen.group_rets.columns)
@@ -287,7 +287,7 @@ def other_periods_comments_nets(
 
     Returns
     -------
-    tuple[pd.Series]
+    `tuple[pd.Series]`
         绩效和净值
     """
     import alphalens as al

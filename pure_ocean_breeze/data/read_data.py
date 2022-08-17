@@ -1,4 +1,4 @@
-__updated__ = "2022-08-16 15:50:56"
+__updated__ = "2022-08-17 15:59:57"
 
 import numpy as np
 import pandas as pd
@@ -59,12 +59,12 @@ def read_daily(
 
     Returns
     -------
-    pd.DataFrame
+    `pd.DataFrame`
         一个columns为股票代码，index为时间，values为目标数据的pd.DataFrame
 
     Raises
     ------
-    IOError
+    `IOError`
         open,close,high,low,tr,sharenum,volume 都为0时，将报错
     另：如果数据未更新，可使用read_daily.clear_cache()来清空缓存
     """
@@ -159,7 +159,7 @@ def read_index_three(day: int = None) -> tuple[pd.DataFrame]:
 
     Returns
     -------
-    tuple[pd.DataFrame]
+    `tuple[pd.DataFrame]`
         分别返回沪深300、中证500、中证1000的行情数据
     """
     if day is None:
@@ -197,7 +197,7 @@ def read_industry_prices(day: int = None, monthly: bool = 1) -> pd.DataFrame:
 
     Returns
     -------
-    pd.DataFrame
+    `pd.DataFrame`
         申万一级行业的行情数据
     """
     if day is None:
@@ -222,12 +222,12 @@ def get_industry_dummies(daily: bool = 0, monthly: bool = 0) -> dict:
 
     Returns
     -------
-    dict
+    `dict`
         各个行业及其哑变量构成的字典
 
     Raises
     ------
-    ValueError
+    `ValueError`
         如果未指定频率，将报错
     """
     homeplace = HomePlace()
