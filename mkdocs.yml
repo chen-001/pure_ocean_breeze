@@ -3,6 +3,7 @@ site_url: https://chen-001.github.io/pure_ocean_breeze/
 repo_url: https://github.com/chen-001/pure_ocean_breeze
 site_description: 关于量价因子的一片星空
 site_author: chenzongwei
+
 nav:
     - 星空: index.md
 
@@ -84,7 +85,7 @@ theme:
         icon: material/weather-night # 图标
         name: 切换至夜间模式 # 鼠标悬浮提示
     - scheme: slate # 夜间模式
-      primary: indigo
+      primary: teal
       accent: red
       toggle:
         icon: material/weather-sunny
@@ -139,9 +140,8 @@ markdown_extensions:
         custom_fences:
             - name: mermaid
               class: mermaid
-              format: !!python/name:pymdownx.superfences.fence_code_format
+              # format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.tabbed:
       alternate_style: true 
   - meta # 支持Markdown文件上方自定义标题标签等
 
-# extra_javascript:
