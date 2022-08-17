@@ -1,6 +1,10 @@
 # 🎈pure_ocean_breeze的说明文档🌟
 
 ---
+## 安装&升级
+>* 安装：使用`pip install pure_ocean_breeze`命令安装
+>* 升级：使用`pip install pure_ocean_breeze --upgrade`命令升级
+
 ## 简介
 >* pure_ocean_breeze是一个关于量化投资，因子研究的python库
 >* 包括参数设置、数据获取、数据更新与存储、因子构造、因子加工、因子测试、绩效评价等诸多模块
