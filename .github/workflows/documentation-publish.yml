@@ -4,8 +4,11 @@ on:
     # paths:
       # - docs/
       # - 'mkdocs.yml'
-    branches:
-      - master
+    # branches:
+      # - master
+    paths:
+      - "docs"
+      - "mkdocs.yml"
 jobs:
   deploy:
     runs-on: ubuntu-latest
