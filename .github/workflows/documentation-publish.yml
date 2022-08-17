@@ -19,7 +19,7 @@ jobs:
           key: ${{ github.ref }}
           path: .cache
       - run: pip install mkdocstrings-python
-      - run: pip uninstall mkdocs
+      - run: pip uninstall mkdocs -y
       - run: pip install mkdocs-material-zhcorrect
       - run: mkdocs build
       - run: mkdocs gh-deploy --force
