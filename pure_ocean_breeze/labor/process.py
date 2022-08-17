@@ -1,4 +1,4 @@
-__updated__ = "2022-08-16 15:53:12"
+__updated__ = "2022-08-17 11:29:56"
 
 import numpy as np
 import pandas as pd
@@ -899,12 +899,12 @@ class pure_moon(object):
         "states_path",
         "opens_path",
         "closes_path",
-        "highs_path",
-        "lows_path",
+        # "highs_path",
+        # "lows_path",
         "pricloses_path",
         "flowshares_path",
-        "amounts_path",
-        "turnovers_path",
+        # "amounts_path",
+        # "turnovers_path",
         "factors_file",
         "sts_monthly_file",
         "states_monthly_file",
@@ -987,17 +987,17 @@ class pure_moon(object):
         # 复权收盘价数据文件
         cls.closes_path = "AllStock_DailyClose_dividend.mat"
         # 复权最高价数据文件
-        cls.highs_path = "Allstock_DailyHigh_dividend.mat"
+        # cls.highs_path = "Allstock_DailyHigh_dividend.mat"
         # 复权最低价数据文件
-        cls.lows_path = "Allstock_DailyLow_dividend.mat"
+        # cls.lows_path = "Allstock_DailyLow_dividend.mat"
         # 不复权收盘价数据文件
         cls.pricloses_path = "AllStock_DailyClose.mat"
         # 流通股本数据文件
         cls.flowshares_path = "AllStock_DailyAShareNum.mat"
         # 成交量数据文件
-        cls.amounts_path = "AllStock_DailyVolume.mat"
+        # cls.amounts_path = "AllStock_DailyVolume.mat"
         # 换手率数据文件
-        cls.turnovers_path = "AllStock_DailyTR.mat"
+        # cls.turnovers_path = "AllStock_DailyTR.mat"
         # 因子数据文件
         cls.factors_file = ""
         # 已经算好的月度st状态文件
@@ -1021,6 +1021,18 @@ class pure_moon(object):
         )
         for attr, value in zip(dirs, dirs_values):
             setattr(cls, attr, value)
+        cls.industry_dummy = (
+            pd.read_feather(cls.homeplace.daily_data_file + "申万行业2021版哑变量.feather")
+            .set_index("date")
+            .groupby("code")
+            .resample("M")
+            .last()
+        )
+        cls.industry_dummy = cls.industry_dummy.drop(columns=["code"]).reset_index()
+        cls.industry_ws = [f"w{i}" for i in range(1, cls.industry_dummy.shape[1] - 1)]
+        col = ["code", "date"] + cls.industry_ws
+        cls.industry_dummy.columns = col
+        cls.industry_dummy = cls.industry_dummy[cls.industry_dummy.date>=pd.Timestamp('2010-01-01')]
 
     def __call__(self, fallmount=0):
         """调用对象则返回因子值"""
@@ -1093,6 +1105,7 @@ class pure_moon(object):
         """将读入的数据，和股票代码与时间拼接，做成dataframe"""
         data = pd.DataFrame(data, columns=cls.codes, index=cls.tradedays)
         data.index = pd.to_datetime(data.index, format="%Y%m%d")
+        data = data[data.index>=pd.Timestamp('2010-01-01')]
         return data
 
     @classmethod
@@ -1342,17 +1355,6 @@ class pure_moon(object):
         self.factors = pd.merge(
             self.factors, self.cap, how="inner", on=["date", "code"]
         )
-        self.industry_dummy = (
-            pd.read_feather(self.homeplace.daily_data_file + "申万行业2021版哑变量.feather")
-            .set_index("date")
-            .groupby("code")
-            .resample("M")
-            .last()
-        )
-        self.industry_dummy = self.industry_dummy.drop(columns=["code"]).reset_index()
-        self.industry_ws = [f"w{i}" for i in range(1, self.industry_dummy.shape[1] - 1)]
-        col = ["code", "date"] + self.industry_ws
-        self.industry_dummy.columns = col
         self.factors = pd.merge(self.factors, self.industry_dummy, on=["date", "code"])
         self.factors = self.factors.set_index(["date", "code"])
         self.factors = self.factors.groupby(["date"]).apply(self.neutralize_factors)
