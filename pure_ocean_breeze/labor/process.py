@@ -1,4 +1,4 @@
-__updated__ = "2022-08-18 01:42:55"
+__updated__ = "2022-08-18 03:20:54"
 
 import numpy as np
 import pandas as pd
@@ -22,11 +22,11 @@ import datetime
 from collections import Iterable
 import plotly.express as pe
 import plotly.io as pio
-from typing import Callable
+from typing import Callable, Union
 from pure_ocean_breeze.data.read_data import read_daily
 from pure_ocean_breeze.state.homeplace import HomePlace
 from pure_ocean_breeze.state.decorators import *
-from pure_ocean_breeze.state.state import STATES
+from pure_ocean_breeze.state.states import STATES
 from pure_ocean_breeze.data.database import *
 
 
@@ -734,7 +734,7 @@ def market_kind(
     return df
 
 
-def to_percent(x: float) -> float or str:
+def to_percent(x: float) -> Union[float, str]:
     """把小数转化为2位小数的百分数
 
     Parameters
@@ -744,7 +744,7 @@ def to_percent(x: float) -> float or str:
 
     Returns
     -------
-    `float` or `str`
+    Union[float,str]
         空值则依然为空，否则返回带%的字符串
     """
     if np.isnan(x):
@@ -850,14 +850,14 @@ def calc_exp_list(window: int, half_life: int) -> np.ndarray:
     return exp_wt[::-1] / np.sum(exp_wt)
 
 
-def calcWeightedStd(series: pd.Series, weights: pd.Series or np.ndarray) -> float:
+def calcWeightedStd(series: pd.Series, weights: Union[pd.Series, np.ndarray]) -> float:
     """计算半衰加权标准差
 
     Parameters
     ----------
     series : pd.Series
         目标序列
-    weights : pd.Series or np.ndarray
+    weights : Union[pd.Series,np.ndarray]
         权重序列
 
     Returns

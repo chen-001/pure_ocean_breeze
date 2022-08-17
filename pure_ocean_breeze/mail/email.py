@@ -1,4 +1,4 @@
-__updated__ = "2022-08-18 00:12:07"
+__updated__ = "2022-08-18 03:23:01"
 
 from tenacity import retry
 from loguru import logger
@@ -10,7 +10,7 @@ from email.mime.application import MIMEApplication
 
 
 class pure_mail(object):
-    def __init__(self, host:str, user:str, pwd:str, port:int=465)->None:
+    def __init__(self, host: str, user: str, pwd: str, port: int = 465) -> None:
         """设置邮箱的账号和授权信息
 
         Parameters
@@ -30,7 +30,9 @@ class pure_mail(object):
         self.port = port
 
     @retry
-    def sendemail(self, tolist:list, subject:str, body:str, lastemail_path:list=None)->None:
+    def sendemail(
+        self, tolist: list, subject: str, body: str, lastemail_path: list = None
+    ) -> None:
         """向指定邮箱账号发送带多个附件的邮件
 
         Parameters
@@ -43,7 +45,7 @@ class pure_mail(object):
             邮件的正文
         lastemail_path : list
             附件所在的地址，形如`['/xxx/xxx/xxx.csv','/yyy/yyy/yyy.png']`
-        """        
+        """
         message = MIMEMultipart()
         message["Form"] = Header(self.user, "utf-8")
         message["To"] = Header(",".join(tolist), "utf-8")

@@ -16,8 +16,8 @@
 >* 在初次安装框架时，请进行初始化，以将路径设置到自己的文件里
 >* 使用如下语句进行初始化
 >>```python
->>import pure_ocean_breeze.initialize
->>pure_ocean_breeze.initialize.initialize()
+>>import pure_ocean_breeze.initialize.initialize
+>>pure_ocean_breeze.initialize.initialize.initialize()
 >>```
 >* 然后根据提示进行操作即可
 >* 请注意路径不要写反斜杠\，而要写成/
@@ -26,19 +26,19 @@
 3. 日常调用
 >* **导入框架** 
 >>```python
->>import pure_ocean_breeze.pure_ocean_breeze as pp
+>>import pure_ocean_breeze as pob
 >>```
 >* **一键回测** 
 >>```python
->>shen=pp.pure_moonnight(fac,boxcox=1)
+>>shen=pob.pure_moonnight(fac)
 >>```
->>`fac`为因子矩阵，`boxcox`表示是否做行业市值中性化
+>>`fac`为因子矩阵
 >* **一键读入日频数据**
 >>```python
->>pp.read_daily(path=None,open=0,close=0,high=0,low=0,tr=0,sharenum=0,volume=0,unadjust=0,>>>>start=STATES['START'])
+>>pob.read_daily(path=None,open=0,close=0,high=0,low=0,tr=0,sharenum=0,volume=0,unadjust=0,start=STATES['START'])
 >>```
 >>将其中任何一个为0的参数改为1，可以读取对应的复权价，或者换手率，`unadjust`可以修改为不复权，`start`可以指定起始日期。
->* **因子合成运算** 使用`pp.pure_fallmount()`类，具体方法正在补充中……
+>* **因子合成运算** 其他用法详见[说明文档](https://chen-001.github.io/pure_ocean_breeze/)
 >* **其余内容敬请期待**
 
 #### 作者😉

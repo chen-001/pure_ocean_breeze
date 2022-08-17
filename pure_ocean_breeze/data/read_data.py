@@ -1,4 +1,4 @@
-__updated__ = "2022-08-17 15:59:57"
+__updated__ = "2022-08-18 03:22:11"
 
 import numpy as np
 import pandas as pd
@@ -11,7 +11,7 @@ import pickledb
 import rqdatac
 
 rqdatac.init()
-from pure_ocean_breeze.state.state import STATES
+from pure_ocean_breeze.state.states import STATES
 from pure_ocean_breeze.state.homeplace import HomePlace
 from pure_ocean_breeze.state.decorators import *
 

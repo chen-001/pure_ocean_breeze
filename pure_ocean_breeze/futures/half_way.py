@@ -1,18 +1,18 @@
-__updated__ = '2022-08-16 16:39:21'
+__updated__ = "2022-08-16 16:39:21"
 
 import numpy as np
 import pandas as pd
 import knockknock as kk
 import matplotlib.pyplot as plt
-plt.style.use(['science','no-latex','notebook'])
+
+plt.style.use(["science", "no-latex", "notebook"])
 plt.rcParams["axes.unicode_minus"] = False
 import plotly.express as pe
 import plotly.io as pio
 from functools import reduce
-from pure_ocean_breeze.labor.process import pure_moon,decap_industry
+from pure_ocean_breeze.labor.process import pure_moon, decap_industry
 from pure_ocean_breeze.data.read_data import read_daily
 from pure_ocean_breeze.state.homeplace import HomePlace
-
 
 
 class pure_cloud(object):
@@ -162,10 +162,8 @@ class pure_cloud(object):
             fig = pe.line(self.group_nets)
             filename_path = filename + ".html"
             pio.write_html(fig, filename_path, auto_open=True)
-            
-            
-            
-            
+
+
 class pure_moonson(object):
     """行业轮动回测框架"""
 

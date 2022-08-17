@@ -13,6 +13,7 @@ from collections import Iterable
 import datetime
 from dateutil.relativedelta import relativedelta
 import matplotlib as mpl
+
 mpl.rcParams.update(mpl.rcParamsDefault)
 import matplotlib.pyplot as plt
 import plotly.express as pe
@@ -23,7 +24,7 @@ import time
 from functools import lru_cache, wraps
 
 # plt.rcParams["font.sans-serif"] = ["SimHei"]  # 用来正常显示中文标签
-plt.style.use(['science','no-latex','notebook'])
+plt.style.use(["science", "no-latex", "notebook"])
 plt.rcParams["axes.unicode_minus"] = False  # 用来正常显示负号
 import h5py
 from cachier import cachier
@@ -378,21 +379,20 @@ def read_market(
             return market
 
 
-
 def read_h5(path: str) -> dict:
-    '''
+    """
     Reads a HDF5 file into a dictionary of pandas DataFrames.
-    
+
     Parameters
     ----------
     path : str
         The path to the HDF5 file.
-    
+
     Returns
     -------
     dict
         A dictionary of pandas DataFrames.
-    '''
+    """
     res = {}
     a = h5py.File(path)
     for k, v in tqdm.tqdm(list(a.items()), desc="数据加载中……"):
@@ -837,7 +837,6 @@ def daily_factor_on300500(
         else:
             raise ValueError("总得指定一下是哪个成分股吧🤒")
     return df
-
 
 
 def select_max(df1, df2):
@@ -1375,7 +1374,12 @@ INDUS_DICT = {
     )
 }
 
-INDEX_DICT = {"000300.SH": "沪深300", "000905.SH": "中证500", "000852.SH": "中证1000", "399303.SZ": "国证2000"}
+INDEX_DICT = {
+    "000300.SH": "沪深300",
+    "000905.SH": "中证500",
+    "000852.SH": "中证1000",
+    "399303.SZ": "国证2000",
+}
 
 
 def multidfs_to_one(*args):
@@ -2390,7 +2394,7 @@ class pure_moon:
     @main_process(slogan=None)
     def plot_net_values(self, y2, filename):
         """使用matplotlib来画图，y2为是否对多空组合采用双y轴"""
-        self.group_net_values.plot(secondary_y=y2,rot=60)
+        self.group_net_values.plot(secondary_y=y2, rot=60)
         filename_path = filename + ".png"
         if not STATES["NO_SAVE"]:
             plt.savefig(filename_path)
@@ -3196,11 +3200,8 @@ class pure_fall_frequent(object):
                         df = self.chc.get_data(sql_order)
                     df = ((df.set_index("code")) / 100).reset_index()
                     tqdm.tqdm.pandas()
-                    df = (
-                        df.groupby(["date", "code"])
-                        .progress_apply(the_func)
-                    )
-                    df = df.to_frame('fac').reset_index()
+                    df = df.groupby(["date", "code"]).progress_apply(the_func)
+                    df = df.to_frame("fac").reset_index()
                     df.columns = ["date", "code", "fac"]
                     df = df.pivot(columns="code", index="date", values="fac")
                     df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
@@ -3215,7 +3216,7 @@ class pure_fall_frequent(object):
                         df = self.chc.get_data(sql_order)
                     df = ((df.set_index("code")) / 100).reset_index()
                     df = df.groupby(["date", "code"]).apply(the_func)
-                    df = df.to_frame('fac').reset_index()
+                    df = df.to_frame("fac").reset_index()
                     df.columns = ["date", "code", "fac"]
                     df = df.pivot(columns="code", index="date", values="fac")
                     df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
@@ -3239,7 +3240,7 @@ class pure_fall_frequent(object):
                 df = ((df.set_index("code")) / 100).reset_index()
                 tqdm.tqdm.pandas()
                 df = df.groupby(["date", "code"]).progress_apply(the_func)
-                df = df.to_frame('fac').reset_index()
+                df = df.to_frame("fac").reset_index()
                 df.columns = ["date", "code", "fac"]
                 df = df.pivot(columns="code", index="date", values="fac")
                 df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
@@ -3252,7 +3253,7 @@ class pure_fall_frequent(object):
                     df = self.chc.get_data(sql_order)
                 df = ((df.set_index("code")) / 100).reset_index()
                 df = df.groupby(["date", "code"]).apply(the_func)
-                df = df.to_frame('fac').reset_index()
+                df = df.to_frame("fac").reset_index()
                 df.columns = ["date", "code", "fac"]
                 df = df.pivot(columns="code", index="date", values="fac")
                 df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
@@ -7847,31 +7848,33 @@ def database_update_index_members_monthly():
         download_single_index_member_monthly(k)
 
 
-
 def download_single_index_member(code):
     file = homeplace.daily_data_file + INDEX_DICT[code] + "日成分股.feather"
-    if code.endswith('.SH'):
-        code=code[:6]+'.XSHG'
-    elif code.endswith('.SZ'):
-        code=code[:6]+'.XSHE'
-    now=datetime.datetime.now()
-    df=rqdatac.index_components(code, start_date='20100101', end_date=now, market='cn')
-    ress=[]
-    for k,v in df.items():
-        res=pd.DataFrame(1,index=[pd.Timestamp(k)],columns=v)
+    if code.endswith(".SH"):
+        code = code[:6] + ".XSHG"
+    elif code.endswith(".SZ"):
+        code = code[:6] + ".XSHE"
+    now = datetime.datetime.now()
+    df = rqdatac.index_components(
+        code, start_date="20100101", end_date=now, market="cn"
+    )
+    ress = []
+    for k, v in df.items():
+        res = pd.DataFrame(1, index=[pd.Timestamp(k)], columns=v)
         ress.append(res)
-    ress=pd.concat(ress)
-    ress.columns=[convert_code(i)[0] for i in list(ress.columns)]
-    tr=np.sign(read_daily(tr=1,start=20100101))
-    rt=np.sign(tr+ress)
-    now_str=datetime.datetime.strftime(now,'%Y%m%d')
+    ress = pd.concat(ress)
+    ress.columns = [convert_code(i)[0] for i in list(ress.columns)]
+    tr = np.sign(read_daily(tr=1, start=20100101))
+    rt = np.sign(tr + ress)
+    now_str = datetime.datetime.strftime(now, "%Y%m%d")
     tr.reset_index().to_feather(file)
-    logger.success(f'已将{INDEX_DICT[convert_code(code)[0]]}日成分股更新至{now_str}')
-    
-    
+    logger.success(f"已将{INDEX_DICT[convert_code(code)[0]]}日成分股更新至{now_str}")
+
+
 def database_update_index_members():
     for k in list(INDEX_DICT.keys()):
         download_single_index_member(k)
+
 
 """保存最终因子值"""
 
@@ -7894,7 +7897,7 @@ def database_save_final_factors(df: pd.DataFrame, name: str, order: int):
 
 def database_read_final_factors(
     name: str = None, order: int = None, output=True, new=False
-) -> tuple[pd.DataFrame,str]:
+) -> tuple[pd.DataFrame, str]:
     """根据因子名字，或因子序号，读取最终因子的因子值"""
     homeplace = HomePlace()
     facs = os.listdir(homeplace.final_factor_file)
@@ -7978,23 +7981,20 @@ def database_read_final_factors(
             logger.success(f"截至{final_date}的因子值已保存")
         return df, fac_name
     else:
-        return df,''
+        return df, ""
 
 
-def database_read_primary_factors(
-    name: str = None
-) -> pd.DataFrame:
+def database_read_primary_factors(name: str = None) -> pd.DataFrame:
     """根据因子名字，或因子序号，读取初级因子的因子值"""
     homeplace = HomePlace()
-    name = name+'_初级.feather'
-    df = pd.read_feather(homeplace.factor_data_file+name)
-    df = df.rename(columns={list(df.columns)[0]:'date'})
-    df = df.set_index('date')
+    name = name + "_初级.feather"
+    df = pd.read_feather(homeplace.factor_data_file + name)
+    df = df.rename(columns={list(df.columns)[0]: "date"})
+    df = df.set_index("date")
     df = df[sorted(list(df.columns))]
     return df
-    
-    
-    
+
+
 """发送邮件的模块"""
 
 

@@ -1,4 +1,4 @@
-__updated__ = "2022-08-17 15:55:31"
+__updated__ = "2022-08-18 03:20:00"
 
 import pandas as pd
 import pymysql
@@ -6,7 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy import FLOAT, INT, VARCHAR, BIGINT
 from loguru import logger
 import datetime
-from pure_ocean_breeze.state.state import STATES
+from pure_ocean_breeze.state.states import STATES
 
 
 class sqlConfig(object):
@@ -181,7 +181,7 @@ class sqlConfig(object):
         从数据库中读取数据，
         `table_name`为表名，数字开头的加键盘左上角的
         ```sql
-        ` 
+        `
         ```
         符号
         形如
@@ -236,28 +236,28 @@ class sqlConfig(object):
 
 class ClickHouseClient(object):
     """clickhouse的一些功能，clickhouse写入数据前，需要先创建表格，表格如果不存在则不能写入
-        clickhouse创建表格使用语句如下
-        ```sql
-        CREATE TABLE minute_data.minute_data
-        (   `date` int,
-            `num` int,
-            `code` VARCHAR(9),
-            `open` int,
-            `high` int,
-            `low` int,
-            `close` int,
-            `amount` bigint,
-            `money` bigint
-        ) ENGINE = ReplacingMergeTree()
-            PRIMARY KEY(date,num)
-            ORDER BY (date, num);
-        ```
-            其中如果主键不制定，则会默认为第一个，主键不能重复，因此会自动保留最后一个。
-            创建表格后，需插入一行数，才算创建成功，否则依然不能写入，插入语句如下
-        ```sql
-        INSERT INTO minute_data.minute_data (date, code, open, high, low, close, amount, money, num) VALUES
-                                                (0,0,0,0,0,0,0,0,0);
-        ```
+    clickhouse创建表格使用语句如下
+    ```sql
+    CREATE TABLE minute_data.minute_data
+    (   `date` int,
+        `num` int,
+        `code` VARCHAR(9),
+        `open` int,
+        `high` int,
+        `low` int,
+        `close` int,
+        `amount` bigint,
+        `money` bigint
+    ) ENGINE = ReplacingMergeTree()
+        PRIMARY KEY(date,num)
+        ORDER BY (date, num);
+    ```
+        其中如果主键不制定，则会默认为第一个，主键不能重复，因此会自动保留最后一个。
+        创建表格后，需插入一行数，才算创建成功，否则依然不能写入，插入语句如下
+    ```sql
+    INSERT INTO minute_data.minute_data (date, code, open, high, low, close, amount, money, num) VALUES
+                                            (0,0,0,0,0,0,0,0,0);
+    ```
     """
 
     def __init__(

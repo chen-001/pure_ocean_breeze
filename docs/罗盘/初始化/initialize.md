@@ -1,4 +1,3 @@
-<!-- ::: pure_ocean_breeze.initialize.initialize -->
 ## 🌟初始化
 * 在初次安装框架时，请进行初始化，以将路径设置到自己的文件里
 * 使用如下语句进行初始化
@@ -10,3 +9,5 @@ pure_ocean_breeze.initialize.initialize.initialize()
 * 经过初始化后，以后就可以直接使用，不论重启电脑或者版本升级，都不用再初始化
 
 ⚠️  如果更换了数据库路径，请重新初始化
+
+<!-- ::: pure_ocean_breeze.initialize.initialize -->

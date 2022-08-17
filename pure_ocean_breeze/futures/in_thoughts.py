@@ -1,10 +1,11 @@
-__updated__ = '2022-08-16 16:39:13'
+__updated__ = "2022-08-18 03:22:36"
 
 import copy
 import numpy as np
 import pandas as pd
 from pure_ocean_breeze.data.read_data import read_daily
 from pure_ocean_breeze.labor.process import multidfs_to_one
+
 
 class pure_wood(object):
     """一种因子合成的方法，灵感来源于adaboost算法
