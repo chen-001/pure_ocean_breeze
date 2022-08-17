@@ -1,4 +1,4 @@
-__updated__ = "2022-08-17 16:06:37"
+__updated__ = "2022-08-18 01:42:55"
 
 import numpy as np
 import pandas as pd
@@ -1032,7 +1032,9 @@ class pure_moon(object):
         cls.industry_ws = [f"w{i}" for i in range(1, cls.industry_dummy.shape[1] - 1)]
         col = ["code", "date"] + cls.industry_ws
         cls.industry_dummy.columns = col
-        cls.industry_dummy = cls.industry_dummy[cls.industry_dummy.date>=pd.Timestamp('2010-01-01')]
+        cls.industry_dummy = cls.industry_dummy[
+            cls.industry_dummy.date >= pd.Timestamp("2010-01-01")
+        ]
 
     def __call__(self, fallmount=0):
         """调用对象则返回因子值"""
@@ -1105,7 +1107,7 @@ class pure_moon(object):
         """将读入的数据，和股票代码与时间拼接，做成dataframe"""
         data = pd.DataFrame(data, columns=cls.codes, index=cls.tradedays)
         data.index = pd.to_datetime(data.index, format="%Y%m%d")
-        data = data[data.index>=pd.Timestamp('2010-01-01')]
+        data = data[data.index >= pd.Timestamp("2010-01-01")]
         return data
 
     @classmethod
@@ -2711,7 +2713,47 @@ class pure_fall_flexible(object):
 
 class pure_coldwinter(object):
     # TODO: 可以自由添加其他要剔除的因子，或者替换某些要剔除的因子
-    def __init__(self):
+    def __init__(
+        self,
+        facs_dict: dict = None,
+        momentum: bool = 1,
+        earningsyield: bool = 1,
+        growth: bool = 1,
+        liquidity: bool = 1,
+        size: bool = 1,
+        leverage: bool = 1,
+        beta: bool = 1,
+        nonlinearsize: bool = 1,
+        residualvolatility: bool = 1,
+        booktoprice: bool = 1,
+    ) -> None:
+        """读入10种常用风格因子，并可以额外加入其他因子
+
+        Parameters
+        ----------
+        facs_dict : dict, optional
+            额外加入的因子，名字为key，因子矩阵为value，形如`{'反转': ret20, '换手': tr20}`, by default None
+        momentum : bool, optional
+            是否删去动量因子, by default 1
+        earningsyield : bool, optional
+            是否删去盈利因子, by default 1
+        growth : bool, optional
+            是否删去成长因子, by default 1
+        liquidity : bool, optional
+            是否删去流动性因子, by default 1
+        size : bool, optional
+            是否删去规模因子, by default 1
+        leverage : bool, optional
+            是否删去杠杆因子, by default 1
+        beta : bool, optional
+            是否删去贝塔因子, by default 1
+        nonlinearsize : bool, optional
+            是否删去非线性市值因子, by default 1
+        residualvolatility : bool, optional
+            是否删去残差波动率因子, by default 1
+        booktoprice : bool, optional
+            是否删去账面市值比因子, by default 1
+        """
         self.homeplace = HomePlace()
         # barra因子数据
         styles = os.listdir(self.homeplace.barra_data_file)
@@ -2723,14 +2765,64 @@ class pure_coldwinter(object):
             v.columns = ["date"] + list(v.columns)[1:]
             v = v.set_index("date")
             barras[k] = v
+        rename_dict = {
+            "fac": "因子自身",
+            "size": "市值",
+            "nonlinearsize": "非线性市值",
+            "booktoprice": "估值",
+            "earningsyield": "盈利",
+            "growth": "成长",
+            "leverage": "杠杆",
+            "liquidity": "流动性",
+            "momentum": "动量",
+            "residualvolatility": "波动率",
+            "beta": "贝塔",
+        }
+        if momentum == 0:
+            barras = {k: v for k, v in barras.items() if k != "momentum"}
+            rename_dict = {k: v for k, v in rename_dict.items() if k != "momentum"}
+        if earningsyield == 0:
+            barras = {k: v for k, v in barras.items() if k != "earningsyield"}
+            rename_dict = {k: v for k, v in rename_dict.items() if k != "earningsyield"}
+        if growth == 0:
+            barras = {k: v for k, v in barras.items() if k != "growth"}
+            rename_dict = {k: v for k, v in rename_dict.items() if k != "growth"}
+        if liquidity == 0:
+            barras = {k: v for k, v in barras.items() if k != "liquidity"}
+            rename_dict = {k: v for k, v in rename_dict.items() if k != "liquidity"}
+        if size == 0:
+            barras = {k: v for k, v in barras.items() if k != "size"}
+            rename_dict = {k: v for k, v in rename_dict.items() if k != "size"}
+        if leverage == 0:
+            barras = {k: v for k, v in barras.items() if k != "leverage"}
+            rename_dict = {k: v for k, v in rename_dict.items() if k != "leverage"}
+        if beta == 0:
+            barras = {k: v for k, v in barras.items() if k != "beta"}
+            rename_dict = {k: v for k, v in rename_dict.items() if k != "beta"}
+        if nonlinearsize == 0:
+            barras = {k: v for k, v in barras.items() if k != "nonlinearsize"}
+            rename_dict = {k: v for k, v in rename_dict.items() if k != "nonlinearsize"}
+        if residualvolatility == 0:
+            barras = {k: v for k, v in barras.items() if k != "residualvolatility"}
+            rename_dict = {
+                k: v for k, v in rename_dict.items() if k != "residualvolatility"
+            }
+        if booktoprice == 0:
+            barras = {k: v for k, v in barras.items() if k != "booktoprice"}
+            rename_dict = {k: v for k, v in rename_dict.items() if k != "booktoprice"}
+        if facs_dict is not None:
+            barras.update(facs_dict)
         self.barras = barras
+        self.rename_dict = rename_dict
+        sort_names = list(rename_dict.values())
+        if facs_dict is not None:
+            sort_names = sort_names + list(facs_dict.keys())
+        sort_names = [i for i in sort_names if i != "因子自身"]
+        self.sort_names = sort_names
 
-    def __call__(self, fallmount=0):
+    def __call__(self):
         """返回纯净因子值"""
-        if fallmount == 0:
-            return self.snow_fac
-        else:
-            return pure_fallmount(self.snow_fac)
+        return self.snow_fac
 
     def set_factors_df_wide(self, df):
         """传入因子数据，时间为索引，代码为列名"""
@@ -2778,25 +2870,10 @@ class pure_coldwinter(object):
             lambda x: x.corr().head(1)
         )
         self.__corr = self.corr_by_step.mean()
-        self.__corr = self.__corr.rename(
-            index={
-                "fac": "因子自身",
-                "beta": "贝塔",
-                "booktoprice": "估值",
-                "leverage": "杠杆",
-                "earningsyield": "盈利",
-                "growth": "成长",
-                "liquidity": "流动性",
-                "momentum": "动量",
-                "residualvolatility": "波动率",
-                "size": "市值",
-                "nonlinearsize": "非线性市值",
-            }
-        )
+        self.__corr = self.__corr.rename(index=self.rename_dict)
         self.__corr = self.__corr.to_frame("相关系数").T
-        self.__corr = self.__corr[
-            ["市值", "非线性市值", "估值", "盈利", "成长", "杠杆", "流动性", "动量", "波动率", "贝塔"]
-        ]
+
+        self.__corr = self.__corr[self.sort_names]
         self.__corr = self.__corr.T
 
     @property
@@ -2805,7 +2882,7 @@ class pure_coldwinter(object):
 
         Returns
         -------
-        `pd.DataFrame`
+        pd.DataFrame
             因子和10个常用风格因子的相关系数
         """
         return self.__corr.copy()
@@ -2841,30 +2918,79 @@ class pure_coldwinter(object):
         self.get_snow_fac()
 
 
-class pure_snowtrain(pure_coldwinter):
+class pure_snowtrain(object):
     """直接返回纯净因子"""
 
-    def __init__(self, factors: pd.DataFrame) -> None:
-        """计算因子值与10种常用风格因子之间的相关性，并进行纯净化
+    def __init__(
+        self,
+        factors: pd.DataFrame,
+        facs_dict: dict = None,
+        momentum: bool = 1,
+        earningsyield: bool = 1,
+        growth: bool = 1,
+        liquidity: bool = 1,
+        size: bool = 1,
+        leverage: bool = 1,
+        beta: bool = 1,
+        nonlinearsize: bool = 1,
+        residualvolatility: bool = 1,
+        booktoprice: bool = 1,
+    ) -> None:
+        """计算因子值与10种常用风格因子之间的相关性，并进行纯净化，可以额外加入其他因子
 
         Parameters
         ----------
         factors : pd.DataFrame
             要考察的因子值，index为时间，columns为股票代码，values为因子值
+        facs_dict : dict, optional
+            _description_, by default None
+        momentum : bool, optional
+            _description_, by default 1
+        earningsyield : bool, optional
+            _description_, by default 1
+        growth : bool, optional
+            _description_, by default 1
+        liquidity : bool, optional
+            _description_, by default 1
+        size : bool, optional
+            _description_, by default 1
+        leverage : bool, optional
+            _description_, by default 1
+        beta : bool, optional
+            _description_, by default 1
+        nonlinearsize : bool, optional
+            _description_, by default 1
+        residualvolatility : bool, optional
+            _description_, by default 1
+        booktoprice : bool, optional
+            _description_, by default 1
         """
-        super(pure_snowtrain, self).__init__()
-        self.set_factors_df_wide(factors.copy())
-        self.run()
+        self.winter = pure_coldwinter(
+            facs_dict=facs_dict,
+            momentum=momentum,
+            earningsyield=earningsyield,
+            growth=growth,
+            liquidity=liquidity,
+            size=size,
+            leverage=leverage,
+            beta=beta,
+            nonlinearsize=nonlinearsize,
+            residualvolatility=residualvolatility,
+            booktoprice=booktoprice,
+        )
+        self.winter.set_factors_df_wide(factors.copy())
+        self.winter.run()
+        self.corr = self.winter.corr
 
     def __call__(self) -> pd.DataFrame:
         """获得纯净化之后的因子值
 
         Returns
         -------
-        `pd.DataFrame`
+        pd.DataFrame
             纯净化之后的因子值
         """
-        return self.snow_fac.copy()
+        return self.winter.snow_fac.copy()
 
 
 class pure_newyear(object):

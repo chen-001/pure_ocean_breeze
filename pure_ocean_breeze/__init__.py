@@ -3,10 +3,10 @@
 """
 
 __updated__ = '2022-08-17 11:32:04'
-__version__ = '3.0.1'
+__version__ = '3.0.2'
 __author__ = 'chenzongwei'
 __url__ = 'https://github.com/chen-001/pure_ocean_breeze'
-__all__ = ["data", "labor", "state", "mail", "initialize", "pure_ocean_breeze"]
+__all__ = ["data", "labor", "state", "mail", "initialize", "pure_ocean_breeze", "futures"]
 
 import warnings
 warnings.filterwarnings('ignore')
