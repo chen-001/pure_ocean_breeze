@@ -5,7 +5,7 @@ on:
   # 当setup.py分支有push时，触发action
   push: 
     paths:
-      - 'setup.py'
+      - "pure_ocean_breeze/__init__.py"
 
 jobs:
   deploy:
