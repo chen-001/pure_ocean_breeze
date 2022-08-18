@@ -49,14 +49,14 @@ import rqdatac
 
 rqdatac.init()
 
-# TODO: 补充每个部分的数据类型和文档，并尝试用AI Python Docstring生成文档
+# DONE: 补充每个部分的数据类型和文档，并尝试用AI Python Docstring生成文档
 # TODO: 补充分行业的行业内测试，封装为类（包括各行业Rank IC和行业多头超额，以及多头超额名单（可选是否中性化））
-# TODO: 彻底替换其中的minute_data_file，重写pure_fall类，变为只更新用的类
-# TODO: 对函数和类重新分类排序，按照功能划分
-# TODO: 重写函数说明和注释
-# TODO: 写文档
+# DONE: 彻底替换其中的minute_data_file，重写pure_fall类，变为只更新用的类
+# DONE: 对函数和类重新分类排序，按照功能划分
+# DONE: 重写函数说明和注释
+# DONE: 写文档
 # TODO: 增加读取初级因子值（生成多个因子值时，拆分出不同的初级因子，放在最终因子数据的文件夹下，每个因子一个文件夹）
-# TODO: 拆分不同模块
+# DONE: 拆分不同模块
 # TODO: 拆分更新日志
 # TODO: 一键读取指数成分股
 # TODO: 一键读入上市天数、st状态、交易状态
@@ -2562,7 +2562,7 @@ class pure_moon:
 
 
 class pure_fall:
-    # TODO：修改为因子文件名可以带“日频_“，也可以不带“日频_“
+    # DONE：修改为因子文件名可以带“日频_“，也可以不带“日频_“
     def __init__(
         self,
         minute_files_path=None,
@@ -5292,7 +5292,7 @@ class pure_winter:
 
 
 class pure_coldwinter:
-    # TODO: 可以自由添加其他要剔除的因子，或者替换某些要剔除的因子
+    # DONE: 可以自由添加其他要剔除的因子，或者替换某些要剔除的因子
     def __init__(self):
         self.homeplace = HomePlace()
         # barra因子数据
@@ -5372,7 +5372,7 @@ class pure_coldwinter:
             [self.factors] + list(self.barras.values()), axis=1
         ).dropna()
 
-    # TODO: 修改风格因子展示顺序至报告的顺序
+    # DONE: 修改风格因子展示顺序至报告的顺序
     def get_corr(self):
         """计算每一期的相关系数，再求平均值"""
         self.corr_by_step = self.corr_pri.groupby(["date"]).apply(
