@@ -1,6 +1,5 @@
-__updated__ = "2022-08-17 16:02:30"
+__updated__ = "2022-08-19 00:41:03"
 
-from turtle import home
 import rqdatac
 
 rqdatac.init()
@@ -15,6 +14,7 @@ from sqlalchemy import FLOAT, INT, VARCHAR, BIGINT
 from tenacity import retry
 import pickledb
 import tqdm
+from functools import reduce
 import dcube as dc
 from pure_ocean_breeze.state.homeplace import HomePlace
 
@@ -22,8 +22,8 @@ homeplace = HomePlace()
 pro = dc.pro_api(homeplace.api_token)
 from pure_ocean_breeze.data.database import sqlConfig, ClickHouseClient
 from pure_ocean_breeze.data.read_data import read_daily
-from pure_ocean_breeze.data.dicts import INDUS_DICT, INDEX_DICT
-from pure_ocean_breeze.data.tools import 生成每日分类表
+from pure_ocean_breeze.data.dicts import INDUS_DICT, INDEX_DICT, ZXINDUS_DICT
+from pure_ocean_breeze.data.tools import 生成每日分类表,add_suffix,convert_code
 
 
 def database_update_minute_data_to_clickhouse(kind: str) -> None:
@@ -758,7 +758,7 @@ def download_single_industry_price(ind):
         return df
 
 
-def database_update_industry_prices():
+def database_update_swindustry_prices():
     indus = []
     for ind in list(INDUS_DICT.keys()):
         df = download_single_industry_price(ind=ind)
@@ -769,9 +769,23 @@ def database_update_industry_prices():
     indus = indus.dropna()
     indus.index = pd.to_datetime(indus.index, format="%Y%m%d")
     indus = indus.sort_index()
-    indus.reset_index().to_feather("各行业行情数据.feather")
+    indus.reset_index().to_feather(homeplace.daily_data_file+"申万各行业行情数据.feather")
     new_date = datetime.datetime.strftime(indus.index.max(), "%Y%m%d")
     logger.success(f"申万一级行业的行情数据已经更新至{new_date}")
+    
+
+def database_update_zxindustry_prices():
+    zxinds=ZXINDUS_DICT
+    now=datetime.datetime.now()
+    zxprices=[]
+    for k in list(zxinds.keys()):
+        ind=rqdatac.get_price(k,start_date='2010-01-01',end_date=now,fields='close')
+        ind=ind.rename(columns={'close':zxinds[k]}).reset_index(level=1).reset_index(drop=True)
+        zxprices.append(ind)
+    zxprice=reduce(lambda x,y:pd.merge(x,y,on=['date'],how='outer'),zxprices)
+    zxprice.reset_index(drop=True).to_feather(homeplace.daily_data_file+'中信各行业行情数据.feather')
+    new_date = datetime.datetime.strftime(zxprice.date.max(), "%Y%m%d")
+    logger.success(f"中信一级行业的行情数据已经更新至{new_date}")
 
 
 """更新申万一级行业哑变量"""

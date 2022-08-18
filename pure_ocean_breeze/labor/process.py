@@ -1,4 +1,4 @@
-__updated__ = "2022-08-18 03:20:54"
+__updated__ = "2022-08-18 13:14:03"
 
 import numpy as np
 import pandas as pd
@@ -1939,7 +1939,7 @@ class pure_moonnight(object):
 
 
 class pure_fall(object):
-    # TODO：修改为因子文件名可以带“日频_“，也可以不带“日频_“
+    # DONE：修改为因子文件名可以带“日频_“，也可以不带“日频_“
     def __init__(self):
         self.homeplace = HomePlace()
         # 将分钟数据拼成一张日频因子表
@@ -2712,7 +2712,7 @@ class pure_fall_flexible(object):
 
 
 class pure_coldwinter(object):
-    # TODO: 可以自由添加其他要剔除的因子，或者替换某些要剔除的因子
+    # DONE: 可以自由添加其他要剔除的因子，或者替换某些要剔除的因子
     def __init__(
         self,
         facs_dict: dict = None,
@@ -2863,7 +2863,7 @@ class pure_coldwinter(object):
             [self.factors] + list(self.barras.values()), axis=1
         ).dropna()
 
-    # TODO: 修改风格因子展示顺序至报告的顺序
+    # DONE: 修改风格因子展示顺序至报告的顺序
     def get_corr(self):
         """计算每一期的相关系数，再求平均值"""
         self.corr_by_step = self.corr_pri.groupby(["date"]).apply(

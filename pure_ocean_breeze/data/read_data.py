@@ -185,7 +185,7 @@ def read_index_three(day: int = None) -> tuple[pd.DataFrame]:
     return hs300, zz500, zz1000
 
 
-def read_industry_prices(day: int = None, monthly: bool = 1) -> pd.DataFrame:
+def read_swindustry_prices(day: int = None, monthly: bool = 1) -> pd.DataFrame:
     """读取申万一级行业指数的日行情或月行情
 
     Parameters
@@ -202,7 +202,32 @@ def read_industry_prices(day: int = None, monthly: bool = 1) -> pd.DataFrame:
     """
     if day is None:
         day = STATES["START"]
-    df = pd.read_feather(homeplace.daily_data_file + "各行业行情数据.feather").set_index(
+    df = pd.read_feather(homeplace.daily_data_file + "申万各行业行情数据.feather").set_index(
+        "date"
+    )
+    if monthly:
+        df = df.resample("M").last()
+    return df
+
+
+def read_zxindustry_prices(day: int = None, monthly: bool = 1) -> pd.DataFrame:
+    """读取中信一级行业指数的日行情或月行情
+
+    Parameters
+    ----------
+    day : int, optional
+        起始日期，形如20130101, by default None
+    monthly : bool, optional
+        是否为月行情, by default 1
+
+    Returns
+    -------
+    `pd.DataFrame`
+        申万一级行业的行情数据
+    """
+    if day is None:
+        day = STATES["START"]
+    df = pd.read_feather(homeplace.daily_data_file + "中信各行业行情数据.feather").set_index(
         "date"
     )
     if monthly:
