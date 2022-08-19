@@ -76,7 +76,7 @@ extra_css:
 theme:
   name: material
   # custom_dir: overrides
-  # logo: assets/images/summation.png
+  logo: pics/一身本事.png
   palette: 
     - scheme: default # 日间模式
       primary: indigo # 上方的
