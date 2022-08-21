@@ -1,4 +1,4 @@
-__updated__ = "2022-08-18 13:14:03"
+__updated__ = "2022-08-21 22:21:37"
 
 import numpy as np
 import pandas as pd
@@ -1940,11 +1940,18 @@ class pure_moonnight(object):
 
 class pure_fall(object):
     # DONE：修改为因子文件名可以带“日频_“，也可以不带“日频_“
-    def __init__(self):
+    def __init__(self,daily_path:str)->None:
+        """一个使用mysql中的分钟数据，来更新因子值的框架
+
+        Parameters
+        ----------
+        daily_path : str
+            日频因子值存储文件的名字，请以'.feather'结尾
+        """        
         self.homeplace = HomePlace()
         # 将分钟数据拼成一张日频因子表
         self.daily_factors = None
-        self.daily_factors_path = self.homeplace.factor_data_file + "日频_"
+        self.daily_factors_path = self.homeplace.factor_data_file + "日频_" + daily_path
 
     def __call__(self, monthly=False):
         """为了防止属性名太多，忘记了要调用哪个才是结果，因此可以直接输出月度数据表"""
@@ -2161,6 +2168,7 @@ class pure_fall(object):
                 self.daily_factors_path = (
                     self.daily_factors_path[0] + self.daily_factors_path[1]
                 )
+                self.daily_factors = pd.read_feather(self.daily_factors_path)
             self.daily_factors = self.daily_factors.set_index("date")
             sql = sqlConfig("minute_data_stock_alter")
             now_minute_datas = sql.show_tables(full=False)

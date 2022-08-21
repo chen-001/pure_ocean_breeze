@@ -3,7 +3,7 @@
 """
 
 __updated__ = '2022-08-19 00:44:03'
-__version__ = '3.0.5'
+__version__ = '3.0.6'
 __author__ = 'chenzongwei'
 __author_email__ = 'winterwinter999@163.com'
 __url__ = 'https://github.com/chen-001/pure_ocean_breeze'
