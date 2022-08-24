@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2022-08-17 16:01:16"
+__updated__ = "2022-08-25 04:05:55"
 
 import h5py
 import pandas as pd
@@ -94,7 +94,7 @@ def convert_code(x: str) -> tuple[str, str]:
     elif x2 == "XSHG":
         x2 = ".SH"
     x = x1 + x2
-    if x1[0] in ["0", "3"] and x2 == ".SZ":
+    if (x1[0] == "0" or x1[:2] == "30") and x2 == ".SZ":
         kind = "stock"
     elif x1[0] == "6" and x2 == ".SH":
         kind = "stock"

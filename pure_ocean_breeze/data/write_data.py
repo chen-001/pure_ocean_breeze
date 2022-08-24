@@ -1,4 +1,4 @@
-__updated__ = "2022-08-19 00:41:03"
+__updated__ = "2022-08-25 04:00:51"
 
 import rqdatac
 
@@ -20,14 +20,19 @@ from pure_ocean_breeze.state.homeplace import HomePlace
 
 homeplace = HomePlace()
 pro = dc.pro_api(homeplace.api_token)
-from pure_ocean_breeze.data.database import sqlConfig, ClickHouseClient
+from pure_ocean_breeze.data.database import (
+    sqlConfig,
+    ClickHouseClient,
+    PostgreSQL,
+    Questdb,
+)
 from pure_ocean_breeze.data.read_data import read_daily
 from pure_ocean_breeze.data.dicts import INDUS_DICT, INDEX_DICT, ZXINDUS_DICT
-from pure_ocean_breeze.data.tools import 生成每日分类表,add_suffix,convert_code
+from pure_ocean_breeze.data.tools import 生成每日分类表, add_suffix, convert_code
 
 
-def database_update_minute_data_to_clickhouse(kind: str) -> None:
-    """使用米筐更新分钟数据至clickhouse中
+def database_update_minute_data_to_clickhouse_and_questdb(kind: str) -> None:
+    """使用米筐更新分钟数据至clickhouse和questdb中
 
     Parameters
     ----------
@@ -91,17 +96,189 @@ def database_update_minute_data_to_clickhouse(kind: str) -> None:
     ts = ts.groupby(["code", "date"]).apply(
         lambda x: x.assign(num=list(range(1, x.shape[0] + 1)))
     )
-    ts = (
-        (np.around(ts.set_index("code"), 2) * 100)
-        .ffill()
-        .dropna()
-        .astype(int)
-        .reset_index()
-    )
+    ts = (np.around(ts.set_index("code"), 2) * 100).astype(int).reset_index()
     ts.code = ts.code.str.replace(".XSHE", ".SZ")
     ts.code = ts.code.str.replace(".XSHG", ".SH")
     # 数据写入数据库
     ts.to_sql(f"minute_data_{kind}", chc.engine, if_exists="append", index=False)
+    ts = ts.set_index("code")
+    ts = ts / 100
+    ts = ts.reset_index()
+    qdb = Questdb()
+    ts.date = ts.date.astype(int).astype(str)
+    ts.num = ts.num.astype(int).astype(str)
+    qdb.write_via_csv(ts, f"minute_data_{kind}")
+    # 获取剩余使用额
+    user2 = round(rqdatac.user.get_quota()["bytes_used"] / 1024 / 1024, 2)
+    user12 = round(user2 - user1, 2)
+    logger.info(f"今日已使用rqsdk流量{user2}MB，本项更新消耗流量{user12}MB")
+
+
+def database_update_minute_data_to_postgresql(kind: str) -> None:
+    """使用米筐更新分钟数据至postgresql中
+
+    Parameters
+    ----------
+    kind : str
+        更新股票分钟数据或指数分钟数据，股票则'stock'，指数则'index'
+
+    Raises
+    ------
+    `IOError`
+        如果未指定股票还是指数，将报错
+    """
+    if kind == "stock":
+        code_type = "CS"
+    elif kind == "index":
+        code_type = "INDX"
+    else:
+        raise IOError("总得指定一种类型吧？请从stock和index中选一个")
+    # 获取剩余使用额
+    user1 = round(rqdatac.user.get_quota()["bytes_used"] / 1024 / 1024, 2)
+    logger.info(f"今日已使用rqsdk流量{user1}MB")
+    # 获取全部股票/指数代码
+    cs = rqdatac.all_instruments(type=code_type, market="cn", date=None)
+    codes = list(cs.order_book_id)
+    # 获取上次更新截止时间
+    qdb = Questdb()
+    last_date = max(qdb.show_all_dates(f"minute_data_{kind}"))
+    # 本次更新起始日期
+    start_date = pd.Timestamp(str(last_date)) + pd.Timedelta(days=1)
+    start_date = datetime.datetime.strftime(start_date, "%Y-%m-%d")
+    # 本次更新终止日期
+    end_date = datetime.datetime.now()
+    if end_date.hour < 17:
+        end_date = end_date - pd.Timedelta(days=1)
+    end_date = datetime.datetime.strftime(end_date, "%Y-%m-%d")
+    logger.info(f"本次将下载从{start_date}到{end_date}的数据")
+    # 下载数据
+    ts = rqdatac.get_price(
+        codes,
+        start_date=start_date,
+        end_date=end_date,
+        frequency="1m",
+        fields=["volume", "total_turnover", "high", "low", "close", "open"],
+        adjust_type="none",
+        skip_suspended=False,
+        market="cn",
+        expect_df=True,
+        time_slice=None,
+    )
+    # 调整数据格式
+    ts = ts.reset_index()
+    ts = ts.rename(
+        columns={
+            "order_book_id": "code",
+            "datetime": "date",
+            "volume": "amount",
+            "total_turnover": "money",
+        }
+    )
+    ts = ts.sort_values(["code", "date"])
+    ts.date = ts.date.dt.strftime("%Y%m%d").astype(int)
+    ts = ts.groupby(["code", "date"]).apply(
+        lambda x: x.assign(num=list(range(1, x.shape[0] + 1)))
+    )
+    ts.code = ts.code.str.replace(".XSHE", ".SZ")
+    ts.code = ts.code.str.replace(".XSHG", ".SH")
+    # 数据写入数据库
+    pgdb = PostgreSQL("minute_data")
+    ts.to_sql(
+        f"minute_data_{kind}",
+        pgdb.engine,
+        if_exists="append",
+        index=False,
+        dtype={
+            "code": VARCHAR(9),
+            "date": p.INT,
+            "open": FLOAT,
+            "high": FLOAT,
+            "low": FLOAT,
+            "close": FLOAT,
+            "amount": FLOAT,
+            "money": FLOAT,
+            "num": INT,
+        },
+    )
+    # 获取剩余使用额
+    user2 = round(rqdatac.user.get_quota()["bytes_used"] / 1024 / 1024, 2)
+    user12 = round(user2 - user1, 2)
+    logger.info(f"今日已使用rqsdk流量{user2}MB，本项更新消耗流量{user12}MB")
+
+
+def database_update_minute_data_to_questdb(kind: str) -> None:
+    """使用米筐更新分钟数据至questdb中
+
+    Parameters
+    ----------
+    kind : str
+        更新股票分钟数据或指数分钟数据，股票则'stock'，指数则'index'
+
+    Raises
+    ------
+    `IOError`
+        如果未指定股票还是指数，将报错
+    """
+    if kind == "stock":
+        code_type = "CS"
+    elif kind == "index":
+        code_type = "INDX"
+    else:
+        raise IOError("总得指定一种类型吧？请从stock和index中选一个")
+    # 获取剩余使用额
+    user1 = round(rqdatac.user.get_quota()["bytes_used"] / 1024 / 1024, 2)
+    logger.info(f"今日已使用rqsdk流量{user1}MB")
+    # 获取全部股票/指数代码
+    cs = rqdatac.all_instruments(type=code_type, market="cn", date=None)
+    codes = list(cs.order_book_id)
+    # 获取上次更新截止时间
+    qdb = Questdb()
+    last_date = max(qdb.show_all_dates(f"minute_data_{kind}"))
+    # 本次更新起始日期
+    start_date = pd.Timestamp(str(last_date)) + pd.Timedelta(days=1)
+    start_date = datetime.datetime.strftime(start_date, "%Y-%m-%d")
+    # 本次更新终止日期
+    end_date = datetime.datetime.now()
+    if end_date.hour < 17:
+        end_date = end_date - pd.Timedelta(days=1)
+    end_date = datetime.datetime.strftime(end_date, "%Y-%m-%d")
+    logger.info(f"本次将下载从{start_date}到{end_date}的数据")
+    # 下载数据
+    ts = rqdatac.get_price(
+        codes,
+        start_date=start_date,
+        end_date=end_date,
+        frequency="1m",
+        fields=["volume", "total_turnover", "high", "low", "close", "open"],
+        adjust_type="none",
+        skip_suspended=False,
+        market="cn",
+        expect_df=True,
+        time_slice=None,
+    )
+    # 调整数据格式
+    ts = ts.reset_index()
+    ts = ts.rename(
+        columns={
+            "order_book_id": "code",
+            "datetime": "date",
+            "volume": "amount",
+            "total_turnover": "money",
+        }
+    )
+    ts = ts.sort_values(["code", "date"])
+    ts.date = ts.date.dt.strftime("%Y%m%d").astype(int)
+    ts = ts.groupby(["code", "date"]).apply(
+        lambda x: x.assign(num=list(range(1, x.shape[0] + 1)))
+    )
+    ts = ts.ffill().dropna()
+    ts.code = ts.code.str.replace(".XSHE", ".SZ")
+    ts.code = ts.code.str.replace(".XSHG", ".SH")
+    ts.date = ts.date.astype(int).astype(str)
+    ts.num = ts.num.astype(int).astype(str)
+    # 数据写入数据库
+    qdb = Questdb()
+    qdb.write_via_csv(df, f"minute_data_{kind}")
     # 获取剩余使用额
     user2 = round(rqdatac.user.get_quota()["bytes_used"] / 1024 / 1024, 2)
     user12 = round(user2 - user1, 2)
@@ -175,13 +352,6 @@ def database_update_minute_data_to_mysql(kind: str) -> None:
     ts = ts.groupby(["code", "date"]).apply(
         lambda x: x.assign(num=list(range(1, x.shape[0] + 1)))
     )
-    ts = (
-        (np.around(ts.set_index("code"), 2) * 100)
-        .ffill()
-        .dropna()
-        .astype(int)
-        .reset_index()
-    )
     ts.code = ts.code.str.replace(".XSHE", ".SZ")
     ts.code = ts.code.str.replace(".XSHG", ".SH")
     codes = list(set(ts.code))
@@ -201,12 +371,12 @@ def database_update_minute_data_to_mysql(kind: str) -> None:
                     index=False,
                     dtype={
                         "code": VARCHAR(9),
-                        "open": INT,
-                        "high": INT,
-                        "low": INT,
-                        "close": INT,
-                        "amount": BIGINT,
-                        "money": BIGINT,
+                        "open": FLOAT,
+                        "high": FLOAT,
+                        "low": FLOAT,
+                        "close": FLOAT,
+                        "amount": FLOAT,
+                        "money": FLOAT,
                         "num": INT,
                     },
                 )
@@ -220,12 +390,12 @@ def database_update_minute_data_to_mysql(kind: str) -> None:
                             index=False,
                             dtype={
                                 "code": VARCHAR(9),
-                                "open": INT,
-                                "high": INT,
-                                "low": INT,
-                                "close": INT,
-                                "amount": BIGINT,
-                                "money": BIGINT,
+                                "open": FLOAT,
+                                "high": FLOAT,
+                                "low": FLOAT,
+                                "close": FLOAT,
+                                "amount": FLOAT,
+                                "money": FLOAT,
                                 "num": INT,
                             },
                         )
@@ -245,12 +415,12 @@ def database_update_minute_data_to_mysql(kind: str) -> None:
                     index=False,
                     dtype={
                         "code": VARCHAR(9),
-                        "open": INT,
-                        "high": INT,
-                        "low": INT,
-                        "close": INT,
-                        "amount": BIGINT,
-                        "money": BIGINT,
+                        "open": FLOAT,
+                        "high": FLOAT,
+                        "low": FLOAT,
+                        "close": FLOAT,
+                        "amount": FLOAT,
+                        "money": FLOAT,
                         "num": INT,
                     },
                 )
@@ -264,12 +434,12 @@ def database_update_minute_data_to_mysql(kind: str) -> None:
                             index=False,
                             dtype={
                                 "code": VARCHAR(9),
-                                "open": INT,
-                                "high": INT,
-                                "low": INT,
-                                "close": INT,
-                                "amount": BIGINT,
-                                "money": BIGINT,
+                                "open": FLOAT,
+                                "high": FLOAT,
+                                "low": FLOAT,
+                                "close": FLOAT,
+                                "amount": FLOAT,
+                                "money": FLOAT,
                                 "num": INT,
                             },
                         )
@@ -769,21 +939,29 @@ def database_update_swindustry_prices():
     indus = indus.dropna()
     indus.index = pd.to_datetime(indus.index, format="%Y%m%d")
     indus = indus.sort_index()
-    indus.reset_index().to_feather(homeplace.daily_data_file+"申万各行业行情数据.feather")
+    indus.reset_index().to_feather(homeplace.daily_data_file + "申万各行业行情数据.feather")
     new_date = datetime.datetime.strftime(indus.index.max(), "%Y%m%d")
     logger.success(f"申万一级行业的行情数据已经更新至{new_date}")
-    
+
 
 def database_update_zxindustry_prices():
-    zxinds=ZXINDUS_DICT
-    now=datetime.datetime.now()
-    zxprices=[]
+    zxinds = ZXINDUS_DICT
+    now = datetime.datetime.now()
+    zxprices = []
     for k in list(zxinds.keys()):
-        ind=rqdatac.get_price(k,start_date='2010-01-01',end_date=now,fields='close')
-        ind=ind.rename(columns={'close':zxinds[k]}).reset_index(level=1).reset_index(drop=True)
+        ind = rqdatac.get_price(
+            k, start_date="2010-01-01", end_date=now, fields="close"
+        )
+        ind = (
+            ind.rename(columns={"close": zxinds[k]})
+            .reset_index(level=1)
+            .reset_index(drop=True)
+        )
         zxprices.append(ind)
-    zxprice=reduce(lambda x,y:pd.merge(x,y,on=['date'],how='outer'),zxprices)
-    zxprice.reset_index(drop=True).to_feather(homeplace.daily_data_file+'中信各行业行情数据.feather')
+    zxprice = reduce(lambda x, y: pd.merge(x, y, on=["date"], how="outer"), zxprices)
+    zxprice.reset_index(drop=True).to_feather(
+        homeplace.daily_data_file + "中信各行业行情数据.feather"
+    )
     new_date = datetime.datetime.strftime(zxprice.date.max(), "%Y%m%d")
     logger.success(f"中信一级行业的行情数据已经更新至{new_date}")
 

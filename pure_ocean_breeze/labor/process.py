@@ -1,4 +1,4 @@
-__updated__ = "2022-08-21 22:21:37"
+__updated__ = "2022-08-25 04:03:48"
 
 import numpy as np
 import pandas as pd
@@ -1940,14 +1940,14 @@ class pure_moonnight(object):
 
 class pure_fall(object):
     # DONE：修改为因子文件名可以带“日频_“，也可以不带“日频_“
-    def __init__(self,daily_path:str)->None:
+    def __init__(self, daily_path: str) -> None:
         """一个使用mysql中的分钟数据，来更新因子值的框架
 
         Parameters
         ----------
         daily_path : str
             日频因子值存储文件的名字，请以'.feather'结尾
-        """        
+        """
         self.homeplace = HomePlace()
         # 将分钟数据拼成一张日频因子表
         self.daily_factors = None
@@ -2351,6 +2351,9 @@ class pure_fall_frequent(object):
         startdate: int = None,
         enddate: int = None,
         kind: str = "stock",
+        clickhouse: bool = 0,
+        postgresql: bool = 0,
+        questdb: bool = 0,
     ) -> None:
         """基于clickhouse的分钟数据，计算因子值，每天的因子值只用到当日的数据
 
@@ -2364,11 +2367,27 @@ class pure_fall_frequent(object):
             截止时间，形如20220814，为闭区间，为空则计算到最近数据, by default None
         kind : str, optional
             类型为股票还是指数，指数为'index', by default "stock"
+        clickhouse : bool, optional
+            使用clickhouse作为数据源，如果postgresql与本参数都为0，将依然从clickhouse中读取, by default 0
+        postgresql : bool, optional
+            使用postgresql作为数据源, by default 0
+        questdb : bool, optional
+            使用questdb作为数据源, by default 0
         """
         homeplace = HomePlace()
         self.kind = kind
-        # 连接clickhouse
-        self.chc = ClickHouseClient(f"minute_data")
+        if clickhouse == 0 and postgresql == 0 and questdb == 0:
+            clickhouse = 1
+        self.clickhouse = clickhouse
+        self.postgresql = postgresql
+        self.questdb = questdb
+        if clickhouse == 1:
+            # 连接clickhouse
+            self.chc = ClickHouseClient("minute_data")
+        elif postgresql == 1:
+            self.chc = PostgreSQL("minute_data")
+        else:
+            self.chc = Questdb()
         # 完整的因子文件路径
         factor_file = homeplace.factor_data_file + factor_file
         self.factor_file = factor_file
@@ -2453,12 +2472,16 @@ class pure_fall_frequent(object):
             if tqdm_inside:
                 # 开始计算因子值
                 for date1, date2 in cuts:
-                    sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{self.dates_new[date1]*100} and date<={self.dates_new[date2]*100} order by code,date,num"
+                    if self.clickhouse == 1:
+                        sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{self.dates_new[date1]*100} and date<={self.dates_new[date2]*100} order by code,date,num"
+                    else:
+                        sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{self.dates_new[date1]} and date<={self.dates_new[date2]} order by code,date,num"
                     if show_time:
                         df = self.chc.get_data_show_time(sql_order)
                     else:
                         df = self.chc.get_data(sql_order)
-                    df = ((df.set_index("code")) / 100).reset_index()
+                    if self.clickhouse == 1:
+                        df = ((df.set_index("code")) / 100).reset_index()
                     tqdm.tqdm.pandas()
                     df = df.groupby(["date", "code"]).progress_apply(the_func)
                     df = df.to_frame("fac").reset_index()
@@ -2469,12 +2492,16 @@ class pure_fall_frequent(object):
             else:
                 # 开始计算因子值
                 for date1, date2 in tqdm.tqdm(cuts, desc="不知乘月几人归，落月摇情满江树。"):
-                    sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{self.dates_new[date1]*100} and date<={self.dates_new[date2]*100} order by code,date,num"
+                    if self.clickhouse == 1:
+                        sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{self.dates_new[date1]*100} and date<={self.dates_new[date2]*100} order by code,date,num"
+                    else:
+                        sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{self.dates_new[date1]} and date<={self.dates_new[date2]} order by code,date,num"
                     if show_time:
                         df = self.chc.get_data_show_time(sql_order)
                     else:
                         df = self.chc.get_data(sql_order)
-                    df = ((df.set_index("code")) / 100).reset_index()
+                    if self.clickhouse == 1:
+                        df = ((df.set_index("code")) / 100).reset_index()
                     df = df.groupby(["date", "code"]).apply(the_func)
                     df = df.to_frame("fac").reset_index()
                     df.columns = ["date", "code", "fac"]
@@ -2492,12 +2519,16 @@ class pure_fall_frequent(object):
             print("共1天")
             if tqdm_inside:
                 # 开始计算因子值
-                sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date={self.dates_new[0]*100} order by code,date,num"
+                if self.clickhouse == 1:
+                    sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date={self.dates_new[0]*100} order by code,date,num"
+                else:
+                    sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date={self.dates_new[0]} order by code,date,num"
                 if show_time:
                     df = self.chc.get_data_show_time(sql_order)
                 else:
                     df = self.chc.get_data(sql_order)
-                df = ((df.set_index("code")) / 100).reset_index()
+                if self.clickhouse == 1:
+                    df = ((df.set_index("code")) / 100).reset_index()
                 tqdm.tqdm.pandas()
                 df = df.groupby(["date", "code"]).progress_apply(the_func)
                 df = df.to_frame("fac").reset_index()
@@ -2506,12 +2537,16 @@ class pure_fall_frequent(object):
                 df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
             else:
                 # 开始计算因子值
-                sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date={self.dates_new[0]*100} order by code,date,num"
+                if self.clickhouse == 1:
+                    sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date={self.dates_new[0]*100} order by code,date,num"
+                else:
+                    sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date={self.dates_new[0]} order by code,date,num"
                 if show_time:
                     df = self.chc.get_data_show_time(sql_order)
                 else:
                     df = self.chc.get_data(sql_order)
-                df = ((df.set_index("code")) / 100).reset_index()
+                if self.clickhouse == 1:
+                    df = ((df.set_index("code")) / 100).reset_index()
                 df = df.groupby(["date", "code"]).apply(the_func)
                 df = df.to_frame("fac").reset_index()
                 df.columns = ["date", "code", "fac"]
@@ -2537,6 +2572,9 @@ class pure_fall_flexible(object):
         startdate: int = None,
         enddate: int = None,
         kind: str = "stock",
+        clickhouse: bool = 0,
+        postgresql: bool = 0,
+        questdb: bool = 0,
     ) -> None:
         """基于clickhouse的分钟数据，计算因子值，每天的因子值用到多日的数据，或者用到截面的数据
         对一段时间的截面数据进行操作，在get_daily_factors的func函数中
@@ -2553,11 +2591,27 @@ class pure_fall_flexible(object):
             计算因子的终止日期，形如20220816, by default None
         kind : str, optional
             指定计算股票还是指数，指数则为'index', by default "stock"
+        clickhouse : bool, optional
+            使用clickhouse作为数据源，如果postgresql与本参数都为0，将依然从clickhouse中读取, by default 0
+        postgresql : bool, optional
+            使用postgresql作为数据源, by default 0
+        questdb : bool, optional
+            使用questdb作为数据源, by default 0
         """
         homeplace = HomePlace()
         self.kind = kind
-        # 连接clickhouse
-        self.chc = ClickHouseClient(f"minute_data")
+        if clickhouse == 0 and postgresql == 0 and questdb == 0:
+            clickhouse = 1
+        self.clickhouse = clickhouse
+        self.postgresql = postgresql
+        self.questdb = questdb
+        if clickhouse == 1:
+            # 连接clickhouse
+            self.chc = ClickHouseClient("minute_data")
+        elif postgresql == 1:
+            self.chc = PostgreSQL("minute_data")
+        else:
+            self.chc = Questdb()
         # 完整的因子文件路径
         factor_file = homeplace.factor_data_file + factor_file
         self.factor_file = factor_file
@@ -2637,12 +2691,16 @@ class pure_fall_flexible(object):
             if tqdm_inside:
                 # 开始计算因子值
                 for date1, date2 in cut_points:
-                    sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{self.dates_new[date1]*100} and date<={self.dates_new[date2]*100} order by code,date,num"
+                    if self.clickhouse == 1:
+                        sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{self.dates_new[date1]*100} and date<={self.dates_new[date2]*100} order by code,date,num"
+                    else:
+                        sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{self.dates_new[date1]} and date<={self.dates_new[date2]} order by code,date,num"
                     if show_time:
                         df = self.chc.get_data_show_time(sql_order)
                     else:
                         df = self.chc.get_data(sql_order)
-                    df = ((df.set_index("code")) / 100).reset_index()
+                    if self.clickhouse == 1:
+                        df = ((df.set_index("code")) / 100).reset_index()
                     tqdm.tqdm.pandas()
                     df = the_func(df)
                     if isinstance(df, pd.Series):
@@ -2654,12 +2712,16 @@ class pure_fall_flexible(object):
             else:
                 # 开始计算因子值
                 for date1, date2 in tqdm.tqdm(cut_points, desc="不知乘月几人归，落月摇情满江树。"):
-                    sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{self.dates_new[date1]*100} and date<={self.dates_new[date2]*100} order by code,date,num"
+                    if self.clickhouse == 1:
+                        sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{self.dates_new[date1]*100} and date<={self.dates_new[date2]*100} order by code,date,num"
+                    else:
+                        sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{self.dates_new[date1]} and date<={self.dates_new[date2]} order by code,date,num"
                     if show_time:
                         df = self.chc.get_data_show_time(sql_order)
                     else:
                         df = self.chc.get_data(sql_order)
-                    df = ((df.set_index("code")) / 100).reset_index()
+                    if self.clickhouse == 1:
+                        df = ((df.set_index("code")) / 100).reset_index()
                     df = the_func(df)
                     if isinstance(df, pd.Series):
                         df = df.reset_index()
@@ -2678,12 +2740,16 @@ class pure_fall_flexible(object):
             print("共1天")
             if tqdm_inside:
                 # 开始计算因子值
-                sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date={self.dates_new[0]*100} order by code,date,num"
+                if self.clickhouse == 1:
+                    sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date={self.dates_new[0]*100} order by code,date,num"
+                else:
+                    sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date={self.dates_new[0]} order by code,date,num"
                 if show_time:
                     df = self.chc.get_data_show_time(sql_order)
                 else:
                     df = self.chc.get_data(sql_order)
-                df = ((df.set_index("code")) / 100).reset_index()
+                if self.clickhouse == 1:
+                    df = ((df.set_index("code")) / 100).reset_index()
                 tqdm.tqdm.pandas()
                 df = the_func(df)
                 if isinstance(df, pd.Series):
@@ -2693,12 +2759,16 @@ class pure_fall_flexible(object):
                 df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
             else:
                 # 开始计算因子值
-                sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date={self.dates_new[0]*100} order by code,date,num"
+                if self.clickhouse == 1:
+                    sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date={self.dates_new[0]*100} order by code,date,num"
+                else:
+                    sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date={self.dates_new[0]} order by code,date,num"
                 if show_time:
                     df = self.chc.get_data_show_time(sql_order)
                 else:
                     df = self.chc.get_data(sql_order)
-                df = ((df.set_index("code")) / 100).reset_index()
+                if self.clickhouse == 1:
+                    df = ((df.set_index("code")) / 100).reset_index()
                 df = the_func(df)
                 if isinstance(df, pd.Series):
                     df = df.reset_index()

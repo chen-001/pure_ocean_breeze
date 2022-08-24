@@ -9,6 +9,7 @@ on:
     paths:
       - 'docs/**'
       - "mkdocs.yml"
+      - 'pure_ocean_breeze/**'
 jobs:
   deploy:
     runs-on: ubuntu-latest
