@@ -1098,7 +1098,7 @@ def download_single_index_member(code):
     ress = pd.concat(ress)
     ress.columns = [convert_code(i)[0] for i in list(ress.columns)]
     tr = np.sign(read_daily(tr=1, start=20100101))
-    rt = np.sign(tr + ress)
+    tr = np.sign(tr + ress)
     now_str = datetime.datetime.strftime(now, "%Y%m%d")
     tr.reset_index().to_feather(file)
     logger.success(f"已将{INDEX_DICT[convert_code(code)[0]]}日成分股更新至{now_str}")
