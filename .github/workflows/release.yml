@@ -22,9 +22,9 @@ jobs:
       #   with:
       #     name: NameOfYourArtifact
       - name: ls
-      - run: ls
+        run: ls
       - name: Zip the Build
-      - run: zip -r pure_ocean_breeze.zip pure_ocean_breeze
+        run: zip -r pure_ocean_breeze.zip pure_ocean_breeze
 
       - name: Create release
         id: create_release
