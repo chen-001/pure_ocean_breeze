@@ -22,7 +22,7 @@ jobs:
       #   with:
       #     name: NameOfYourArtifact
       - name: Zip the Build
-        run: zip -r ${{ secrets.ReleaseZipName }}
+        run: zip -r pure_ocean_breeze.zip pure_ocean_breeze
       - name: Create release
         id: create_release
         uses: actions/create-release@v1
@@ -42,6 +42,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./${{ secrets.ReleaseZipName }}.zip
-          asset_name: ${{ secrets.ReleaseZipName }}.zip
+          asset_path: ./pure_ocean_breeze.zip
+          asset_name: pure_ocean_breeze.zip
           asset_content_type: application/zip
