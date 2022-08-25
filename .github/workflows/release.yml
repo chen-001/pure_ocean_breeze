@@ -1,7 +1,7 @@
 on:
   push:
-    paths:
-      - "pure_ocean_breeze/__init__.py"
+    branches:
+      - "master/pure_ocean_breeze/__init__.py"
 
 name: Release
 

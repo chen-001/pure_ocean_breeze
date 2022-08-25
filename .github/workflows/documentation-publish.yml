@@ -6,10 +6,10 @@ on:
       # - 'mkdocs.yml'
     # branches:
       # - master
-    paths:
-      - 'docs/**'
-      - "mkdocs.yml"
-      - 'pure_ocean_breeze/**'
+    branches:
+      - 'master/docs/**'
+      - "master/mkdocs.yml"
+      - 'master/pure_ocean_breeze/**'
 jobs:
   deploy:
     runs-on: ubuntu-latest

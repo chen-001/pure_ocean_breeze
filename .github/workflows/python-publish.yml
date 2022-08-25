@@ -4,8 +4,8 @@ name: Upload Python Package
 on:
   # 当setup.py分支有push时，触发action
   push: 
-    paths:
-      - "pure_ocean_breeze/__init__.py"
+    branches:
+      - "master/pure_ocean_breeze/__init__.py"
 
 jobs:
   deploy:
