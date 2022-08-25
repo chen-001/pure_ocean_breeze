@@ -21,8 +21,8 @@
 * v3.0.4 — 2022.08.18
 >1. 增设了旧版本模块（pure_ocean_breeze.legacy_version)，目前包括三个旧版本：
 >>*  v2.6.9（发布时间2022-08-16）
->>* v1.20.7（发布时间2022-07-11）
->>* v1.10.7（发布时间2022-04-04)
+>>*  v1.20.7（发布时间2022-07-11）
+>>*  v1.10.7（发布时间2022-04-04)
 >2. 增设了未来版本模块(pure_ocean_breeze.future_version)，目前包括两个部分：
 >>* pure_ocean_breeze.future_version.half_way（尚未完工的部分）
 >>* pure_ocean_breeze.future_version.in_thoughts（仍主要在构思或推敲阶段的部分）
@@ -38,21 +38,12 @@
 >1. 将申万行业哑变量的读入时间提前，从而给回测提速60%
 * v3.0.0 — 2022.08.17
 >1. 上线了[说明文档](https://chen-001.github.io/pure_ocean_breeze/)
->
 >2. 将v2中的pure_ocean_breeze模块拆分为不同功能的几个模块
->
->  > * initialize （初始化）
->  >
->  > * state （配置&参数）
->  >
->  > * data （数据）
->  >
->  > * labor （加工&测试&评价）
->  >
->  > * mail（通讯）
->  >
+>>* initialize （初始化）
+>>* state （配置&参数）
+>>* data （数据）
+>>* labor （加工&测试&评价）
+>>* mail（通讯）
 >3. 修复了主要指数成分股处理的bug，并将其改为日频
->
 >4. 增加了国证2000成分股的哑变量
->
 >5. 删去了初始化中的分钟数据文件路径
