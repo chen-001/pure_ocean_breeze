@@ -3,9 +3,19 @@ name: Upload Python Package
 
 on:
   # 当setup.py分支有push时，触发action
-  pull_request: 
+  pull_request:
     branches:
-      - "master/pure_ocean_breeze/__init__.py"
+      - "master"
+
+    paths:
+      - "pure_ocean_breeze/__init__.py"
+  
+  push:
+    branches:
+      - "master"
+    
+    paths:
+      - "pure_ocean_breeze/__init__.py"
 
 jobs:
   deploy:

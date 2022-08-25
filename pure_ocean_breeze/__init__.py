@@ -2,7 +2,7 @@
 一个量化多因子研究的框架，包含数据、回测、因子加工等方面的功能
 """
 
-__updated__ = '2022-08-25 19:37:42'
+__updated__ = '2022-08-25 19:46:05'
 __version__ = '3.0.8'
 __author__ = 'chenzongwei'
 __author_email__ = 'winterwinter999@163.com'

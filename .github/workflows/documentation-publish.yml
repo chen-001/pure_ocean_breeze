@@ -7,9 +7,25 @@ on:
     # branches:
       # - master
     branches:
-      - 'master/docs/**'
-      - "master/mkdocs.yml"
-      - 'master/pure_ocean_breeze/**'
+      - 'master'
+      - "master"
+      - 'master'
+      
+    paths: 
+      - "docs/**"
+      - "mkdocs.yml"
+      - "pure_ocean_breeze/**"
+  push:
+      branches:
+        - 'master'
+        - "master"
+        - 'master'
+    
+      paths: 
+        - "docs/**"
+        - "mkdocs.yml"
+        - "pure_ocean_breeze/**"
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
