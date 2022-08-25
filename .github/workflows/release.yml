@@ -25,14 +25,14 @@ jobs:
         uses: actions/checkout@v2
       - name: Get version
         id: get_version
-        run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\//}
+        run: echo ::set-output name=VERSION::${tags/}
       - name: Create Release
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ tags }}
-          release_name: ${{ tags }}
+          tag_name: ${{ steps.get_version.outputs.VERSION  }}
+          release_name: ${{ steps.get_version.outputs.VERSION  }}
           body: 详见[更新日志](https://github.com/chen-001/pure_ocean_breeze/blob/master/更新日志/更新日志.md)
           draft: false
           prerelease: false
