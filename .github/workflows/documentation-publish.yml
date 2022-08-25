@@ -1,6 +1,6 @@
 name: Deploy to Github Pages
 on:
-  push:
+  pull_request:
     # paths:
       # - docs/
       # - 'mkdocs.yml'

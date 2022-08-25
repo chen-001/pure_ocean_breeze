@@ -1,5 +1,5 @@
 on:
-  push:
+  pull_request:
     branches:
       - "master/pure_ocean_breeze/__init__.py"
 
