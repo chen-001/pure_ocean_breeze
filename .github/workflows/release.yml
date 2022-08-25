@@ -17,34 +17,7 @@ jobs:
   deploy:    
     runs-on: ubuntu-latest
     steps:
-      # - name: Download artifact
-      #   uses: actions/download-artifact@v2
-      #   with:
-      #     name: NameOfYourArtifact
-      - name: ls
-        run: ls
-      - name: Zip the Build
-        run: zip -r pure_ocean_breeze.zip pure_ocean_breeze
-
-      - name: Create release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
-          body: TODO
-          draft: false
-          prerelease: false
-
-      - name: Upload Release Asset
-        id: upload-release-asset 
-        uses: actions/upload-release-asset@v1
+      - name: Semantic Release
+        uses: cycjimmy/semantic-release-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./pure_ocean_breeze.zip
-          asset_name: pure_ocean_breeze.zip
-          asset_content_type: application/zip
