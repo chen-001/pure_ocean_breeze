@@ -1,7 +1,17 @@
 on:
   pull_request:
     branches:
-      - "master/pure_ocean_breeze/__init__.py"
+      - "master"
+
+    paths:
+      - "pure_ocean_breeze/__init__.py"
+  
+  push:
+    branches:
+      - "master"
+    
+    paths:
+      - "pure_ocean_breeze/__init__.py"
 
 name: Release
 
