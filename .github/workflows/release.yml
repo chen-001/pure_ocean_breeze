@@ -21,8 +21,9 @@ jobs:
       #   uses: actions/download-artifact@v2
       #   with:
       #     name: NameOfYourArtifact
-      - name: Zip the Build
+      - name: ls
       - run: ls
+      - name: Zip the Build
       - run: zip -r pure_ocean_breeze.zip pure_ocean_breeze
 
       - name: Create release
