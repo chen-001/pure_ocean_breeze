@@ -1,26 +1,12 @@
 name: Deploy to Github Pages
 on:
   pull_request:
-    # paths:
-      # - docs/
-      # - 'mkdocs.yml'
-    # branches:
-      # - master
-    branches:
-      - 'master'
-      - "master"
-      - 'master'
       
     paths: 
       - "docs/**"
       - "mkdocs.yml"
       - "pure_ocean_breeze/**"
   push:
-      branches:
-        - 'master'
-        - "master"
-        - 'master'
-    
       paths: 
         - "docs/**"
         - "mkdocs.yml"
