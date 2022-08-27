@@ -66,5 +66,6 @@ jobs:
       with:
         tag_name: ${{ github.ref }}
         release_name: ${{ github.ref }}
+        body: 详见[更新日志](https://github.com/chen-001/pure_ocean_breeze/blob/master/更新日志/更新日志.md)
         draft: false
         prerelease: false
