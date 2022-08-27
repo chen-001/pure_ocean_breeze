@@ -1,9 +1,10 @@
-__updated__ = "2022-08-18 03:22:11"
+__updated__ = "2022-08-28 01:35:26"
 
 import numpy as np
 import pandas as pd
 import scipy.io as scio
 import datetime
+from typing import Union
 from loguru import logger
 
 from cachier import cachier
@@ -14,6 +15,7 @@ rqdatac.init()
 from pure_ocean_breeze.state.states import STATES
 from pure_ocean_breeze.state.homeplace import HomePlace
 from pure_ocean_breeze.state.decorators import *
+from pure_ocean_breeze.data.database import ClickHouseClient
 
 homeplace = HomePlace()
 
@@ -147,6 +149,69 @@ def read_daily(
             return volumes
         else:
             raise IOError("阁下总得读点什么吧？🤒")
+
+
+def read_market(
+    open: bool = 0,
+    close: bool = 0,
+    high: bool = 0,
+    low: bool = 0,
+    start: int=STATES["START"],
+    every_stock: bool=1
+)->Union[pd.DataFrame,pd.Series]:
+    """读取中证全指日行情数据
+
+    Parameters
+    ----------
+    open : bool, optional
+        读取开盘点数, by default 0
+    close : bool, optional
+        读取收盘点数, by default 0
+    high : bool, optional
+        读取最高点数, by default 0
+    low : bool, optional
+        读取最低点数, by default 0
+    start : int, optional
+        读取的起始日期, by default STATES["START"]
+    every_stock : bool, optional
+        是否修改为index是时间，columns是每只股票代码，每一列值都相同的形式, by default 1
+
+    Returns
+    -------
+    Union[pd.DataFrame,pd.Series]
+        中证全指每天的指数
+
+    Raises
+    ------
+    IOError
+        如果没有指定任何指数，将报错
+    """    
+    chc=ClickHouseClient('minute_data')
+    df=chc.get_data(f"select * from minute_data.minute_data_index where code='000985.SH' and date>={start}00 order by date,num")
+    df=df.set_index('code')
+    df=df/100
+    df=df.set_index('date')
+    df.index=pd.to_datetime(df.index.astype(str),format='%Y%m%d')
+    if open:
+        # 米筐的第一分钟是集合竞价，第一分钟的收盘价即为当天开盘价
+        df=df[df.num==1].close
+    elif close:
+        df=df[df.num==240].close
+    elif high:
+        df=df[df.num>1]
+        df=df.groupby('date').max()
+        df=df.high
+    elif low:
+        df=df[df.num>1]
+        df=df.groupby('date').min()
+        df=df.low
+    else:
+        raise IOError('总得指定一个指标吧？🤒')
+    if every_stock:
+        tr=read_daily(tr=1,start=start)
+        df=pd.DataFrame({k:list(df) for k in list(tr.columns)},index=df.index)
+    return df
+
 
 
 def read_index_three(day: int = None) -> tuple[pd.DataFrame]:
