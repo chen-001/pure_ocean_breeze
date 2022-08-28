@@ -1,5 +1,6 @@
-__updated__ = "2022-08-28 01:35:26"
+__updated__ = "2022-08-28 22:47:21"
 
+import os
 import numpy as np
 import pandas as pd
 import scipy.io as scio
@@ -156,9 +157,9 @@ def read_market(
     close: bool = 0,
     high: bool = 0,
     low: bool = 0,
-    start: int=STATES["START"],
-    every_stock: bool=1
-)->Union[pd.DataFrame,pd.Series]:
+    start: int = STATES["START"],
+    every_stock: bool = 1,
+) -> Union[pd.DataFrame, pd.Series]:
     """读取中证全指日行情数据
 
     Parameters
@@ -185,33 +186,100 @@ def read_market(
     ------
     IOError
         如果没有指定任何指数，将报错
-    """    
-    chc=ClickHouseClient('minute_data')
-    df=chc.get_data(f"select * from minute_data.minute_data_index where code='000985.SH' and date>={start}00 order by date,num")
-    df=df.set_index('code')
-    df=df/100
-    df=df.set_index('date')
-    df.index=pd.to_datetime(df.index.astype(str),format='%Y%m%d')
+    """
+    chc = ClickHouseClient("minute_data")
+    df = chc.get_data(
+        f"select * from minute_data.minute_data_index where code='000985.SH' and date>={start}00 order by date,num"
+    )
+    df = df.set_index("code")
+    df = df / 100
+    df = df.set_index("date")
+    df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
     if open:
         # 米筐的第一分钟是集合竞价，第一分钟的收盘价即为当天开盘价
-        df=df[df.num==1].close
+        df = df[df.num == 1].close
     elif close:
-        df=df[df.num==240].close
+        df = df[df.num == 240].close
     elif high:
-        df=df[df.num>1]
-        df=df.groupby('date').max()
-        df=df.high
+        df = df[df.num > 1]
+        df = df.groupby("date").max()
+        df = df.high
     elif low:
-        df=df[df.num>1]
-        df=df.groupby('date').min()
-        df=df.low
+        df = df[df.num > 1]
+        df = df.groupby("date").min()
+        df = df.low
     else:
-        raise IOError('总得指定一个指标吧？🤒')
+        raise IOError("总得指定一个指标吧？🤒")
     if every_stock:
-        tr=read_daily(tr=1,start=start)
-        df=pd.DataFrame({k:list(df) for k in list(tr.columns)},index=df.index)
+        tr = read_daily(tr=1, start=start)
+        df = pd.DataFrame({k: list(df) for k in list(tr.columns)}, index=df.index)
     return df
 
+
+def read_money_flow(
+    buy: bool = 0,
+    sell: bool = 0,
+    exlarge: bool = 0,
+    large: bool = 0,
+    median: bool = 0,
+    small: bool = 0,
+) -> pd.DataFrame:
+    """一键读入资金流向数据，包括超大单、大单、中单、小单的买入和卖出情况
+
+    Parameters
+    ----------
+    buy : bool, optional
+        方向为买, by default 0
+    sell : bool, optional
+        方向为卖, by default 0
+    exlarge : bool, optional
+        超大单，金额大于100万，为机构操作, by default 0
+    large : bool, optional
+        大单，金额在20万到100万之间，为大户特大单, by default 0
+    median : bool, optional
+        中单，金额在4万到20万之间，为中户大单, by default 0
+    small : bool, optional
+        小单，金额在4万以下，为散户中单, by default 0
+
+    Returns
+    -------
+    pd.DataFrame
+        index为时间，columns为股票代码，values为对应类型订单当日的成交金额
+
+    Raises
+    ------
+    IOError
+        buy和sell必须指定一个，否则会报错
+    IOError
+        exlarge，large，median和small必须指定一个，否则会报错
+    """
+    if buy:
+        if exlarge:
+            name = "buy_value_exlarge"
+        elif large:
+            name = "buy_value_large"
+        elif median:
+            name = "buy_value_med"
+        elif small:
+            name = "buy_value_small"
+        else:
+            raise IOError("您总得指定一种规模吧？🤒")
+    elif sell:
+        if exlarge:
+            name = "sell_value_exlarge"
+        elif large:
+            name = "sell_value_large"
+        elif median:
+            name = "sell_value_med"
+        elif small:
+            name = "sell_value_small"
+        else:
+            raise IOError("您总得指定一种规模吧？🤒")
+    else:
+        raise IOError("您总得指定一下是买还是卖吧？🤒")
+    name = homeplace.daily_data_file + name + ".feather"
+    df = pd.read_feather(name).set_index("date")
+    return df
 
 
 def read_index_three(day: int = None) -> tuple[pd.DataFrame]:
@@ -350,24 +418,129 @@ def get_industry_dummies(daily: bool = 0, monthly: bool = 0) -> dict:
     return ress
 
 
-def database_save_final_factors(df: pd.DataFrame, name: str, order: int) -> None:
-    """保存最终因子的因子值
+def database_read_final_factors(
+    name: str = None, order: int = None, output: bool = 0, new: bool = 0
+) -> tuple[pd.DataFrame, str]:
+    """根据因子名字，或因子序号，读取最终因子的因子值
 
     Parameters
     ----------
-    df : pd.DataFrame
-        最终因子值
-    name : str
-        因子的名字，如“适度冒险”
-    order : int
-        因子的序号
+    name : str, optional
+        因子的名字, by default None
+    order : int, optional
+        因子的序号, by default None
+    output : bool, optional
+        是否输出到csv文件, by default 0
+    new : bool, optional
+        是否只输出最新一期的因子值, by default 0
+
+    Returns
+    -------
+    `tuple[pd.DataFrame,str]`
+        最终因子值和文件路径
     """
     homeplace = HomePlace()
-    path = homeplace.final_factor_file + name + "_" + "多因子" + str(order) + ".feather"
-    df.reset_index().to_feather(path)
+    facs = os.listdir(homeplace.final_factor_file)
+    if name is None and order is None:
+        raise IOError("请指定因子名字或者因子序号")
+    elif name is None and order is not None:
+        key = "多因子" + str(order)
+        ans = [i for i in facs if key in i][0]
+    elif name is not None and name is None:
+        key = name
+        ans = [i for i in facs if key in i]
+        if len(ans) > 0:
+            ans = ans[0]
+        else:
+            raise IOError(f"您名字记错了，不存在叫{name}的因子")
+    else:
+        key1 = name
+        key2 = "多因子" + str(order)
+        ans1 = [i for i in facs if key1 in i]
+        if len(ans1) > 0:
+            ans1 = ans1[0]
+        else:
+            raise IOError(f"您名字记错了，不存在叫{name}的因子")
+        ans2 = [i for i in facs if key2 in i][0]
+        if ans1 != ans2:
+            ans = ans1
+            logger.warning("您输入的名字和序号不一致，怀疑您记错了序号，程序默认以名字为准了哈")
+        else:
+            ans = ans1
+    path = homeplace.final_factor_file + ans
+    df = pd.read_feather(path)
+    df.columns = ["date"] + list(df.columns)[1:]
+    df = df.set_index(["date"])
+    df = df[sorted(list(df.columns))]
     final_date = df.index.max()
     final_date = datetime.datetime.strftime(final_date, "%Y%m%d")
-    config = pickledb.load(homeplace.update_data_file + "database_config.db", False)
-    config.set("data_refresh", "done")
-    config.dump()
-    logger.success(f"今日计算的因子值保存，最新一天为{final_date}")
+    if output:
+        if new:
+            if os.path.exists(ans.split("_")[0]):
+                fac_name = (
+                    ans.split("_")[0]
+                    + "/"
+                    + ans.split("_")[0]
+                    + "因子"
+                    + final_date
+                    + "因子值.csv"
+                )
+            else:
+                os.makedirs(ans.split("_")[0])
+                fac_name = (
+                    ans.split("_")[0]
+                    + "/"
+                    + ans.split("_")[0]
+                    + "因子"
+                    + final_date
+                    + "因子值.csv"
+                )
+            df.tail(1).T.to_csv(fac_name)
+            logger.success(f"{final_date}的因子值已保存")
+        else:
+            if os.path.exists(ans.split("_")[0]):
+                fac_name = (
+                    ans.split("_")[0]
+                    + "/"
+                    + ans.split("_")[0]
+                    + "因子截至"
+                    + final_date
+                    + "因子值.csv"
+                )
+            else:
+                os.makedirs(ans.split("_")[0])
+                fac_name = (
+                    ans.split("_")[0]
+                    + "/"
+                    + ans.split("_")[0]
+                    + "因子截至"
+                    + final_date
+                    + "因子值.csv"
+                )
+            df.to_csv(fac_name)
+            logger.success(f"截至{final_date}的因子值已保存")
+        return df, fac_name
+    else:
+        return df, ""
+
+
+def database_read_primary_factors(name: str = None) -> pd.DataFrame:
+    """根据因子名字，读取初级因子的因子值
+
+    Parameters
+    ----------
+    name : str, optional
+        因子的名字, by default None
+
+    Returns
+    -------
+    `pd.DataFrame`
+        初级因子的因子值
+    """
+    homeplace = HomePlace()
+    name = name + "_初级.feather"
+    df = pd.read_feather(homeplace.factor_data_file + name)
+    df = df.rename(columns={list(df.columns)[0]: "date"})
+    df = df.set_index("date")
+    df = df[sorted(list(df.columns))]
+    return df

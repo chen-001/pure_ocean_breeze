@@ -1,4 +1,4 @@
-__updated__ = "2022-08-25 04:00:51"
+__updated__ = "2022-08-28 22:47:11"
 
 import rqdatac
 
@@ -26,7 +26,7 @@ from pure_ocean_breeze.data.database import (
     PostgreSQL,
     Questdb,
 )
-from pure_ocean_breeze.data.read_data import read_daily
+from pure_ocean_breeze.data.read_data import read_daily, read_money_flow
 from pure_ocean_breeze.data.dicts import INDUS_DICT, INDEX_DICT, ZXINDUS_DICT
 from pure_ocean_breeze.data.tools import 生成每日分类表, add_suffix, convert_code
 
@@ -1109,129 +1109,87 @@ def database_update_index_members():
         download_single_index_member(k)
 
 
-def database_read_final_factors(
-    name: str = None, order: int = None, output: bool = 0, new: bool = 0
-) -> tuple[pd.DataFrame, str]:
-    """根据因子名字，或因子序号，读取最终因子的因子值
+def database_save_final_factors(df: pd.DataFrame, name: str, order: int) -> None:
+    """保存最终因子的因子值
 
     Parameters
     ----------
-    name : str, optional
-        因子的名字, by default None
-    order : int, optional
-        因子的序号, by default None
-    output : bool, optional
-        是否输出到csv文件, by default 0
-    new : bool, optional
-        是否只输出最新一期的因子值, by default 0
-
-    Returns
-    -------
-    `tuple[pd.DataFrame,str]`
-        最终因子值和文件路径
+    df : pd.DataFrame
+        最终因子值
+    name : str
+        因子的名字，如“适度冒险”
+    order : int
+        因子的序号
     """
     homeplace = HomePlace()
-    facs = os.listdir(homeplace.final_factor_file)
-    if name is None and order is None:
-        raise IOError("请指定因子名字或者因子序号")
-    elif name is None and order is not None:
-        key = "多因子" + str(order)
-        ans = [i for i in facs if key in i][0]
-    elif name is not None and name is None:
-        key = name
-        ans = [i for i in facs if key in i]
-        if len(ans) > 0:
-            ans = ans[0]
-        else:
-            raise IOError(f"您名字记错了，不存在叫{name}的因子")
-    else:
-        key1 = name
-        key2 = "多因子" + str(order)
-        ans1 = [i for i in facs if key1 in i]
-        if len(ans1) > 0:
-            ans1 = ans1[0]
-        else:
-            raise IOError(f"您名字记错了，不存在叫{name}的因子")
-        ans2 = [i for i in facs if key2 in i][0]
-        if ans1 != ans2:
-            ans = ans1
-            logger.warning("您输入的名字和序号不一致，怀疑您记错了序号，程序默认以名字为准了哈")
-        else:
-            ans = ans1
-    path = homeplace.final_factor_file + ans
-    df = pd.read_feather(path)
-    df.columns = ["date"] + list(df.columns)[1:]
-    df = df.set_index(["date"])
-    df = df[sorted(list(df.columns))]
+    path = homeplace.final_factor_file + name + "_" + "多因子" + str(order) + ".feather"
+    df.reset_index().to_feather(path)
     final_date = df.index.max()
     final_date = datetime.datetime.strftime(final_date, "%Y%m%d")
-    if output:
-        if new:
-            if os.path.exists(ans.split("_")[0]):
-                fac_name = (
-                    ans.split("_")[0]
-                    + "/"
-                    + ans.split("_")[0]
-                    + "因子"
-                    + final_date
-                    + "因子值.csv"
-                )
-            else:
-                os.makedirs(ans.split("_")[0])
-                fac_name = (
-                    ans.split("_")[0]
-                    + "/"
-                    + ans.split("_")[0]
-                    + "因子"
-                    + final_date
-                    + "因子值.csv"
-                )
-            df.tail(1).T.to_csv(fac_name)
-            logger.success(f"{final_date}的因子值已保存")
-        else:
-            if os.path.exists(ans.split("_")[0]):
-                fac_name = (
-                    ans.split("_")[0]
-                    + "/"
-                    + ans.split("_")[0]
-                    + "因子截至"
-                    + final_date
-                    + "因子值.csv"
-                )
-            else:
-                os.makedirs(ans.split("_")[0])
-                fac_name = (
-                    ans.split("_")[0]
-                    + "/"
-                    + ans.split("_")[0]
-                    + "因子截至"
-                    + final_date
-                    + "因子值.csv"
-                )
-            df.to_csv(fac_name)
-            logger.success(f"截至{final_date}的因子值已保存")
-        return df, fac_name
-    else:
-        return df, ""
+    config = pickledb.load(homeplace.update_data_file + "database_config.db", False)
+    config.set("data_refresh", "done")
+    config.dump()
+    logger.success(f"今日计算的因子值保存，最新一天为{final_date}")
 
 
-def database_read_primary_factors(name: str = None) -> pd.DataFrame:
-    """根据因子名字，读取初级因子的因子值
+@retry
+def download_single_day_money_flow(
+    code: str, start_date: str, end_date: str
+) -> pd.DataFrame:
+    try:
+        df = pro.ashare_moneyflow(
+            code=code,
+            start_date=start_date,
+            end_date=end_date,
+            fields="trade_dt,buy_value_exlarge_order,sell_value_exlarge_order,buy_value_large_order,sell_value_large_order,buy_value_med_order,sell_value_med_order,buy_value_small_order,sell_value_small_order",
+        ).iloc[::-1, :]
+        if df.shape[0] > 0:
+            df = df.assign(code=code)
+            return df
+        time.sleep(0.1)
+    except Exception:
+        time.sleep(60)
+        df = pro.ashare_moneyflow(
+            code=code,
+            start_date=start_date,
+            end_date=end_date,
+            fields="trade_dt,buy_value_exlarge_order,sell_value_exlarge_order,buy_value_large_order,sell_value_large_order,buy_value_med_order,sell_value_med_order,buy_value_small_order,sell_value_small_order",
+        ).iloc[::-1, :]
+        if df.shape[0] > 0:
+            df = df.assign(code=code)
+            return df
+        time.sleep(0.1)
 
-    Parameters
-    ----------
-    name : str, optional
-        因子的名字, by default None
 
-    Returns
-    -------
-    `pd.DataFrame`
-        初级因子的因子值
-    """
-    homeplace = HomePlace()
-    name = name + "_初级.feather"
-    df = pd.read_feather(homeplace.factor_data_file + name)
-    df = df.rename(columns={list(df.columns)[0]: "date"})
-    df = df.set_index("date")
-    df = df[sorted(list(df.columns))]
-    return df
+def database_update_money_flow():
+    trs = read_daily(tr=1)
+    codes = sorted(list(trs.columns))
+    codes = [i for i in codes if i[0] != "8"]
+    old = read_money_flow(buy=1, small=1)
+    old_enddate = old.index.max()
+    old_enddate_str = datetime.datetime.strftime(old_enddate, "%Y%m%d")
+    new_trs = trs[trs.index > old_enddate]
+    start_date = new_trs.index.min()
+    start_date_str = datetime.datetime.strftime(start_date, "%Y%m%d")
+    now = datetime.datetime.now()
+    now_str = datetime.datetime.strftime(now, "%Y%m%d")
+    logger.info(f"上次资金流数据更新到{old_enddate_str}，本次将从{start_date_str}更新到{now_str}")
+    dfs = []
+    for code in tqdm.tqdm(codes):
+        df = download_single_day_money_flow(
+            code=code, start_date=start_date_str, end_date=now_str
+        )
+        dfs.append(df)
+    dfs = pd.concat(dfs)
+    dfs = dfs.rename(columns={"trade_dt": "date"})
+    dfs.date = pd.to_datetime(dfs.date, format="%Y%m%d")
+    ws = [i for i in list(dfs.columns) if i not in ["date", "code"]]
+    for w in ws:
+        old = pd.read_feather(
+            homeplace.daily_data_file + w[:-6] + ".feather"
+        ).set_index("date")
+        new = dfs.pivot(index="date", columns="code", values=w)
+        new = pd.concat([old, new])
+        new = new[sorted(list(new.columns))]
+        new.reset_index().to_feather(homeplace.daily_data_file + w[:-6] + ".feather")
+    logger.success(f"已经将资金流数据更新到{now_str}")
