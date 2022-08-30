@@ -1,4 +1,4 @@
-__updated__ = '2022-08-28 22:49:13'
+__updated__ = '2022-08-30 15:01:11'
 
 from setuptools import setup
 import setuptools
@@ -44,7 +44,10 @@ setup(
         "sqlalchemy",
         "pretty_errors",
         "SciencePlots",
-        "psycopg2"
+        "psycopg2",
+        "requests",
+        "bs4",
+        "wrapt_timeout_decorator"
     ],
     python_requires=">=3",
     license="MIT",

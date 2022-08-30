@@ -1,4 +1,4 @@
-__updated__ = "2022-08-28 22:47:21"
+__updated__ = "2022-08-30 18:03:36"
 
 import os
 import numpy as np
@@ -10,9 +10,6 @@ from loguru import logger
 
 from cachier import cachier
 import pickledb
-import rqdatac
-
-rqdatac.init()
 from pure_ocean_breeze.state.states import STATES
 from pure_ocean_breeze.state.homeplace import HomePlace
 from pure_ocean_breeze.state.decorators import *
@@ -31,6 +28,10 @@ def read_daily(
     tr: bool = 0,
     sharenum: bool = 0,
     volume: bool = 0,
+    age: bool = 0,
+    flow_cap: bool = 0,
+    st: bool = 0,
+    state: bool = 0,
     unadjust: bool = 0,
     start: int = STATES["START"],
 ) -> pd.DataFrame:
@@ -55,6 +56,14 @@ def read_daily(
         为1则选择读取流通股数, by default 0
     volume : bool, optional
         为1则选择读取成交量, by default 0
+    age : bool, optional
+        为1则选择读取上市天数, by default 0
+    flow_cap : bool, optional
+        为1则选择读取流通市值, by default 0
+    st : bool, optional
+        为1则选择读取当日是否为st股，1表示是st股，空值则不是, by default 0
+    state : bool, optional
+        为1则选择读取当日交易状态是否正常，1表示正常交易，空值则不是, by default 0
     unadjust : bool, optional
         为1则将上述价格改为不复权价格, by default 0
     start : int, optional
@@ -118,6 +127,20 @@ def read_daily(
         elif volume:
             volumes = read_mat("AllStock_DailyVolume.mat")
             return volumes
+        elif age:
+            age = read_mat("AllStock_DailyListedDate.mat")
+            return age
+        elif flow_cap:
+            closes = read_mat("AllStock_DailyClose.mat")
+            sharenums = read_mat("AllStock_DailyAShareNum.mat")
+            flow_cap = closes * sharenums
+            return flow_cap
+        elif st:
+            st = read_mat("AllStock_DailyST.mat")
+            return st
+        elif state:
+            state = read_mat("AllStock_DailyStatus.mat")
+            return state
         else:
             raise IOError("阁下总得读点什么吧？🤒")
     else:
@@ -148,6 +171,20 @@ def read_daily(
         elif volume:
             volumes = read_mat("AllStock_DailyVolume.mat")
             return volumes
+        elif age:
+            age = read_mat("AllStock_DailyListedDate.mat")
+            return age
+        elif flow_cap:
+            closes = read_mat("AllStock_DailyClose.mat")
+            sharenums = read_mat("AllStock_DailyAShareNum.mat")
+            flow_cap = closes * sharenums
+            return flow_cap
+        elif st:
+            st = read_mat("AllStock_DailyST.mat")
+            return st
+        elif state:
+            state = read_mat("AllStock_DailyStatus.mat")
+            return state
         else:
             raise IOError("阁下总得读点什么吧？🤒")
 
@@ -318,7 +355,9 @@ def read_index_three(day: int = None) -> tuple[pd.DataFrame]:
     return hs300, zz500, zz1000
 
 
-def read_swindustry_prices(day: int = None, monthly: bool = 1) -> pd.DataFrame:
+def read_swindustry_prices(
+    day: int = None, monthly: bool = 1, start: int = STATES["START"]
+) -> pd.DataFrame:
     """读取申万一级行业指数的日行情或月行情
 
     Parameters
@@ -338,12 +377,15 @@ def read_swindustry_prices(day: int = None, monthly: bool = 1) -> pd.DataFrame:
     df = pd.read_feather(homeplace.daily_data_file + "申万各行业行情数据.feather").set_index(
         "date"
     )
+    df = df[df.index >= pd.Timestamp(str(start))]
     if monthly:
         df = df.resample("M").last()
     return df
 
 
-def read_zxindustry_prices(day: int = None, monthly: bool = 1) -> pd.DataFrame:
+def read_zxindustry_prices(
+    day: int = None, monthly: bool = 1, start: int = STATES["START"]
+) -> pd.DataFrame:
     """读取中信一级行业指数的日行情或月行情
 
     Parameters
@@ -363,12 +405,15 @@ def read_zxindustry_prices(day: int = None, monthly: bool = 1) -> pd.DataFrame:
     df = pd.read_feather(homeplace.daily_data_file + "中信各行业行情数据.feather").set_index(
         "date"
     )
+    df = df[df.index >= pd.Timestamp(str(start))]
     if monthly:
         df = df.resample("M").last()
     return df
 
 
-def get_industry_dummies(daily: bool = 0, monthly: bool = 0) -> dict:
+def get_industry_dummies(
+    daily: bool = 0, monthly: bool = 0, start: int = STATES["START"]
+) -> dict:
     """生成31个行业的哑变量矩阵，返回一个字典
 
     Parameters
@@ -408,6 +453,7 @@ def get_industry_dummies(daily: bool = 0, monthly: bool = 0) -> dict:
         ).fillna(0)
     else:
         raise ValueError("您总得指定一个频率吧？🤒")
+    industry_dummy = industry_dummy[industry_dummy.date >= pd.Timestamp(str(start))]
     ws = list(industry_dummy.columns)[2:]
     ress = {}
     for w in ws:

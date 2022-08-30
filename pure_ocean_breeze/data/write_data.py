@@ -1,8 +1,11 @@
-__updated__ = "2022-08-28 22:47:11"
+__updated__ = "2022-08-30 18:03:42"
 
-import rqdatac
+try:
+    import rqdatac
 
-rqdatac.init()
+    rqdatac.init()
+except Exception:
+    print("暂时未连接米筐")
 from loguru import logger
 import os
 import time
@@ -19,7 +22,10 @@ import dcube as dc
 from pure_ocean_breeze.state.homeplace import HomePlace
 
 homeplace = HomePlace()
-pro = dc.pro_api(homeplace.api_token)
+try:
+    pro = dc.pro_api(homeplace.api_token)
+except Exception:
+    print("暂时未连接数立方")
 from pure_ocean_breeze.data.database import (
     sqlConfig,
     ClickHouseClient,

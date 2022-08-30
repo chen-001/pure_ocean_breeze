@@ -1,4 +1,4 @@
-__updated__ = "2022-08-25 04:03:48"
+__updated__ = "2022-08-30 18:03:22"
 
 import numpy as np
 import pandas as pd
@@ -23,11 +23,16 @@ from collections import Iterable
 import plotly.express as pe
 import plotly.io as pio
 from typing import Callable, Union
-from pure_ocean_breeze.data.read_data import read_daily
+from pure_ocean_breeze.data.read_data import read_daily, get_industry_dummies
 from pure_ocean_breeze.state.homeplace import HomePlace
+
+homeplace = HomePlace()
 from pure_ocean_breeze.state.decorators import *
 from pure_ocean_breeze.state.states import STATES
 from pure_ocean_breeze.data.database import *
+from pure_ocean_breeze.data.dicts import INDUS_DICT
+from pure_ocean_breeze.data.tools import indus_name
+from pure_ocean_breeze.labor.comment import comments_on_twins
 
 
 def daily_factor_on300500(
@@ -229,6 +234,254 @@ def daily_factor_on300500(
         else:
             raise ValueError("总得指定一下是哪个成分股吧🤒")
     return df
+
+
+def daily_factor_on_swindustry(df: pd.DataFrame) -> dict:
+    """将一个因子变为仅在某个申万一级行业上的股票
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        全市场的因子值，index是时间，columns是股票代码
+
+    Returns
+    -------
+    dict
+        key为行业代码，value为对应的行业上的因子值
+    """
+    df1 = df.resample("M").last()
+    if df1.shape[0] * 2 > df.shape[0]:
+        daily = 0
+        monthly = 1
+    else:
+        daily = 1
+        monthly = 0
+    start = int(datetime.datetime.strftime(df.index.min()))
+    ress = get_industry_dummies(daily=daily, monthly=monthly, start=start)
+    ress = {k: v * df for k, v in ress.items()}
+    return ress
+
+
+def group_test_on_swindustry(
+    df: pd.DataFrame, group_num: int = 10, net_values_writer: pd.ExcelWriter = None
+) -> pd.DataFrame:
+    """在申万一级行业上测试每个行业的分组回测
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        全市场的因子值，index是时间，columns是股票代码
+    group_num : int, optional
+        分组数量, by default 10
+    net_values_writer : pd.ExcelWriter, optional
+        用于存储各个行业分组及多空对冲净值序列的excel文件, by default None
+
+    Returns
+    -------
+    pd.DataFrame
+        各个行业的绩效评价汇总
+    """
+    dfs = daily_factor_on_swindustry(df)
+    ks = []
+    vs = []
+    for k, v in dfs.items():
+        shen = pure_moonnight(
+            v,
+            groups_num=group_num,
+            net_values_writer=net_values_writer,
+            sheetname=INDUS_DICT[k],
+            plt_plot=0,
+        )
+        ks.append(k)
+        vs.append(shen.shen.total_comments.T)
+    vs = pd.concat(vs)
+    vs.index = ks
+    vs = indus_name(ks)
+    return vs
+
+
+def rankic_test_on_swindustry(
+    df: pd.DataFrame, excel_name: str = "行业rankic.xlsx", png_name: str = "行业rankic图.png"
+) -> pd.DataFrame:
+    """专门计算因子值在各个申万一级行业上的Rank IC值，并绘制柱状图
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        全市场的因子值，index是时间，columns是股票代码
+    excel_name : str, optional
+        用于保存各个行业Rank IC值的excel文件的名字, by default '行业rankic.xlsx'
+    png_name : str, optional
+        用于保存各个行业Rank IC值的柱状图的名字, by default '行业rankic图.png'
+
+    Returns
+    -------
+    pd.DataFrame
+        行业名称与对应的Rank IC
+    """
+    vs = group_test_on_swindustry(df)
+    rankics = vs[["RankIC"]].T
+    rankics.to_excel(excel_name)
+    rankics.plot(kind="bar")
+    plt.show()
+    plt.savefig(png_name)
+    return rankics
+
+
+def long_test_on_swindustry(
+    df: pd.DataFrame,
+    nums: list,
+    pos: bool = 0,
+    neg: bool = 0,
+    save_stock_list: bool = 0,
+) -> list[dict]:
+    """对每个申万一级行业成分股，使用某因子挑选出最多头的n值股票，考察其超额收益绩效、每月超额收益、每月每个行业的多头名单
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        使用的因子，index为时间，columns为股票代码
+    nums : list
+        多头想选取的股票的数量，例如[3,4,5]
+    pos : bool, optional
+        因子方向为正，即Rank IC为正，则指定此处为True, by default 0
+    neg : bool, optional
+        因子方向为负，即Rank IC为负，则指定此处为False, by default 0
+    save_stock_list:bool, optional
+        是否保存每月每个行业的多头名单，会降低运行速度, by default 0
+
+    Returns
+    -------
+    list[dict]
+        超额收益绩效、每月超额收益、每月每个行业的多头名单
+
+    Raises
+    ------
+    IOError
+        pos和neg必须有一个为1，否则将报错
+    """
+    fac = decap_industry(fac, monthly=True)
+    industry_dummy = pd.read_feather(
+        homeplace.daily_data_file + "申万行业2021版哑变量.feather"
+    ).fillna(0)
+    inds = list(industry_dummy.columns)
+    ret_next = (
+        read_daily(close=1).resample("M").last()
+        / read_daily(open=1).resample("M").first()
+        - 1
+    )
+    ages = read_daily(age=1)
+    ages = (ages >= 60) + 0
+    ages = ages.replace(0, np.nan)
+    ret_next = ret_next * ages
+    ret_next_dummy = 1 - ret_next.isna()
+
+    def save_ind(code, num):
+        ind = industry_dummy[["date", "code", code]]
+        ind = ind.pivot(index="date", columns="code", values=code)
+        ind = ind.resample("M").last()
+        ind = ind.replace(0, np.nan)
+        fi = ind * fac
+        fi = fi.dropna(how="all")
+        fi = fi.shift(1)
+        fi = fi * ret_next_dummy
+        fi = fi.dropna(how="all")
+
+        def sing(x):
+            if neg:
+                thr = x.nsmallest(num).iloc[-1]
+            elif pos:
+                thr = x.nlargest(num).iloc[-1]
+            else:
+                raise IOError("您需要指定一下因子方向🤒")
+            x = (x <= thr) + 0
+            return x
+
+        fi = fi.T.apply(sing).T
+        fi = fi.replace(0, np.nan)
+        fi = fi * ret_next
+        ret_long = fi.mean(axis=1)
+        return ret_long
+
+    ret_longs = {k: {} for k in nums}
+    for num in tqdm.tqdm(nums):
+        for code in inds[2:]:
+            ret_longs[num][code] = save_ind(code, num)
+
+    coms = {
+        k: indus_name(pd.concat(v, axis=1).dropna(how="all").T).T
+        for k, v in ret_longs.items()
+    }
+    indus = indus.resample("M").last().pct_change()
+    rets = {k: (v - indus_name(indus.T).T).dropna(how="all") for k, v in coms.items()}
+    nets = {k: (v + 1).cumprod() for k, v in rets.items()}
+    nets = {
+        k: v.apply(lambda x: x.dropna() / x.dropna().iloc[0]) for k, v in nets.items()
+    }
+
+    w = pd.ExcelWriter("各个申万一级行业多头超额绩效.xlsx")
+
+    def com_all(df1, df2, num):
+        cs = []
+        for ind in list(df1.columns):
+            c = comments_on_twins(df2[ind].dropna(), df1[ind].dropna()).to_frame(ind)
+            cs.append(c)
+        res = pd.concat(cs, axis=1).T
+        res.to_excel(w, sheet_name=str(num))
+        return res
+
+    coms_finals = {k: com_all(rets[k], nets[k], k) for k in rets.keys()}
+    w.save()
+    w.close()
+
+    rets_save = {k: v.dropna() for k, v in rets.items() if k in nums}
+    u = pd.ExcelWriter("各个申万一级行业每月超额收益率.xlsx")
+    for k, v in rets_save.items():
+        v.to_excel(u, sheet_name=str(k))
+    u.save()
+    u.close()
+
+    if save_stock_list:
+
+        def save_ind_stocks(code, num):
+            ind = industry_dummy[["date", "code", code]]
+            ind = ind.pivot(index="date", columns="code", values=code)
+            ind = ind.replace(0, np.nan)
+            fi = ind * fac
+            fi = fi.dropna(how="all")
+            fi = fi.shift(1)
+            fi = fi * ret_next_dummy
+            fi = fi.dropna(how="all")
+
+            def sing(x):
+                if neg:
+                    thr = x.nsmallest(num)
+                elif pos:
+                    thr = x.nlargest(num)
+                else:
+                    raise IOError("您需要指定一下因子方向🤒")
+                return tuple(thr.index)
+
+            fi = fi.T.apply(sing)
+            return fi
+
+        stocks_longs = {k: {} for k in nums}
+        for num in tqdm.tqdm(nums):
+            for code in inds[2:]:
+                stocks_longs[num][code] = save_ind_stocks(code, num)
+
+        for num in nums:
+            w1 = pd.ExcelWriter(f"各个申万一级行业买{num}只的股票名单.xlsx")
+            for k, v in stocks_longs[num].items():
+                v = v.T
+                v.index = v.index.strftime("%Y/%m/%d")
+                v.to_excel(w1, sheet_name=INDUS_DICT[k])
+            w1.save()
+            w1.close()
+
+        return [coms_finals, rets_save, stocks_longs]
+    else:
+        return [coms_finals, rets_save]
 
 
 def select_max(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:

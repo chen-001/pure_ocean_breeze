@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2022-08-25 04:05:55"
+__updated__ = "2022-08-30 18:03:58"
 
 import h5py
 import pandas as pd
@@ -10,9 +10,13 @@ import tqdm
 import datetime
 import scipy.io as scio
 import numpy as np
-import rqdatac
 
-rqdatac.init()
+try:
+    import rqdatac
+
+    rqdatac.init()
+except Exception:
+    print("暂时未连接米筐")
 
 
 def read_h5(path: str) -> dict:
