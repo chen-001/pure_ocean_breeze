@@ -32,7 +32,6 @@ from pure_ocean_breeze.state.states import STATES
 from pure_ocean_breeze.data.database import *
 from pure_ocean_breeze.data.dicts import INDUS_DICT
 from pure_ocean_breeze.data.tools import indus_name
-from pure_ocean_breeze.labor.comment import comments_on_twins
 
 
 def daily_factor_on300500(
@@ -418,6 +417,23 @@ def long_test_on_swindustry(
     nets = {
         k: v.apply(lambda x: x.dropna() / x.dropna().iloc[0]) for k, v in nets.items()
     }
+
+    def comments_on_twins(nets: pd.Series, rets: pd.Series) -> pd.Series:
+        series = nets.copy()
+        series1 = rets.copy()
+        ret = (series.iloc[-1] - series.iloc[0]) / series.iloc[0]
+        duration = (series.index[-1] - series.index[0]).days
+        year = duration / 365
+        ret_yearly = (series.iloc[-1] / series.iloc[0]) ** (1 / year) - 1
+        max_draw = -(series / series.expanding(1).max() - 1).min()
+        vol = np.std(series1) * (12**0.5)
+        sharpe = ret_yearly / vol
+        wins = series1[series1 > 0]
+        win_rate = len(wins) / len(series1)
+        return pd.Series(
+            [ret, ret_yearly, vol, sharpe, win_rate, max_draw],
+            index=["总收益率", "年化收益率", "年化波动率", "信息比率", "胜率", "最大回撤率"],
+        )
 
     w = pd.ExcelWriter("各个申万一级行业多头超额绩效.xlsx")
 
