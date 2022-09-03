@@ -1,5 +1,8 @@
 ## 更新日志🗓 — v3
 
+* v3.1.4 — 2022.09.03
+>1. 将with模块改为withs模块，避免与关键字冲突
+>1. 将更新的源限定为pypi
 * v3.1.3 — 2022.09.03
 >1. 加入了with模块，可以通过`from pure_ocean_breeze.with.requires import *`加载所有依赖库
 >1. 将自动检查新版本改为了需要手动调用check_update()函数来检查
