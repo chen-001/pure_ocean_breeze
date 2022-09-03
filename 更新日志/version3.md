@@ -1,5 +1,12 @@
 ## 更新日志🗓 — v3
 
+* v3.1.3 — 2022.09.03
+>1. 加入了with模块，可以通过`from pure_ocean_breeze.with.requires import *`加载所有依赖库
+>1. 将自动检查新版本改为了需要手动调用check_update()函数来检查
+>1. 将行业市值中性化函数decap_industry()改为了可手动指定频率，如果未指定，再自动识别
+>1. 修复了限定因子在申万一级行业上的函数daily_factor_on_swindustry()的bug
+>1. 修复了使用mysql更新因子值时的表名bug
+>1. 修复了使用clickhouse、questdb、postgresql数据库更新因子值时的潜在bug
 * v3.1.2 — 2022.08.31
 >1. 修复了导入时循环引用的bug
 * v3.1.1 — 2022.08.30

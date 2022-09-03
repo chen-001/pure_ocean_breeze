@@ -1,4 +1,4 @@
-__updated__ = "2022-08-30 18:03:22"
+__updated__ = "2022-09-03 15:36:11"
 
 import numpy as np
 import pandas as pd
@@ -255,7 +255,7 @@ def daily_factor_on_swindustry(df: pd.DataFrame) -> dict:
     else:
         daily = 1
         monthly = 0
-    start = int(datetime.datetime.strftime(df.index.min()))
+    start = int(datetime.datetime.strftime(df.index.min(), "%Y%m%d"))
     ress = get_industry_dummies(daily=daily, monthly=monthly, start=start)
     ress = {k: v * df for k, v in ress.items()}
     return ress
@@ -294,8 +294,7 @@ def group_test_on_swindustry(
         ks.append(k)
         vs.append(shen.shen.total_comments.T)
     vs = pd.concat(vs)
-    vs.index = ks
-    vs = indus_name(ks)
+    vs.index = [INDUS_DICT[i] for i in ks]
     return vs
 
 
@@ -629,10 +628,11 @@ def decap_industry(
     df = df.stack().reset_index()
     df.columns = ["date", "code", "fac"]
     df = pd.merge(df, cap, on=["date", "code"])
-    if df.shape[0] / last.shape[0] < 2:
-        monthly = True
-    else:
-        daily = True
+    if daily == 0 and monthly == 0:
+        if df.shape[0] / last.shape[0] < 2:
+            monthly = True
+        else:
+            daily = True
 
     def neutralize_factors(df):
         """组内对因子进行市值中性化"""
@@ -2441,7 +2441,6 @@ class pure_fall(object):
             self.daily_factors = self.daily_factors.set_index("date")
             sql = sqlConfig("minute_data_stock_alter")
             now_minute_datas = sql.show_tables(full=False)
-            now_minute_datas = [str(int(i) / 100) for i in now_minute_datas]
             now_minute_data = now_minute_datas[-1]
             now_minute_data = pd.Timestamp(now_minute_data)
             if self.daily_factors.index.max() < now_minute_data:
@@ -2664,6 +2663,7 @@ class pure_fall_frequent(object):
         if os.path.exists(factor_file):
             factor_old = pd.read_feather(self.factor_file)
             factor_old.columns = ["date"] + list(factor_old.columns)[1:]
+            factor_old = factor_old.drop_duplicates(subset=["date"])
             factor_old = factor_old.set_index("date")
             self.factor_old = factor_old
             # 已经算好的日子
@@ -2823,7 +2823,11 @@ class pure_fall_frequent(object):
                 df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
             self.factor_new = df
             # 拼接新的和旧的
-            self.factor = pd.concat([self.factor_old, self.factor_new]).sort_index()
+            self.factor = (
+                pd.concat([self.factor_old, self.factor_new])
+                .sort_index()
+                .drop_duplicates()
+            )
             new_end_date = datetime.datetime.strftime(self.factor.index.max(), "%Y%m%d")
             # 存入本地
             self.factor.reset_index().to_feather(self.factor_file)
@@ -2888,6 +2892,7 @@ class pure_fall_flexible(object):
         if os.path.exists(factor_file):
             factor_old = pd.read_feather(self.factor_file)
             factor_old.columns = ["date"] + list(factor_old.columns)[1:]
+            factor_old = factor_old.drop_duplicates(subset=["date"])
             factor_old = factor_old.set_index("date")
             self.factor_old = factor_old
             # 已经算好的日子
@@ -3047,7 +3052,11 @@ class pure_fall_flexible(object):
                 self.factor_new.append(df)
             self.factor_new = df
             # 拼接新的和旧的
-            self.factor = pd.concat([self.factor_old, self.factor_new]).sort_index()
+            self.factor = (
+                pd.concat([self.factor_old, self.factor_new])
+                .sort_index()
+                .drop_duplicates()
+            )
             new_end_date = datetime.datetime.strftime(self.factor.index.max(), "%Y%m%d")
             # 存入本地
             self.factor.reset_index().to_feather(self.factor_file)

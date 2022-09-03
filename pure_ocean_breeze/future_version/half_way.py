@@ -1,4 +1,4 @@
-__updated__ = "2022-08-16 16:39:21"
+__updated__ = "2022-08-31 21:50:03"
 
 import numpy as np
 import pandas as pd
@@ -92,7 +92,7 @@ class pure_cloud(object):
     def run(self, print_comments, plt_plot, plotly_plot, filename):
         """对因子值分组并匹配"""
         if self.boxcox:
-            self.fac = decap_industry(self.fac)
+            self.fac = decap_industry(self.fac,daily=1)
         self.fac = self.fac.T.apply(
             lambda x: pd.qcut(x, self.group, labels=False, duplicates="drop")
         ).T
