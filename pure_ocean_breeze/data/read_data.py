@@ -1,4 +1,4 @@
-__updated__ = "2022-09-13 15:50:21"
+__updated__ = "2022-09-13 18:05:53"
 
 import os
 import numpy as np
@@ -391,7 +391,11 @@ def read_zxindustry_prices(
 
 
 def get_industry_dummies(
-    daily: bool = 0, monthly: bool = 0, start: int = STATES["START"],swindustry:bool=0,zxindustry:bool=0
+    daily: bool = 0,
+    monthly: bool = 0,
+    start: int = STATES["START"],
+    swindustry: bool = 0,
+    zxindustry: bool = 0,
 ) -> dict:
     """生成30/31个行业的哑变量矩阵，返回一个字典
 
@@ -420,13 +424,11 @@ def get_industry_dummies(
     """
     homeplace = HomePlace()
     if swindustry:
-        name="申万行业2021版哑变量.feather"
+        name = "申万行业2021版哑变量.feather"
     else:
-        name="中信一级行业哑变量名称版.feather"
+        name = "中信一级行业哑变量名称版.feather"
     if monthly:
-        industry_dummy = pd.read_feather(
-            homeplace.daily_data_file + name
-        )
+        industry_dummy = pd.read_feather(homeplace.daily_data_file + name)
         industry_dummy = (
             industry_dummy.set_index("date")
             .groupby("code")
@@ -437,9 +439,7 @@ def get_industry_dummies(
             .reset_index()
         )
     elif daily:
-        industry_dummy = pd.read_feather(
-            homeplace.daily_data_file + name
-        ).fillna(0)
+        industry_dummy = pd.read_feather(homeplace.daily_data_file + name).fillna(0)
     else:
         raise ValueError("您总得指定一个频率吧？🤒")
     industry_dummy = industry_dummy[industry_dummy.date >= pd.Timestamp(str(start))]
