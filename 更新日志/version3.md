@@ -1,5 +1,24 @@
 ## 更新日志🗓 — v3
 
+* v3.2.0 — 2022.09.13
+>1. 将以mat格式存储的文件，全部转化为feather格式
+>1. read_daily函数不再对停牌日的价格进行处理
+>1. 删去了更新日频数据的参数，改为只能更新到最新日期
+>1. 删去了更新辅助字典的记录，改为从已有的数据中识别上次更新的截止日期
+>1. 更新中加入了去重，避免重复更新引起的潜在bug
+>1. 在储存最终因子值的函数database_save_final_factors中加入了去重
+>1. 增加了中信一级行业成分股数据的函数
+>1. 删去了初始化中关于辅助字典的内容，不再创建database_config.db
+>1. 删去了初始化中关于日频数据截止日期和分钟数据截止日期的设置要求
+>1. 新增在行业上的超额收益测试函数long_test_on_industry，可以选择申万或中信一级行业，默认使用中信
+>1. 保留原有风格的行业超额收益测试函数long_test_on_swindustry和long_test_on_zxindustry
+>1. 给行业市值中性化函数decap_industry增加中信和申万可选参数，默认使用中信
+>1. 简化pure_moon/pure_moonnight回测框架的基础数据处理流程
+>1. 给pure_moon/pure_moonnight回测框架的行业中性化部分，增加了中信和申万一级行业可选的参数，默认使用中信
+>1. 给pure_moon回测框架增加了设置回测时用到的基础数据的函数set_basic_data
+>1. 给pure_moonnight增加了输入基础数据的参数，包括上市天数、是否st、是否正常交易、复权开盘价、复权收盘价、月末流通市值
+>1. 删去了pure_moon/pure_moonnight回测框架的by10参数，日频状态月频化时只能使用比较大小的方式
+>1. 在旧版本合集legacy_version模块中，收录了最后一个可以处理mat文件的版本3.1.6，使用import pure_ocean_breeze.legacy_version.v3p1 as p即可调用3.1.6版本
 * v3.1.6 — 2022.09.03
 >1. 修复了用mysql更新因子值时的潜在bug
 * v3.1.5 — 2022.09.03

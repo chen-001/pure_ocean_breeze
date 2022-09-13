@@ -1,5 +1,6 @@
 import pickle
 import os
+import pickledb
 
 
 def initialize():
@@ -11,6 +12,13 @@ def initialize():
         daily_data_file = input("请设置日频数据存放路径(请最终以斜杠结尾，请不要输入反斜杠'',请都替换为'/')：")
     if daily_data_file[-1] != "/":
         daily_data_file = daily_data_file + "/"
+    # 分钟数据路径
+    minute_data_file = input("请设置分钟数据存放路径(请最终以斜杠结尾，请不要输入反斜杠'',请都替换为'/')：")
+    while "/" not in minute_data_file:
+        print("请不要输入反斜杠''，请替换为'/'，并以'/'结尾")
+        minute_data_file = input("请设置分钟数据存放路径(请最终以斜杠结尾，请不要输入反斜杠'',请都替换为'/')：")
+    if minute_data_file[-1] != "/":
+        minute_data_file = minute_data_file + "/"
     # 因子数据路径
     factor_data_file = input("请设置因子数据存放路径(请最终以斜杠结尾，请不要输入反斜杠'',请都替换为'/')：")
     while "/" not in factor_data_file:
@@ -41,6 +49,15 @@ def initialize():
         final_factor_file = final_factor_file + "/"
     # 数立方token
     api_token = input("请输入您的数立方token：")
+    # 初始化时，日频数据的截止日期
+    daily_enddate = input("请输入初始化时（当前）日频数据的截止日期，形如'20220711'：")
+    # 初始化时，分钟数据的截止日期
+    minute_enddate = input("请输入初始化时（当前）分钟数据的截止日期，形如'20220711'：")
+    # 将此结果存入配置文件
+    db = pickledb.load(update_data_file + "database_config.db", False)
+    db.set("daily_enddate", daily_enddate)
+    db.set("minute_enddate", minute_enddate)
+    db.dump()
     save_dict = {
         "daily_data_file": daily_data_file,
         "factor_data_file": factor_data_file,
@@ -48,6 +65,7 @@ def initialize():
         "update_data_file": update_data_file,
         "final_factor_file": final_factor_file,
         "api_token": api_token,
+        "daily_enddate": daily_enddate,
     }
     save_dict_file = open(user_file + "paths.settings", "wb")
     pickle.dump(save_dict, save_dict_file)

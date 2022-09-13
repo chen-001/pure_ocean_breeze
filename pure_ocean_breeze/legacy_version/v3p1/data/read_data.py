@@ -1,12 +1,15 @@
-__updated__ = "2022-09-13 15:50:21"
+__updated__ = "2022-08-30 18:03:36"
 
 import os
 import numpy as np
 import pandas as pd
+import scipy.io as scio
 import datetime
 from typing import Union
 from loguru import logger
 
+from cachier import cachier
+import pickledb
 from pure_ocean_breeze.state.states import STATES
 from pure_ocean_breeze.state.homeplace import HomePlace
 from pure_ocean_breeze.state.decorators import *
@@ -15,6 +18,7 @@ from pure_ocean_breeze.data.database import ClickHouseClient
 homeplace = HomePlace()
 
 
+@cachier()
 def read_daily(
     path: str = None,
     open: bool = 0,
@@ -77,95 +81,112 @@ def read_daily(
     另：如果数据未更新，可使用read_daily.clear_cache()来清空缓存
     """
 
+    def read_mat(path):
+        homeplace = HomePlace()
+        col = list(
+            scio.loadmat(homeplace.daily_data_file + "AllStockCode.mat").values()
+        )[3]
+        index = list(
+            scio.loadmat(homeplace.daily_data_file + "TradingDate_Daily.mat").values()
+        )[3]
+        col = [i[0] for i in col[0]]
+        index = index[0].tolist()
+        path = homeplace.daily_data_file + path
+        data = list(scio.loadmat(path).values())[3]
+        data = pd.DataFrame(data, index=index, columns=col)
+        data.index = pd.to_datetime(data.index, format="%Y%m%d")
+        data = data.replace(0, np.nan)
+        data = data[data.index >= pd.Timestamp(str(start))]
+        return data
+
     if not unadjust:
         if path:
-            return pd.read_feather(homeplace.daily_data_file + path).set_index("date")
+            return read_mat(path)
         elif open:
-            opens = pd.read_feather(
-                homeplace.daily_data_file + "opens.feather"
-            ).set_index("date")
-            df = opens
+            trs = read_mat("AllStock_DailyTR.mat")
+            opens = read_mat("AllStock_DailyOpen_dividend.mat")
+            return np.sign(trs) * opens
         elif close:
-            closes = pd.read_feather(
-                homeplace.daily_data_file + "closes.feather"
-            ).set_index("date")
-            df = closes
+            trs = read_mat("AllStock_DailyTR.mat")
+            closes = read_mat("AllStock_DailyClose_dividend.mat")
+            return np.sign(trs) * closes
         elif high:
-            highs = pd.read_feather(
-                homeplace.daily_data_file + "highs.feather"
-            ).set_index("date")
-            df = highs
+            trs = read_mat("AllStock_DailyTR.mat")
+            highs = read_mat("AllStock_DailyHigh_dividend.mat")
+            return np.sign(trs) * highs
         elif low:
-            lows = pd.read_feather(
-                homeplace.daily_data_file + "lows.feather"
-            ).set_index("date")
-            df = lows
+            trs = read_mat("AllStock_DailyTR.mat")
+            lows = read_mat("AllStock_DailyLow_dividend.mat")
+            return np.sign(trs) * lows
         elif tr:
-            trs = pd.read_feather(homeplace.daily_data_file + "trs.feather").set_index(
-                "date"
-            )
-            df = trs
+            trs = read_mat("AllStock_DailyTR.mat")
+            return trs
         elif sharenum:
-            sharenums = pd.read_feather(
-                homeplace.daily_data_file + "sharenums.feather"
-            ).set_index("date")
-            df = sharenums
+            sharenums = read_mat("AllStock_DailyAShareNum.mat")
+            return sharenums
         elif volume:
-            volumes = pd.read_feather(
-                homeplace.daily_data_file + "volumes.feather"
-            ).set_index("date")
-            df = volumes
+            volumes = read_mat("AllStock_DailyVolume.mat")
+            return volumes
         elif age:
-            age = pd.read_feather(homeplace.daily_data_file + "ages.feather").set_index(
-                "date"
-            )
-            df = age
+            age = read_mat("AllStock_DailyListedDate.mat")
+            return age
         elif flow_cap:
-            closes = pd.read_feather(
-                homeplace.daily_data_file + "closes_unadj.feather"
-            ).set_index("date")
-            sharenums = pd.read_feather(
-                homeplace.daily_data_file + "sharenums.feather"
-            ).set_index("date")
+            closes = read_mat("AllStock_DailyClose.mat")
+            sharenums = read_mat("AllStock_DailyAShareNum.mat")
             flow_cap = closes * sharenums
-            df = flow_cap
+            return flow_cap
         elif st:
-            st = pd.read_feather(homeplace.daily_data_file + "sts.feather").set_index(
-                "date"
-            )
-            df = st
+            st = read_mat("AllStock_DailyST.mat")
+            return st
         elif state:
-            state = pd.read_feather(
-                homeplace.daily_data_file + "states.feather"
-            ).set_index("date")
-            df = state
+            state = read_mat("AllStock_DailyStatus.mat")
+            return state
         else:
             raise IOError("阁下总得读点什么吧？🤒")
     else:
-        if open:
-            opens = pd.read_feather(
-                homeplace.daily_data_file + "opens.feather"
-            ).set_index("date")
-            df = opens
+        if path:
+            return read_mat(path)
+        elif open:
+            trs = read_mat("AllStock_DailyTR.mat")
+            opens = read_mat("AllStock_DailyOpen.mat")
+            return np.sign(trs) * opens
         elif close:
-            closes = pd.read_feather(
-                homeplace.daily_data_file + "closes.feather"
-            ).set_index("date")
-            df = closes
+            trs = read_mat("AllStock_DailyTR.mat")
+            closes = read_mat("AllStock_DailyClose.mat")
+            return np.sign(trs) * closes
         elif high:
-            highs = pd.read_feather(
-                homeplace.daily_data_file + "highs.feather"
-            ).set_index("date")
-            df = highs
+            trs = read_mat("AllStock_DailyTR.mat")
+            highs = read_mat("AllStock_DailyHigh.mat")
+            return np.sign(trs) * highs
         elif low:
-            lows = pd.read_feather(
-                homeplace.daily_data_file + "lows.feather"
-            ).set_index("date")
-            df = lows
+            trs = read_mat("AllStock_DailyTR.mat")
+            lows = read_mat("AllStock_DailyLow.mat")
+            return np.sign(trs) * lows
+        elif tr:
+            trs = read_mat("AllStock_DailyTR.mat")
+            return trs
+        elif sharenum:
+            sharenums = read_mat("AllStock_DailyAShareNum.mat")
+            return sharenums
+        elif volume:
+            volumes = read_mat("AllStock_DailyVolume.mat")
+            return volumes
+        elif age:
+            age = read_mat("AllStock_DailyListedDate.mat")
+            return age
+        elif flow_cap:
+            closes = read_mat("AllStock_DailyClose.mat")
+            sharenums = read_mat("AllStock_DailyAShareNum.mat")
+            flow_cap = closes * sharenums
+            return flow_cap
+        elif st:
+            st = read_mat("AllStock_DailyST.mat")
+            return st
+        elif state:
+            state = read_mat("AllStock_DailyStatus.mat")
+            return state
         else:
             raise IOError("阁下总得读点什么吧？🤒")
-    df = df[df.index >= pd.Timestamp(str(start))]
-    return df
 
 
 def read_market(
@@ -391,9 +412,9 @@ def read_zxindustry_prices(
 
 
 def get_industry_dummies(
-    daily: bool = 0, monthly: bool = 0, start: int = STATES["START"],swindustry:bool=0,zxindustry:bool=0
+    daily: bool = 0, monthly: bool = 0, start: int = STATES["START"]
 ) -> dict:
-    """生成30/31个行业的哑变量矩阵，返回一个字典
+    """生成31个行业的哑变量矩阵，返回一个字典
 
     Parameters
     ----------
@@ -401,12 +422,6 @@ def get_industry_dummies(
         返回日频的哑变量, by default 0
     monthly : bool, optional
         返回月频的哑变量, by default 0
-    start : int, optional
-        起始日期, by default STATES["START"]
-    swindustry : bool, optional
-        是否使用申万一级行业, by default 0
-    zxindustry : bool, optional
-        是否使用中信一级行业, by default 0
 
     Returns
     -------
@@ -419,13 +434,9 @@ def get_industry_dummies(
         如果未指定频率，将报错
     """
     homeplace = HomePlace()
-    if swindustry:
-        name="申万行业2021版哑变量.feather"
-    else:
-        name="中信一级行业哑变量名称版.feather"
     if monthly:
         industry_dummy = pd.read_feather(
-            homeplace.daily_data_file + name
+            homeplace.daily_data_file + "申万行业2021版哑变量.feather"
         )
         industry_dummy = (
             industry_dummy.set_index("date")
@@ -438,7 +449,7 @@ def get_industry_dummies(
         )
     elif daily:
         industry_dummy = pd.read_feather(
-            homeplace.daily_data_file + name
+            homeplace.daily_data_file + "申万行业2021版哑变量.feather"
         ).fillna(0)
     else:
         raise ValueError("您总得指定一个频率吧？🤒")

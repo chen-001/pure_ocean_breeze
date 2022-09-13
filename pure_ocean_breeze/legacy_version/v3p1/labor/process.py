@@ -1,4 +1,4 @@
-__updated__ = "2022-09-13 15:50:03"
+__updated__ = "2022-09-03 17:25:26"
 
 import numpy as np
 import pandas as pd
@@ -6,6 +6,7 @@ import knockknock as kk
 import os
 import tqdm
 import scipy.stats as ss
+import scipy.io as scio
 import statsmodels.formula.api as smf
 import matplotlib as mpl
 
@@ -26,6 +27,7 @@ from pure_ocean_breeze.data.read_data import read_daily, get_industry_dummies
 from pure_ocean_breeze.state.homeplace import HomePlace
 
 homeplace = HomePlace()
+from pure_ocean_breeze.state.decorators import *
 from pure_ocean_breeze.state.states import STATES
 from pure_ocean_breeze.data.database import *
 from pure_ocean_breeze.data.dicts import INDUS_DICT
@@ -324,16 +326,14 @@ def rankic_test_on_swindustry(
     return rankics
 
 
-def long_test_on_industry(
+def long_test_on_swindustry(
     df: pd.DataFrame,
     nums: list,
     pos: bool = 0,
     neg: bool = 0,
     save_stock_list: bool = 0,
-    swindustry: bool = 0,
-    zxindustry: bool = 0,
 ) -> list[dict]:
-    """对每个申万/中信一级行业成分股，使用某因子挑选出最多头的n值股票，考察其超额收益绩效、每月超额收益、每月每个行业的多头名单
+    """对每个申万一级行业成分股，使用某因子挑选出最多头的n值股票，考察其超额收益绩效、每月超额收益、每月每个行业的多头名单
 
     Parameters
     ----------
@@ -345,12 +345,9 @@ def long_test_on_industry(
         因子方向为正，即Rank IC为正，则指定此处为True, by default 0
     neg : bool, optional
         因子方向为负，即Rank IC为负，则指定此处为False, by default 0
-    save_stock_list : bool, optional
+    save_stock_list:bool, optional
         是否保存每月每个行业的多头名单，会降低运行速度, by default 0
-    swindustry : bool, optional
-        在申万一级行业上测试, by default 0
-    zxindusrty : bool, optional
-        在中信一级行业上测试, by default 0
+
     Returns
     -------
     list[dict]
@@ -362,15 +359,9 @@ def long_test_on_industry(
         pos和neg必须有一个为1，否则将报错
     """
     fac = decap_industry(fac, monthly=True)
-
-    if swindustry:
-        industry_dummy = pd.read_feather(
-            homeplace.daily_data_file + "申万行业2021版哑变量.feather"
-        ).fillna(0)
-    else:
-        industry_dummy = pd.read_feather(
-            homeplace.daily_data_file + "中信一级行业哑变量代码版.feather"
-        ).fillna(0)
+    industry_dummy = pd.read_feather(
+        homeplace.daily_data_file + "申万行业2021版哑变量.feather"
+    ).fillna(0)
     inds = list(industry_dummy.columns)
     ret_next = (
         read_daily(close=1).resample("M").last()
@@ -443,11 +434,7 @@ def long_test_on_industry(
             index=["总收益率", "年化收益率", "年化波动率", "信息比率", "胜率", "最大回撤率"],
         )
 
-    if swindustry:
-        name = "申万"
-    else:
-        name = "中信"
-    w = pd.ExcelWriter(f"各个{name}一级行业多头超额绩效.xlsx")
+    w = pd.ExcelWriter("各个申万一级行业多头超额绩效.xlsx")
 
     def com_all(df1, df2, num):
         cs = []
@@ -463,7 +450,7 @@ def long_test_on_industry(
     w.close()
 
     rets_save = {k: v.dropna() for k, v in rets.items() if k in nums}
-    u = pd.ExcelWriter(f"各个{name}一级行业每月超额收益率.xlsx")
+    u = pd.ExcelWriter("各个申万一级行业每月超额收益率.xlsx")
     for k, v in rets_save.items():
         v.to_excel(u, sheet_name=str(k))
     u.save()
@@ -499,7 +486,7 @@ def long_test_on_industry(
                 stocks_longs[num][code] = save_ind_stocks(code, num)
 
         for num in nums:
-            w1 = pd.ExcelWriter(f"各个{name}一级行业买{num}只的股票名单.xlsx")
+            w1 = pd.ExcelWriter(f"各个申万一级行业买{num}只的股票名单.xlsx")
             for k, v in stocks_longs[num].items():
                 v = v.T
                 v.index = v.index.strftime("%Y/%m/%d")
@@ -510,90 +497,6 @@ def long_test_on_industry(
         return [coms_finals, rets_save, stocks_longs]
     else:
         return [coms_finals, rets_save]
-
-
-def long_test_on_swindustry(
-    df: pd.DataFrame,
-    nums: list,
-    pos: bool = 0,
-    neg: bool = 0,
-    save_stock_list: bool = 0,
-) -> list[dict]:
-    """对每个申万一级行业成分股，使用某因子挑选出最多头的n值股票，考察其超额收益绩效、每月超额收益、每月每个行业的多头名单
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        使用的因子，index为时间，columns为股票代码
-    nums : list
-        多头想选取的股票的数量，例如[3,4,5]
-    pos : bool, optional
-        因子方向为正，即Rank IC为正，则指定此处为True, by default 0
-    neg : bool, optional
-        因子方向为负，即Rank IC为负，则指定此处为False, by default 0
-    save_stock_list : bool, optional
-        是否保存每月每个行业的多头名单，会降低运行速度, by default 0
-    Returns
-    -------
-    list[dict]
-        超额收益绩效、每月超额收益、每月每个行业的多头名单
-
-    Raises
-    ------
-    IOError
-        pos和neg必须有一个为1，否则将报错
-    """
-    res = long_test_on_industry(
-        df=df,
-        nums=nums,
-        pos=pos,
-        neg=neg,
-        save_stock_list=save_stock_list,
-        swindustry=1,
-    )
-    return res
-
-
-def long_test_on_zxindustry(
-    df: pd.DataFrame,
-    nums: list,
-    pos: bool = 0,
-    neg: bool = 0,
-    save_stock_list: bool = 0,
-) -> list[dict]:
-    """对每个中信一级行业成分股，使用某因子挑选出最多头的n值股票，考察其超额收益绩效、每月超额收益、每月每个行业的多头名单
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        使用的因子，index为时间，columns为股票代码
-    nums : list
-        多头想选取的股票的数量，例如[3,4,5]
-    pos : bool, optional
-        因子方向为正，即Rank IC为正，则指定此处为True, by default 0
-    neg : bool, optional
-        因子方向为负，即Rank IC为负，则指定此处为False, by default 0
-    save_stock_list : bool, optional
-        是否保存每月每个行业的多头名单，会降低运行速度, by default 0
-    Returns
-    -------
-    list[dict]
-        超额收益绩效、每月超额收益、每月每个行业的多头名单
-
-    Raises
-    ------
-    IOError
-        pos和neg必须有一个为1，否则将报错
-    """
-    res = long_test_on_industry(
-        df=df,
-        nums=nums,
-        pos=pos,
-        neg=neg,
-        save_stock_list=save_stock_list,
-        zxindustry=1,
-    )
-    return res
 
 
 def select_max(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
@@ -686,11 +589,7 @@ def decap(df: pd.DataFrame, daily: bool = 0, monthly: bool = 0) -> pd.DataFrame:
 
 @kk.desktop_sender(title="嘿，行业市值中性化做完啦～🛁")
 def decap_industry(
-    df: pd.DataFrame,
-    daily: bool = 0,
-    monthly: bool = 0,
-    swindustry: bool = 0,
-    zxindustry: bool = 0,
+    df: pd.DataFrame, daily: bool = 0, monthly: bool = 0
 ) -> pd.DataFrame:
     """对因子做行业市值中性化
 
@@ -702,10 +601,6 @@ def decap_industry(
         未中性化因子是日频的则为1，否则为0, by default 0
     monthly : bool, optional
         未中性化因子是月频的则为1，否则为0, by default 0
-    swindustry : bool, optional
-        选择申万一级行业, by default 0
-    zxindustry : bool, optional
-        选择中信一级行业, by default 0
 
     Returns
     -------
@@ -756,15 +651,9 @@ def decap_industry(
         df = df[["fac"]]
         return df
 
-    if swindustry:
-        file_name = "申万行业2021版哑变量.feather"
-    else:
-        file_name = "中信一级行业哑变量代码版.feather"
-
     if monthly:
         industry_dummy = (
-            pd.read_feather(homeplace.daily_data_file + file_name)
-            .fillna(0)
+            pd.read_feather(homeplace.daily_data_file + "申万行业2021版哑变量.feather")
             .set_index("date")
             .groupby("code")
             .resample("M")
@@ -774,9 +663,9 @@ def decap_industry(
         industry_ws = [f"w{i}" for i in range(1, industry_dummy.shape[1] - 1)]
         col = ["code", "date"] + industry_ws
     elif daily:
-        industry_dummy = pd.read_feather(homeplace.daily_data_file + file_name).fillna(
-            0
-        )
+        industry_dummy = pd.read_feather(
+            homeplace.daily_data_file + "申万行业2021版哑变量.feather"
+        ).fillna(0)
         industry_ws = [f"w{i}" for i in range(1, industry_dummy.shape[1] - 1)]
         col = ["date", "code"] + industry_ws
     else:
@@ -1271,17 +1160,36 @@ def get_list_std(delta_sts: list[pd.DataFrame]) -> pd.DataFrame:
 
 class pure_moon(object):
     __slots__ = [
-        "homeplace",
+        "homeplace" "path_prefix",
+        "codes_path",
+        "tradedays_path",
+        "ages_path",
+        "sts_path",
+        "states_path",
+        "opens_path",
+        "closes_path",
+        # "highs_path",
+        # "lows_path",
+        "pricloses_path",
+        "flowshares_path",
+        # "amounts_path",
+        # "turnovers_path",
+        "factors_file",
         "sts_monthly_file",
         "states_monthly_file",
+        "sts_monthly_by10_file",
+        "states_monthly_by10_file",
         "factors",
         "codes",
         "tradedays",
         "ages",
         "amounts",
         "closes",
+        "flowshares",
+        "highs",
+        "lows",
         "opens",
-        "capital",
+        "pricloses",
         "states",
         "sts",
         "turnovers",
@@ -1320,79 +1228,102 @@ class pure_moon(object):
         "industry_codes_str",
         "industry_ws",
         "factors_out",
+        "pricloses_copy",
+        "flowshares_copy",
     ]
 
     @classmethod
     @lru_cache(maxsize=None)
-    def __init__(
-        cls,
-        startdate: int,
-        zxindustry_dummies=0,
-        swindustry_dummies=0,
-    ):
+    def __init__(cls):
+        now = datetime.datetime.now()
+        now = datetime.datetime.strftime(now, format="%Y-%m-%d %H:%M:%S")
         cls.homeplace = HomePlace()
+        # logger.add('pure_moon'+now+'.log')
+        # 绝对路径前缀
+        cls.path_prefix = cls.homeplace.daily_data_file
+        # 股票代码文件
+        cls.codes_path = "AllStockCode.mat"
+        # 交易日期文件
+        cls.tradedays_path = "TradingDate_Daily.mat"
+        # 上市天数文件
+        cls.ages_path = "AllStock_DailyListedDate.mat"
+        # st日子标志文件
+        cls.sts_path = "AllStock_DailyST.mat"
+        # 交易状态文件
+        cls.states_path = "AllStock_DailyStatus.mat"
+        # 复权开盘价数据文件
+        cls.opens_path = "AllStock_DailyOpen_dividend.mat"
+        # 复权收盘价数据文件
+        cls.closes_path = "AllStock_DailyClose_dividend.mat"
+        # 复权最高价数据文件
+        # cls.highs_path = "Allstock_DailyHigh_dividend.mat"
+        # 复权最低价数据文件
+        # cls.lows_path = "Allstock_DailyLow_dividend.mat"
+        # 不复权收盘价数据文件
+        cls.pricloses_path = "AllStock_DailyClose.mat"
+        # 流通股本数据文件
+        cls.flowshares_path = "AllStock_DailyAShareNum.mat"
+        # 成交量数据文件
+        # cls.amounts_path = "AllStock_DailyVolume.mat"
+        # 换手率数据文件
+        # cls.turnovers_path = "AllStock_DailyTR.mat"
+        # 因子数据文件
+        cls.factors_file = ""
         # 已经算好的月度st状态文件
-        cls.sts_monthly_file = homeplace.daily_data_file + "sts_monthly.feather"
+        cls.sts_monthly_file = "sts_monthly.feather"
         # 已经算好的月度交易状态文件
-        cls.states_monthly_file = homeplace.daily_data_file + "states_monthly.feather"
-
-        if swindustry_dummies:
-            cls.industry_dummy = (
-                pd.read_feather(cls.homeplace.daily_data_file + "申万行业2021版哑变量.feather")
-                .set_index("date")
-                .groupby("code")
-                .resample("M")
-                .last()
-            )
-        else:
-            cls.industry_dummy = (
-                pd.read_feather(cls.homeplace.daily_data_file + "中信一级行业哑变量代码版.feather")
-                .fillna(0)
-                .set_index("date")
-                .groupby("code")
-                .resample("M")
-                .last()
-            )
+        cls.states_monthly_file = "states_monthly.feather"
+        # 已经算好的月度st_by10状态文件
+        cls.sts_monthly_by10_file = "sts_monthly_by10.feather"
+        # 已经算好的月度交易状态文件
+        cls.states_monthly_by10_file = "states_monthly_by10.feather"
+        # 拼接绝对路径前缀和相对路径
+        dirs = dir(cls)
+        dirs.remove("new_path")
+        dirs.remove("set_factor_file")
+        dirs = [i for i in dirs if i.endswith("path")] + [
+            i for i in dirs if i.endswith("file")
+        ]
+        dirs_values = list(map(lambda x, y: getattr(x, y), [cls] * len(dirs), dirs))
+        dirs_values = list(
+            map(lambda x, y: x + y, [cls.path_prefix] * len(dirs), dirs_values)
+        )
+        for attr, value in zip(dirs, dirs_values):
+            setattr(cls, attr, value)
+        cls.industry_dummy = (
+            pd.read_feather(cls.homeplace.daily_data_file + "申万行业2021版哑变量.feather")
+            .set_index("date")
+            .groupby("code")
+            .resample("M")
+            .last()
+        )
         cls.industry_dummy = cls.industry_dummy.drop(columns=["code"]).reset_index()
         cls.industry_ws = [f"w{i}" for i in range(1, cls.industry_dummy.shape[1] - 1)]
         col = ["code", "date"] + cls.industry_ws
         cls.industry_dummy.columns = col
         cls.industry_dummy = cls.industry_dummy[
-            cls.industry_dummy.date >= pd.Timestamp(str(startdate))
+            cls.industry_dummy.date >= pd.Timestamp("2010-01-01")
         ]
 
-    def __call__(self):
+    def __call__(self, fallmount=0):
         """调用对象则返回因子值"""
         df = self.factors_out.copy()
         df.columns = list(map(lambda x: x[1], list(df.columns)))
-        return df
+        if fallmount == 0:
+            return df
+        else:
+            return pure_fallmount(df)
 
-    @classmethod
-    def set_basic_data(
-        cls,
-        age: pd.DataFrame,
-        st: pd.DataFrame,
-        state: pd.DataFrame,
-        open: pd.DataFrame,
-        close: pd.DataFrame,
-        capital: pd.DataFrame,
-    ):
-        # 上市天数文件
-        cls.ages = age
-        # st日子标志文件
-        cls.sts = st.fillna(0)
-        # cls.sts = 1 - cls.sts.fillna(0)
-        # 交易状态文件
-        cls.states = state
-        # 复权开盘价数据文件
-        cls.opens = open
-        # 复权收盘价数据文件
-        cls.closes = close
-        # 月底流通市值数据
-        cls.capital = capital
-        cls.opens = cls.opens.replace(0, np.nan)
-        cls.closes = cls.closes.replace(0, np.nan)
+    @params_setter(slogan=None)
+    def set_factor_file(self, factors_file):
+        """设置因子文件的路径，因子文件列名应为股票代码，索引为时间"""
+        self.factors_file = factors_file
+        self.factors = pd.read_feather(self.factors_file)
+        self.factors = self.factors.set_index("date")
+        self.factors = self.factors.resample("M").last()
+        self.factors = self.factors.reset_index()
 
+    @params_setter(slogan=None)
     def set_factor_df_date_as_index(self, df):
         """设置因子数据的dataframe，因子表列名应为股票代码，索引应为时间"""
         df = df.reset_index()
@@ -1402,7 +1333,72 @@ class pure_moon(object):
         self.factors = self.factors.resample("M").last()
         self.factors = self.factors.reset_index()
 
+    @params_setter(slogan=None)
+    def set_factor_df_wide(self, df):
+        """从dataframe读入因子宽数据"""
+        if isinstance(df, pure_fallmount):
+            df = df()
+        self.factors = df.copy()
+        self.factors = self.factors.set_index("date")
+        self.factors = self.factors.resample("M").last()
+        self.factors = self.factors.reset_index()
+
     @classmethod
+    @lru_cache(maxsize=None)
+    @history_remain(slogan=None)
+    def new_path(cls, **kwargs):
+        """修改日频数据文件的路径，便于更新数据
+        要修改的路径以字典形式传入，键为属性名，值为要设置的新路径"""
+        for key, value in kwargs.items():
+            setattr(cls, key, value)
+
+    @classmethod
+    @main_process(slogan=None)
+    @lru_cache(maxsize=None)
+    def col_and_index(cls):
+        """读取股票代码，作为未来表格的行名
+        读取交易日历，作为未来表格的索引"""
+        cls.codes = list(scio.loadmat(cls.codes_path).values())[3]
+        cls.tradedays = list(scio.loadmat(cls.tradedays_path).values())[3].astype(str)
+        cls.codes = cls.codes.flatten().tolist()
+        cls.codes = list(map(lambda x: x[0], cls.codes))
+        cls.tradedays = cls.tradedays[0].tolist()
+
+    @classmethod
+    @tool_box(slogan=None)
+    def loadmat(cls, path):
+        """重写一个加载mat文件的函数，以使代码更简洁"""
+        return list(scio.loadmat(path).values())[3]
+
+    @classmethod
+    @tool_box(slogan=None)
+    def make_df(cls, data):
+        """将读入的数据，和股票代码与时间拼接，做成dataframe"""
+        data = pd.DataFrame(data, columns=cls.codes, index=cls.tradedays)
+        data.index = pd.to_datetime(data.index, format="%Y%m%d")
+        data = data[data.index >= pd.Timestamp("2010-01-01")]
+        return data
+
+    @classmethod
+    @main_process(slogan=None)
+    @lru_cache(maxsize=None)
+    def load_all_files(cls):
+        """加全部的mat文件"""
+        attrs = dir(cls)
+        attrs = [i for i in attrs if i.endswith("path")]
+        attrs.remove("codes_path")
+        attrs.remove("tradedays_path")
+        attrs.remove("new_path")
+        for attr in attrs:
+            new_attr = attr[:-5]
+            setattr(cls, new_attr, cls.make_df(cls.loadmat(getattr(cls, attr))))
+        cls.opens = cls.opens.replace(0, np.nan)
+        cls.closes = cls.closes.replace(0, np.nan)
+        cls.pricloses_copy = cls.pricloses.copy()
+        cls.flowshares_copy = cls.flowshares.copy()
+
+    @classmethod
+    @tool_box(slogan=None)
     def judge_month_st(cls, df):
         """比较一个月内st的天数，如果st天数多，就删除本月，如果正常多，就保留本月"""
         st_count = len(df[df == 1])
@@ -1413,6 +1409,17 @@ class pure_moon(object):
             return 1
 
     @classmethod
+    @tool_box(slogan=None)
+    def judge_month_st_by10(cls, df):
+        """比较一个月内正常交易的天数，如果少于10天，就删除本月"""
+        normal_count = len(df[df != 1])
+        if normal_count < 10:
+            return 0
+        else:
+            return 1
+
+    @classmethod
+    @tool_box(slogan=None)
     def judge_month_state(cls, df):
         """比较一个月内非正常交易的天数，如果非正常交易天数多，就删除本月，否则保留本月"""
         abnormal_count = len(df[df == 0])
@@ -1423,8 +1430,22 @@ class pure_moon(object):
             return 1
 
     @classmethod
+    @tool_box(slogan=None)
+    def judge_month_state_by10(cls, df):
+        """比较一个月内正常交易天数，如果少于10天，就删除本月"""
+        normal_count = len(df[df == 1])
+        if normal_count < 10:
+            return 0
+        else:
+            return 1
+
+    @classmethod
+    @tool_box(slogan=None)
     def read_add(cls, pridf, df, func):
         """由于数据更新，过去计算的月度状态可能需要追加"""
+        # if not STATES['NO_LOG']:
+        #     logger.info(f'this is max_index of pridf{pridf.index.max()}')
+        #     logger.info(f'this is max_index of df{df.index.max()}')
         if pridf.index.max() > df.index.max():
             df_add = pridf[pridf.index > df.index.max()]
             df_add = df_add.resample("M").apply(func)
@@ -1434,27 +1455,59 @@ class pure_moon(object):
             return df
 
     @classmethod
+    @tool_box(slogan=None)
+    def write_feather(cls, df, path):
+        """将算出来的数据存入本地，以免造成重复运算"""
+        df1 = df.copy()
+        df1 = df1.reset_index()
+        df1.to_feather(path)
+
+    @classmethod
+    @tool_box(slogan=None)
     def daily_to_monthly(cls, pridf, path, func):
         """把日度的交易状态、st、上市天数，转化为月度的，并生成能否交易的判断
         读取本地已经算好的文件，并追加新的时间段部分，如果本地没有就直接全部重新算"""
         try:
+            # if not STATES['NO_LOG']:
+            #     logger.info('try to read the prepared state file')
             month_df = pd.read_feather(path).set_index("index")
+            # if not STATES['NO_LOG']:
+            #     logger.info('state file load success')
             month_df = cls.read_add(pridf, month_df, func)
-            month_df.reset_index().to_feather(path)
+            # if not STATES['NO_LOG']:
+            #     logger.info('adding after state file has finish')
+            cls.write_feather(month_df, path)
+            # if not STATES['NO_LOG']:
+            #     logger.info('the feather is new now')
         except Exception as e:
             if not STATES["NO_LOG"]:
                 logger.error("error occurs when read state files")
                 logger.error(e)
             print("state file rewriting……")
             month_df = pridf.resample("M").apply(func)
-            month_df.reset_index().to_feather(path)
+            cls.write_feather(month_df, path)
         return month_df
 
     @classmethod
+    @tool_box(slogan=None)
+    def daily_to_monthly_by10(cls, pridf, path, func):
+        """把日度的交易状态、st、上市天数，转化为月度的，并生成能否交易的判断
+        读取本地已经算好的文件，并追加新的时间段部分，如果本地没有就直接全部重新算"""
+        try:
+            month_df = pd.read_feather(path).set_index("date")
+            month_df = cls.read_add(pridf, month_df, func)
+            cls.write_feather(month_df, path)
+        except Exception:
+            print("rewriting")
+            month_df = pridf.resample("M").apply(func)
+            cls.write_feather(month_df, path)
+        return month_df
+
+    @classmethod
+    @main_process(slogan=None)
     @lru_cache(maxsize=None)
     def judge_month(cls):
         """生成一个月综合判断的表格"""
-
         cls.sts_monthly = cls.daily_to_monthly(
             cls.sts, cls.sts_monthly_file, cls.judge_month_st
         )
@@ -1469,6 +1522,25 @@ class pure_moon(object):
         cls.tris_monthly = cls.tris_monthly.replace(0, np.nan)
 
     @classmethod
+    @main_process(slogan=None)
+    @lru_cache(maxsize=None)
+    def judge_month_by10(cls):
+        """生成一个月综合判断的表格"""
+        cls.sts_monthly = cls.daily_to_monthly(
+            cls.sts, cls.sts_monthly_by10_file, cls.judge_month_st_by10
+        )
+        cls.states_monthly = cls.daily_to_monthly(
+            cls.states, cls.states_monthly_by10_file, cls.judge_month_state_by10
+        )
+        cls.ages_monthly = cls.ages.resample("M").last()
+        cls.ages_monthly = np.sign(cls.ages_monthly.applymap(lambda x: x - 60)).replace(
+            -1, 0
+        )
+        cls.tris_monthly = cls.sts_monthly * cls.states_monthly * cls.ages_monthly
+        cls.tris_monthly = cls.tris_monthly.replace(0, np.nan)
+
+    @classmethod
+    @main_process(slogan=None)
     @lru_cache(maxsize=None)
     def get_rets_month(cls):
         """计算每月的收益率，并根据每月做出交易状态，做出删减"""
@@ -1480,6 +1552,8 @@ class pure_moon(object):
         cls.rets_monthly.columns = ["date", "code", "ret"]
 
     @classmethod
+    # @lru_cache(maxsize=None)
+    @tool_box(slogan=None)
     def neutralize_factors(cls, df):
         """组内对因子进行市值中性化"""
         industry_codes = list(df.columns)
@@ -1498,11 +1572,32 @@ class pure_moon(object):
         return df
 
     @classmethod
+    @main_process(slogan=None)
     @lru_cache(maxsize=None)
-    def get_log_cap(cls, boxcox=True):
+    def get_log_cap(cls, boxcox=False):
         """获得对数市值"""
-        cls.cap = cls.capital.stack().reset_index()
-        cls.cap.columns = ["date", "code", "cap_size"]
+        try:
+            cls.pricloses = cls.pricloses.replace(0, np.nan)
+            cls.flowshares = cls.flowshares.replace(0, np.nan)
+            cls.pricloses = cls.pricloses.resample("M").last()
+        except Exception:
+            cls.pricloses = cls.pricloses_copy.copy()
+            cls.pricloses = cls.pricloses.replace(0, np.nan)
+            cls.flowshares = cls.flowshares.replace(0, np.nan)
+            cls.pricloses = cls.pricloses.resample("M").last()
+        cls.pricloses = cls.pricloses.stack().reset_index()
+        cls.pricloses.columns = ["date", "code", "priclose"]
+        try:
+            cls.flowshares = cls.flowshares.resample("M").last()
+        except Exception:
+            cls.flowshares = cls.flowshares_copy.copy()
+            cls.flowshares = cls.flowshares.resample("M").last()
+        cls.flowshares = cls.flowshares.stack().reset_index()
+        cls.flowshares.columns = ["date", "code", "flowshare"]
+        cls.flowshares = pd.merge(cls.flowshares, cls.pricloses, on=["date", "code"])
+        cls.cap = cls.flowshares.assign(
+            cap_size=cls.flowshares.flowshare * cls.flowshares.priclose
+        )
         if boxcox:
 
             def single(x):
@@ -1513,6 +1608,7 @@ class pure_moon(object):
         else:
             cls.cap["cap_size"] = np.log(cls.cap["cap_size"])
 
+    @main_process(slogan=None)
     def get_neutral_factors(self):
         """对因子进行市值中性化"""
         self.factors = self.factors.set_index("date")
@@ -1535,6 +1631,7 @@ class pure_moon(object):
         self.factors = self.factors.groupby(["date"]).apply(self.neutralize_factors)
         self.factors = self.factors.reset_index()
 
+    @main_process(slogan=None)
     def deal_with_factors(self):
         """删除不符合交易条件的因子数据"""
         self.factors = self.factors.set_index("date")
@@ -1545,6 +1642,7 @@ class pure_moon(object):
         self.factors = self.factors.stack().reset_index()
         self.factors.columns = ["date", "code", "fac"]
 
+    @main_process(slogan=None)
     def deal_with_factors_after_neutralize(self):
         """中性化之后的因子处理方法"""
         self.factors = self.factors.set_index(["date", "code"])
@@ -1557,6 +1655,7 @@ class pure_moon(object):
         self.factors.columns = ["date", "code", "fac"]
 
     @classmethod
+    @tool_box(slogan=None)
     def find_limit(cls, df, up=1):
         """计算涨跌幅超过9.8%的股票，并将其存储进一个长列表里
         其中时间列，为某月的最后一天；涨停日虽然为下月初第一天，但这里标注的时间统一为上月最后一天"""
@@ -1569,6 +1668,7 @@ class pure_moon(object):
         return limit_df
 
     @classmethod
+    @main_process(slogan=None)
     @lru_cache(maxsize=None)
     def get_limit_ups_downs(cls):
         """找月初第一天就涨停"""
@@ -1586,6 +1686,7 @@ class pure_moon(object):
         cls.limit_downs = cls.find_limit(cls.rets_monthly_last, up=-1)
 
     @classmethod
+    @tool_box(slogan=None)
     def get_ic_rankic(cls, df):
         """计算IC和RankIC"""
         df1 = df[["ret", "fac"]]
@@ -1595,6 +1696,7 @@ class pure_moon(object):
         return df2
 
     @classmethod
+    @tool_box(slogan=None)
     def get_icir_rankicir(cls, df):
         """计算ICIR和RankICIR"""
         ic = df.ic.mean()
@@ -1607,6 +1709,7 @@ class pure_moon(object):
         )
 
     @classmethod
+    @tool_box(slogan=None)
     def get_ic_icir_and_rank(cls, df):
         """计算IC、ICIR、RankIC、RankICIR"""
         df1 = df.groupby("date").apply(cls.get_ic_rankic)
@@ -1619,6 +1722,7 @@ class pure_moon(object):
         return df4
 
     @classmethod
+    @tool_box(slogan=None)
     def get_groups(cls, df, groups_num):
         """依据因子值，判断是在第几组"""
         if "group" in list(df.columns):
@@ -1640,6 +1744,7 @@ class pure_moon(object):
         return df
 
     @classmethod
+    @tool_box(slogan=None)
     def next_month_end(cls, x):
         """找到下个月最后一天"""
         x1 = x = x + relativedelta(months=1)
@@ -1648,6 +1753,7 @@ class pure_moon(object):
         return x1 - relativedelta(days=1)
 
     @classmethod
+    @tool_box(slogan=None)
     def limit_old_to_new(cls, limit, data):
         """获取跌停股在旧月的组号，然后将日期调整到新月里
         涨停股则获得新月里涨停股的代码和时间，然后直接删去"""
@@ -1660,6 +1766,7 @@ class pure_moon(object):
         old.date = list(map(cls.next_month_end, list(old.date)))
         return old
 
+    @main_process(slogan=None)
     def get_data(self, groups_num):
         """拼接因子数据和每月收益率数据，并对涨停和跌停股加以处理"""
         self.data = pd.merge(
@@ -1678,6 +1785,7 @@ class pure_moon(object):
         )
         self.data = pd.concat([self.data, rets_monthly_limit_downs])
 
+    @main_process(slogan=None)
     def select_data_time(self, time_start, time_end):
         """筛选特定的时间段"""
         if time_start:
@@ -1685,6 +1793,7 @@ class pure_moon(object):
         if time_end:
             self.data = self.data[self.data.date <= time_end]
 
+    @tool_box(slogan=None)
     def make_start_to_one(self, l):
         """让净值序列的第一个数变成1"""
         min_date = self.factors.date.min()
@@ -1693,11 +1802,13 @@ class pure_moon(object):
         l = pd.concat([add_l, l])
         return l
 
+    @tool_box(slogan=None)
     def to_group_ret(self, l):
         """每一组的年化收益率"""
         ret = l[-1] ** (12 / len(l)) - 1
         return ret
 
+    @main_process(slogan=None)
     def get_group_rets_net_values(self, groups_num=10, value_weighted=False):
         """计算组内每一期的平均收益，生成每日收益率序列和净值序列"""
         if value_weighted:
@@ -1754,6 +1865,7 @@ class pure_moon(object):
             )
             print("这是self.square_rets", self.square_rets)
 
+    @main_process(slogan=None)
     def get_long_short_comments(self, on_paper=False):
         """计算多空对冲的相关评价指标
         包括年化收益率、年化波动率、信息比率、月度胜率、最大回撤率"""
@@ -1799,12 +1911,14 @@ class pure_moon(object):
                 index=["年化收益率", "年化波动率", "信息比率", "月度胜率", "最大回撤率"],
             )
 
+    @main_process(slogan=None)
     def get_total_comments(self):
         """综合IC、ICIR、RankIC、RankICIR,年化收益率、年化波动率、信息比率、月度胜率、最大回撤率"""
         self.total_comments = pd.concat(
             [self.ic_icir_and_rank, self.long_short_comments]
         )
 
+    @main_process(slogan=None)
     def plot_net_values(self, y2, filename):
         """使用matplotlib来画图，y2为是否对多空组合采用双y轴"""
         self.group_net_values.plot(secondary_y=y2, rot=60)
@@ -1812,6 +1926,7 @@ class pure_moon(object):
         if not STATES["NO_SAVE"]:
             plt.savefig(filename_path)
 
+    @main_process(slogan=None)
     def plotly_net_values(self, filename):
         """使用plotly.express画图"""
         fig = pe.line(self.group_net_values)
@@ -1819,9 +1934,12 @@ class pure_moon(object):
         pio.write_html(fig, filename_path, auto_open=True)
 
     @classmethod
+    @main_process(slogan=None)
     @lru_cache(maxsize=None)
     def prerpare(cls):
         """通用数据准备"""
+        cls.col_and_index()
+        cls.load_all_files()
         cls.judge_month()
         cls.get_rets_month()
 
@@ -1979,6 +2097,7 @@ class pure_moonnight(object):
         groups_num: int = 10,
         neutralize: bool = 0,
         boxcox: bool = 1,
+        by10: bool = 0,
         value_weighted: bool = 0,
         y2: bool = 0,
         plt_plot: bool = 1,
@@ -1995,14 +2114,6 @@ class pure_moonnight(object):
         rets_sheetname: str = None,
         on_paper: bool = 0,
         sheetname: str = None,
-        zxindustry_dummies: bool = 0,
-        swindustry_dummies: bool = 0,
-        ages: pd.DataFrame = None,
-        sts: pd.DataFrame = None,
-        states: pd.DataFrame = None,
-        opens: pd.DataFrame = None,
-        closes: pd.DataFrame = None,
-        capitals: pd.DataFrame = None,
     ) -> None:
         """一键回测框架，测试单因子的月频调仓的分组表现
         每月月底计算因子值，月初第一天开盘时买入，月末收盘最后一天收盘时卖出
@@ -2020,6 +2131,8 @@ class pure_moonnight(object):
             对流通市值取自然对数，以完成行业市值中性化, by default 0
         boxcox : bool, optional
             对流通市值做截面boxcox变换，以完成行业市值中性化, by default 1
+        by10 : bool, optional
+            每天st和停牌状态月度化时，以10天作为标准, by default 0
         value_weighted : bool, optional
             是否用流通市值加权, by default 0
         y2 : bool, optional
@@ -2052,52 +2165,11 @@ class pure_moonnight(object):
             使用学术化评价指标, by default 0
         sheetname : str, optional
             各个pd.Excelwriter中工作表的统一名称, by default None
-        zxindustry_dummies : bool, optional
-            行业中性化时，选用中信一级行业, by default 0
-        swindustry_dummies : bool, optional
-            行业中性化时，选用申万一级行业, by default 0
-        ages : pd.DataFrame, optional
-            输入股票上市天数的数据，index是时间，columns是股票代码，values是天数, by default None
-        sts : pd.DataFrame,
-            输入股票每天是否st的数据，是st股即为1，否则为0，index是时间，columns是股票代码，values是0或1, by default None
-        states : pd.DataFrame,
-            输入股票每天交易状态的数据，正常交易为1，否则为0，index是时间，columns是股票代码，values是0或1, by default None
-        opens : pd.DataFrame,
-            输入股票的复权开盘价数据，index是时间，columns是股票代码，values是价格, by default None
-        closes : pd.DataFrame,
-            输入股票的复权收盘价数据，index是时间，columns是股票代码，values是价格, by default None
-        capitals : pd.DataFrame,
-            输入股票的每月月末流通市值数据，index是时间，columns是股票代码，values是流通市值, by default None
         """
 
         if isinstance(factors, pure_fallmount):
             factors = factors().copy()
-        start = datetime.datetime.strftime(factors.index.min(), "%Y%m%d")
-        if ages is None:
-            ages = read_daily(age=1, start=start)
-        if sts is None:
-            sts = read_daily(st=1, start=start)
-        if states is None:
-            states = read_daily(state=1, start=start)
-        if opens is None:
-            opens = read_daily(open=1, start=start)
-        if closes is None:
-            closes = read_daily(close=1, start=start)
-        if capitals is None:
-            capitals = read_daily(flow_cap=1, start=start).resample("M").last()
-        self.shen = pure_moon(
-            startdate=start,
-            zxindustry_dummies=zxindustry_dummies,
-            swindustry_dummies=swindustry_dummies,
-        )
-        self.shen.set_basic_data(
-            age=ages,
-            st=sts,
-            state=states,
-            open=opens,
-            close=closes,
-            capital=capitals,
-        )
+        self.shen = pure_moon()
         self.shen.set_factor_df_date_as_index(factors)
         self.shen.prerpare()
         self.shen.run(
@@ -2366,9 +2438,7 @@ class pure_fall(object):
                     self.daily_factors_path[0] + self.daily_factors_path[1]
                 )
                 self.daily_factors = pd.read_feather(self.daily_factors_path)
-            self.daily_factors = self.daily_factors.drop_duplicates(
-                subset=["date"], keep="last"
-            )
+            self.daily_factors = self.daily_factors.drop_duplicates(subset=['date'],keep='last')
             self.daily_factors = self.daily_factors.set_index("date")
             sql = sqlConfig("minute_data_stock_alter")
             now_minute_datas = sql.show_tables(full=False)
