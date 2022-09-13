@@ -1,4 +1,4 @@
-__updated__ = "2022-08-30 18:03:36"
+__updated__ = "2022-09-13 16:43:19"
 
 import os
 import numpy as np
@@ -10,10 +10,10 @@ from loguru import logger
 
 from cachier import cachier
 import pickledb
-from pure_ocean_breeze.state.states import STATES
-from pure_ocean_breeze.state.homeplace import HomePlace
-from pure_ocean_breeze.state.decorators import *
-from pure_ocean_breeze.data.database import ClickHouseClient
+from pure_ocean_breeze.legacy_version.v3p1.state.states import STATES
+from pure_ocean_breeze.legacy_version.v3p1.state.homeplace import HomePlace
+from pure_ocean_breeze.legacy_version.v3p1.state.decorators import *
+from pure_ocean_breeze.legacy_version.v3p1.data.database import ClickHouseClient
 
 homeplace = HomePlace()
 
@@ -105,19 +105,19 @@ def read_daily(
         elif open:
             trs = read_mat("AllStock_DailyTR.mat")
             opens = read_mat("AllStock_DailyOpen_dividend.mat")
-            return np.sign(trs) * opens
+            return opens
         elif close:
             trs = read_mat("AllStock_DailyTR.mat")
             closes = read_mat("AllStock_DailyClose_dividend.mat")
-            return np.sign(trs) * closes
+            return closes
         elif high:
             trs = read_mat("AllStock_DailyTR.mat")
             highs = read_mat("AllStock_DailyHigh_dividend.mat")
-            return np.sign(trs) * highs
+            return highs
         elif low:
             trs = read_mat("AllStock_DailyTR.mat")
             lows = read_mat("AllStock_DailyLow_dividend.mat")
-            return np.sign(trs) * lows
+            return lows
         elif tr:
             trs = read_mat("AllStock_DailyTR.mat")
             return trs
@@ -149,19 +149,19 @@ def read_daily(
         elif open:
             trs = read_mat("AllStock_DailyTR.mat")
             opens = read_mat("AllStock_DailyOpen.mat")
-            return np.sign(trs) * opens
+            return opens
         elif close:
             trs = read_mat("AllStock_DailyTR.mat")
             closes = read_mat("AllStock_DailyClose.mat")
-            return np.sign(trs) * closes
+            return closes
         elif high:
             trs = read_mat("AllStock_DailyTR.mat")
             highs = read_mat("AllStock_DailyHigh.mat")
-            return np.sign(trs) * highs
+            return highs
         elif low:
             trs = read_mat("AllStock_DailyTR.mat")
             lows = read_mat("AllStock_DailyLow.mat")
-            return np.sign(trs) * lows
+            return lows
         elif tr:
             trs = read_mat("AllStock_DailyTR.mat")
             return trs

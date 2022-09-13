@@ -1,4 +1,4 @@
-__updated__ = "2022-08-28 22:47:54"
+__updated__ = "2022-09-13 16:42:45"
 
 import pandas as pd
 import pymysql
@@ -12,7 +12,7 @@ import numpy as np
 import requests
 import os
 from psycopg2.extensions import register_adapter, AsIs
-from pure_ocean_breeze.state.states import STATES
+from pure_ocean_breeze.legacy_version.v3p1.state.states import STATES
 
 
 class MetaSQLDriver(object):

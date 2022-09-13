@@ -1,4 +1,4 @@
-__updated__ = "2022-09-13 15:50:20"
+__updated__ = "2022-09-13 16:51:24"
 
 try:
     import rqdatac
@@ -541,7 +541,6 @@ def database_update_daily_files() -> None:
     `ValueError`
         如果上次更新到本次更新没有新的交易日，将报错
     """
-    read_daily.clear_cache()
     homeplace = HomePlace()
     
     def single_file(name):
@@ -553,7 +552,10 @@ def database_update_daily_files() -> None:
     startdates=list(map(single_file,names))
     startdate=min(startdates)
     startdate=datetime.datetime.strftime(startdate,'%Y%m%d')
-    now=datetime.datetime.strftime(datetime.datetime.now(),'%Y%m%d')
+    now=datetime.datetime.now()
+    if now.hour<17:
+        now=now-pd.Timedelta(days=1)
+    now=datetime.datetime.strftime(now,'%Y%m%d')
     logger.info(f'日频数据上次更新到{startdate},本次将更新到{now}')
            
     # 交易日历
@@ -694,7 +696,6 @@ def database_update_daily_files() -> None:
     part5.reset_index().to_feather(homeplace.daily_data_file+'ages.feather')
     logger.success("上市天数更新完了")
 
-    read_daily.clear_cache()
 
 
 
@@ -890,7 +891,7 @@ def database_update_zxindustry_prices():
 
 
 @retry
-def download_single_industry_member(ind):
+def download_single_swindustry_member(ind):
     try:
         df = pro.index_member(index_code=ind)
         # time.sleep(1)
@@ -902,10 +903,10 @@ def download_single_industry_member(ind):
         return df
 
 
-def database_update_industry_member():
+def database_update_swindustry_member():
     dfs = []
     for ind in tqdm.tqdm(INDUS_DICT.keys()):
-        ff = download_single_industry_member(ind)
+        ff = download_single_swindustry_member(ind)
         ff = 生成每日分类表(ff, "con_code", "in_date", "out_date", "index_code")
         khere = ff.index_code.iloc[0]
         ff = ff.assign(khere=1)

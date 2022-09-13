@@ -1,4 +1,4 @@
-__updated__ = "2022-09-03 17:25:26"
+__updated__ = "2022-09-13 16:44:33"
 
 import numpy as np
 import pandas as pd
@@ -23,15 +23,15 @@ from collections import Iterable
 import plotly.express as pe
 import plotly.io as pio
 from typing import Callable, Union
-from pure_ocean_breeze.data.read_data import read_daily, get_industry_dummies
-from pure_ocean_breeze.state.homeplace import HomePlace
+from pure_ocean_breeze.legacy_version.v3p1.data.read_data import read_daily, get_industry_dummies
+from pure_ocean_breeze.legacy_version.v3p1.state.homeplace import HomePlace
 
 homeplace = HomePlace()
-from pure_ocean_breeze.state.decorators import *
-from pure_ocean_breeze.state.states import STATES
-from pure_ocean_breeze.data.database import *
-from pure_ocean_breeze.data.dicts import INDUS_DICT
-from pure_ocean_breeze.data.tools import indus_name
+from pure_ocean_breeze.legacy_version.v3p1.state.decorators import *
+from pure_ocean_breeze.legacy_version.v3p1.state.states import STATES
+from pure_ocean_breeze.legacy_version.v3p1.data.database import *
+from pure_ocean_breeze.legacy_version.v3p1.data.dicts import INDUS_DICT
+from pure_ocean_breeze.legacy_version.v3p1.data.tools import indus_name
 
 
 def daily_factor_on300500(

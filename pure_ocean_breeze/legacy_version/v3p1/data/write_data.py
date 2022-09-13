@@ -1,4 +1,4 @@
-__updated__ = "2022-08-30 18:03:42"
+__updated__ = "2022-09-13 16:43:45"
 
 try:
     import rqdatac
@@ -19,7 +19,7 @@ import pickledb
 import tqdm
 from functools import reduce
 import dcube as dc
-from pure_ocean_breeze.state.homeplace import HomePlace
+from pure_ocean_breeze.legacy_version.v3p1.state.homeplace import HomePlace
 
 homeplace = HomePlace()
 try:
@@ -32,9 +32,9 @@ from pure_ocean_breeze.data.database import (
     PostgreSQL,
     Questdb,
 )
-from pure_ocean_breeze.data.read_data import read_daily, read_money_flow
-from pure_ocean_breeze.data.dicts import INDUS_DICT, INDEX_DICT, ZXINDUS_DICT
-from pure_ocean_breeze.data.tools import 生成每日分类表, add_suffix, convert_code
+from pure_ocean_breeze.legacy_version.v3p1.data.read_data import read_daily, read_money_flow
+from pure_ocean_breeze.legacy_version.v3p1.data.dicts import INDUS_DICT, INDEX_DICT, ZXINDUS_DICT
+from pure_ocean_breeze.legacy_version.v3p1.data.tools import 生成每日分类表, add_suffix, convert_code
 
 
 def database_update_minute_data_to_clickhouse_and_questdb(kind: str) -> None:
