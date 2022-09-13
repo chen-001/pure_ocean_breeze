@@ -553,7 +553,7 @@ def database_update_daily_files() -> None:
     startdate=min(startdates)
     startdate=datetime.datetime.strftime(startdate,'%Y%m%d')
     now=datetime.datetime.now()
-    if now.hour<17:
+    if now.hour<18:
         now=now-pd.Timedelta(days=1)
     now=datetime.datetime.strftime(now,'%Y%m%d')
     logger.info(f'日频数据上次更新到{startdate},本次将更新到{now}')
