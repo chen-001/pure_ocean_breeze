@@ -1,4 +1,4 @@
-__updated__ = "2022-09-13 18:06:09"
+__updated__ = "2022-09-15 22:05:26"
 
 import numpy as np
 import pandas as pd
@@ -2617,10 +2617,30 @@ class pure_fall_frequent(object):
         self.dates_all = dates_all
         # 需要新补充的日子
         self.dates_new = sorted([i for i in dates_all if i not in self.dates_old])
-        if len(self.dates_old) == 0:
+        if len(self.dates_new) == 0:
             ...
+        elif len(self.dates_new) == 1:
+            self.dates_new_intervals = [[pd.Timestamp(str(self.dates_new[0]))]]
+            print(f"只缺一天{self.dates_new[0]}")
         else:
-            self.dates_new = self.dates_new[1:]
+            dates = [pd.Timestamp(str(i)) for i in self.dates_new]
+            intervals = [[]] * len(dates)
+            interbee = 0
+            intervals[0] = intervals[0] + [dates[0]]
+            for i in range(len(dates) - 1):
+                val1 = dates[i]
+                val2 = dates[i + 1]
+                if val2 - val1 < pd.Timedelta(days=30):
+                    ...
+                else:
+                    interbee = interbee + 1
+                intervals[interbee] = intervals[interbee] + [val2]
+            intervals = [i for i in intervals if len(i) > 0]
+            print(f"共{len(intervals)}个时间区间，分别是")
+            for date in intervals:
+                print(f"从{date[0]}到{date[-1]}")
+            self.dates_new_intervals = intervals
+        self.factor_new = []
 
     def __call__(self) -> pd.DataFrame:
         """获得经运算产生的因子
@@ -2631,6 +2651,170 @@ class pure_fall_frequent(object):
             经运算产生的因子值
         """
         return self.factor.copy()
+
+    def select_one_calculate(
+        self,
+        date: pd.Timestamp,
+        func: Callable,
+        fields: str = "*",
+        show_time: bool = 0,
+        tqdm_inside: bool = 0,
+    ) -> None:
+        the_func = partial(func)
+        date = int(datetime.datetime.strftime(date, "%Y%m%d"))
+        if tqdm_inside:
+            # 开始计算因子值
+            if self.clickhouse == 1:
+                sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date={date * 100} order by code,date,num"
+            else:
+                sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date={date} order by code,date,num"
+            if show_time:
+                df = self.chc.get_data_show_time(sql_order)
+            else:
+                df = self.chc.get_data(sql_order)
+            if self.clickhouse == 1:
+                df = ((df.set_index("code")) / 100).reset_index()
+            tqdm.tqdm.pandas()
+            df = df.groupby(["date", "code"]).progress_apply(the_func)
+            df = df.to_frame("fac").reset_index()
+            df.columns = ["date", "code", "fac"]
+            df = df.pivot(columns="code", index="date", values="fac")
+            df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
+        else:
+            # 开始计算因子值
+            if self.clickhouse == 1:
+                sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date={date * 100} order by code,date,num"
+            else:
+                sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date={date} order by code,date,num"
+            if show_time:
+                df = self.chc.get_data_show_time(sql_order)
+            else:
+                df = self.chc.get_data(sql_order)
+            if self.clickhouse == 1:
+                df = ((df.set_index("code")) / 100).reset_index()
+            df = df.groupby(["date", "code"]).apply(the_func)
+            df = df.to_frame("fac").reset_index()
+            df.columns = ["date", "code", "fac"]
+            df = df.pivot(columns="code", index="date", values="fac")
+            df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
+        return df
+
+    def select_many_calculate(
+        self,
+        dates: list[pd.Timestamp],
+        func: Callable,
+        fields: str = "*",
+        chunksize: int = 10,
+        show_time: bool = 0,
+        tqdm_inside: bool = 0,
+    ) -> None:
+        the_func = partial(func)
+        dates = [int(datetime.datetime.strftime(i, "%Y%m%d")) for i in dates]
+        # 将需要更新的日子分块，每200天一组，一起运算
+        dates_new_len = len(dates)
+        cut_points = list(range(0, dates_new_len, chunksize)) + [dates_new_len - 1]
+        if cut_points[-1] == cut_points[-2]:
+            cut_points = cut_points[:-1]
+        cut_first = cut_points[0]
+        cuts = tuple(zip(cut_points[:-1], cut_points[1:]))
+        print(f"共{len(cuts)}段")
+        factor_new = []
+        if tqdm_inside==1:
+            # 开始计算因子值
+            df_first = self.select_one_calculate(
+                date=cut_first,
+                func=func,
+                fields=fields,
+                show_time=show_time,
+                tqdm_inside=tqdm_inside,
+            )
+            factor_new.append(factor_new)
+            for date1, date2 in cuts:
+                if self.clickhouse == 1:
+                    sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{dates[date1] * 100} and date<={dates[date2] * 100} order by code,date,num"
+                else:
+                    sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{dates[date1]} and date<={dates[date2]} order by code,date,num"
+                if show_time:
+                    df = self.chc.get_data_show_time(sql_order)
+                else:
+                    df = self.chc.get_data(sql_order)
+                if self.clickhouse == 1:
+                    df = ((df.set_index("code")) / 100).reset_index()
+                tqdm.tqdm.pandas()
+                df = df.groupby(["date", "code"]).progress_apply(the_func)
+                df = df.to_frame("fac").reset_index()
+                df.columns = ["date", "code", "fac"]
+                df = df.pivot(columns="code", index="date", values="fac")
+                df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
+                factor_new.append(df)
+        elif tqdm_inside==-1:
+            # 开始计算因子值
+            for date1, date2 in tqdm.tqdm_notebook(cuts, desc="不知乘月几人归，落月摇情满江树。"):
+                if self.clickhouse == 1:
+                    sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{dates[date1] * 100} and date<={dates[date2] * 100} order by code,date,num"
+                else:
+                    sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{dates[date1]} and date<={dates[date2]} order by code,date,num"
+                if show_time:
+                    df = self.chc.get_data_show_time(sql_order)
+                else:
+                    df = self.chc.get_data(sql_order)
+                if self.clickhouse == 1:
+                    df = ((df.set_index("code")) / 100).reset_index()
+                df = df.groupby(["date", "code"]).apply(the_func)
+                df = df.to_frame("fac").reset_index()
+                df.columns = ["date", "code", "fac"]
+                df = df.pivot(columns="code", index="date", values="fac")
+                df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
+                factor_new.append(df)
+        else:
+            # 开始计算因子值
+            for date1, date2 in tqdm.tqdm(cuts, desc="不知乘月几人归，落月摇情满江树。"):
+                if self.clickhouse == 1:
+                    sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{dates[date1] * 100} and date<={dates[date2] * 100} order by code,date,num"
+                else:
+                    sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{dates[date1]} and date<={dates[date2]} order by code,date,num"
+                if show_time:
+                    df = self.chc.get_data_show_time(sql_order)
+                else:
+                    df = self.chc.get_data(sql_order)
+                if self.clickhouse == 1:
+                    df = ((df.set_index("code")) / 100).reset_index()
+                df = df.groupby(["date", "code"]).apply(the_func)
+                df = df.to_frame("fac").reset_index()
+                df.columns = ["date", "code", "fac"]
+                df = df.pivot(columns="code", index="date", values="fac")
+                df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
+                factor_new.append(df)
+        factor_new = pd.concat(factor_new)
+        return factor_new
+
+    def select_any_calculate(
+        self,
+        dates: list[pd.Timestamp],
+        func: Callable,
+        fields: str = "*",
+        chunksize: int = 10,
+        show_time: bool = 0,
+        tqdm_inside: bool = 0,
+    ) -> None:
+        if len(dates) == 1:
+            res = self.select_one_calculate(
+                dates[0],
+                func=func,
+                fields=fields,
+                show_time=show_time,
+                tqdm_inside=tqdm_inside,
+            )
+        else:
+            res = self.select_many_calculate(
+                dates=dates,
+                func=func,
+                fields=fields,
+                chunksize=chunksize,
+                show_time=show_time,
+                tqdm_inside=tqdm_inside,
+            )
+        return res
 
     @kk.desktop_sender(title="嘿，分钟数据处理完啦～🎈")
     def get_daily_factors(
@@ -2658,111 +2842,32 @@ class pure_fall_frequent(object):
         tqdm_inside : bool, optional
             将进度条加在内部，而非外部，建议仅chunksize较大时使用, by default 0
         """
-        the_func = partial(func)
-        # 将需要更新的日子分块，每200天一组，一起运算
-        dates_new_len = len(self.dates_new)
-        if dates_new_len > 1:
-            cut_points = list(range(0, dates_new_len, chunksize)) + [dates_new_len - 1]
-            if cut_points[-1] == cut_points[-2]:
-                cut_points = cut_points[:-1]
-            cuts = tuple(zip(cut_points[:-1], cut_points[1:]))
-            print(f"共{len(cuts)}段")
-            self.cut_points = cut_points
-            self.factor_new = []
-            if tqdm_inside:
-                # 开始计算因子值
-                for date1, date2 in cuts:
-                    if self.clickhouse == 1:
-                        sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{self.dates_new[date1]*100} and date<={self.dates_new[date2]*100} order by code,date,num"
-                    else:
-                        sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{self.dates_new[date1]} and date<={self.dates_new[date2]} order by code,date,num"
-                    if show_time:
-                        df = self.chc.get_data_show_time(sql_order)
-                    else:
-                        df = self.chc.get_data(sql_order)
-                    if self.clickhouse == 1:
-                        df = ((df.set_index("code")) / 100).reset_index()
-                    tqdm.tqdm.pandas()
-                    df = df.groupby(["date", "code"]).progress_apply(the_func)
-                    df = df.to_frame("fac").reset_index()
-                    df.columns = ["date", "code", "fac"]
-                    df = df.pivot(columns="code", index="date", values="fac")
-                    df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
-                    self.factor_new.append(df)
-            else:
-                # 开始计算因子值
-                for date1, date2 in tqdm.tqdm(cuts, desc="不知乘月几人归，落月摇情满江树。"):
-                    if self.clickhouse == 1:
-                        sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{self.dates_new[date1]*100} and date<={self.dates_new[date2]*100} order by code,date,num"
-                    else:
-                        sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{self.dates_new[date1]} and date<={self.dates_new[date2]} order by code,date,num"
-                    if show_time:
-                        df = self.chc.get_data_show_time(sql_order)
-                    else:
-                        df = self.chc.get_data(sql_order)
-                    if self.clickhouse == 1:
-                        df = ((df.set_index("code")) / 100).reset_index()
-                    df = df.groupby(["date", "code"]).apply(the_func)
-                    df = df.to_frame("fac").reset_index()
-                    df.columns = ["date", "code", "fac"]
-                    df = df.pivot(columns="code", index="date", values="fac")
-                    df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
-                    self.factor_new.append(df)
+        if len(self.dates_new) > 0:
+            for interval in self.dates_new_intervals:
+                df = self.select_any_calculate(
+                    dates=interval,
+                    func=func,
+                    fields=fields,
+                    chunksize=chunksize,
+                    show_time=show_time,
+                    tqdm_inside=tqdm_inside,
+                )
+                self.factor_new.append(df)
             self.factor_new = pd.concat(self.factor_new)
             # 拼接新的和旧的
             self.factor = pd.concat([self.factor_old, self.factor_new]).sort_index()
+            self.factor = self.factor.dropna(how="all")
+            self.factor = self.factor.reset_index()
+            self.factor = self.factor.rename(
+                columns={list(self.factor.columns)[0]: "date"}
+            )
+            self.factor = self.factor.drop_duplicates(subset=["date"])
+            self.factor = self.factor.set_index("date")
             new_end_date = datetime.datetime.strftime(self.factor.index.max(), "%Y%m%d")
             # 存入本地
             self.factor.reset_index().to_feather(self.factor_file)
             logger.info(f"截止到{new_end_date}的因子值计算完了")
-        elif dates_new_len == 1:
-            print("共1天")
-            if tqdm_inside:
-                # 开始计算因子值
-                if self.clickhouse == 1:
-                    sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date={self.dates_new[0]*100} order by code,date,num"
-                else:
-                    sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date={self.dates_new[0]} order by code,date,num"
-                if show_time:
-                    df = self.chc.get_data_show_time(sql_order)
-                else:
-                    df = self.chc.get_data(sql_order)
-                if self.clickhouse == 1:
-                    df = ((df.set_index("code")) / 100).reset_index()
-                tqdm.tqdm.pandas()
-                df = df.groupby(["date", "code"]).progress_apply(the_func)
-                df = df.to_frame("fac").reset_index()
-                df.columns = ["date", "code", "fac"]
-                df = df.pivot(columns="code", index="date", values="fac")
-                df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
-            else:
-                # 开始计算因子值
-                if self.clickhouse == 1:
-                    sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date={self.dates_new[0]*100} order by code,date,num"
-                else:
-                    sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date={self.dates_new[0]} order by code,date,num"
-                if show_time:
-                    df = self.chc.get_data_show_time(sql_order)
-                else:
-                    df = self.chc.get_data(sql_order)
-                if self.clickhouse == 1:
-                    df = ((df.set_index("code")) / 100).reset_index()
-                df = df.groupby(["date", "code"]).apply(the_func)
-                df = df.to_frame("fac").reset_index()
-                df.columns = ["date", "code", "fac"]
-                df = df.pivot(columns="code", index="date", values="fac")
-                df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
-            self.factor_new = df
-            # 拼接新的和旧的
-            self.factor = (
-                pd.concat([self.factor_old, self.factor_new])
-                .sort_index()
-                .drop_duplicates()
-            )
-            new_end_date = datetime.datetime.strftime(self.factor.index.max(), "%Y%m%d")
-            # 存入本地
-            self.factor.reset_index().to_feather(self.factor_file)
-            logger.info(f"补充{self.dates_new[0]}截止到{new_end_date}的因子值计算完了")
+
         else:
             self.factor = self.factor_old
             new_end_date = datetime.datetime.strftime(self.factor.index.max(), "%Y%m%d")

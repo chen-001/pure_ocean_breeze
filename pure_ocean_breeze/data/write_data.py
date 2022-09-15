@@ -1,4 +1,4 @@
-__updated__ = "2022-09-13 18:05:43"
+__updated__ = "2022-09-15 21:53:51"
 
 try:
     import rqdatac
@@ -1074,7 +1074,7 @@ def database_save_final_factors(df: pd.DataFrame, name: str, order: int) -> None
     """
     homeplace = HomePlace()
     path = homeplace.final_factor_file + name + "_" + "多因子" + str(order) + ".feather"
-    df = df.drop_duplicates()
+    df = df.drop_duplicates().dropna(how="all")
     df.reset_index().to_feather(path)
     final_date = df.index.max()
     final_date = datetime.datetime.strftime(final_date, "%Y%m%d")
