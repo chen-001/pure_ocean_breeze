@@ -1,4 +1,4 @@
-__updated__ = "2022-09-13 18:05:53"
+__updated__ = "2022-09-16 10:32:20"
 
 import os
 import numpy as np
@@ -81,86 +81,70 @@ def read_daily(
         if path:
             return pd.read_feather(homeplace.daily_data_file + path).set_index("date")
         elif open:
-            opens = pd.read_feather(
-                homeplace.daily_data_file + "opens.feather"
-            ).set_index("date")
+            opens = pd.read_feather(homeplace.daily_data_file + "opens.feather")
             df = opens
+            df = df.set_index(list(df.columns)[0])
         elif close:
-            closes = pd.read_feather(
-                homeplace.daily_data_file + "closes.feather"
-            ).set_index("date")
+            closes = pd.read_feather(homeplace.daily_data_file + "closes.feather")
             df = closes
+            df = df.set_index(list(df.columns)[0])
         elif high:
-            highs = pd.read_feather(
-                homeplace.daily_data_file + "highs.feather"
-            ).set_index("date")
+            highs = pd.read_feather(homeplace.daily_data_file + "highs.feather")
             df = highs
+            df = df.set_index(list(df.columns)[0])
         elif low:
-            lows = pd.read_feather(
-                homeplace.daily_data_file + "lows.feather"
-            ).set_index("date")
+            lows = pd.read_feather(homeplace.daily_data_file + "lows.feather")
             df = lows
+            df = df.set_index(list(df.columns)[0])
         elif tr:
-            trs = pd.read_feather(homeplace.daily_data_file + "trs.feather").set_index(
-                "date"
-            )
+            trs = pd.read_feather(homeplace.daily_data_file + "trs.feather")
             df = trs
+            df = df.set_index(list(df.columns)[0])
         elif sharenum:
-            sharenums = pd.read_feather(
-                homeplace.daily_data_file + "sharenums.feather"
-            ).set_index("date")
+            sharenums = pd.read_feather(homeplace.daily_data_file + "sharenums.feather")
             df = sharenums
+            df = df.set_index(list(df.columns)[0])
         elif volume:
-            volumes = pd.read_feather(
-                homeplace.daily_data_file + "volumes.feather"
-            ).set_index("date")
+            volumes = pd.read_feather(homeplace.daily_data_file + "volumes.feather")
             df = volumes
+            df = df.set_index(list(df.columns)[0])
         elif age:
-            age = pd.read_feather(homeplace.daily_data_file + "ages.feather").set_index(
-                "date"
-            )
+            age = pd.read_feather(homeplace.daily_data_file + "ages.feather")
             df = age
+            df = df.set_index(list(df.columns)[0])
         elif flow_cap:
-            closes = pd.read_feather(
-                homeplace.daily_data_file + "closes_unadj.feather"
-            ).set_index("date")
-            sharenums = pd.read_feather(
-                homeplace.daily_data_file + "sharenums.feather"
-            ).set_index("date")
+            closes = pd.read_feather(homeplace.daily_data_file + "closes_unadj.feather")
+            sharenums = pd.read_feather(homeplace.daily_data_file + "sharenums.feather")
+            closes = closes.set_index(list(closes.columns)[0])
+            sharenums = sharenums.set_index(list(sharenums.columns)[0])
             flow_cap = closes * sharenums
             df = flow_cap
         elif st:
-            st = pd.read_feather(homeplace.daily_data_file + "sts.feather").set_index(
-                "date"
-            )
+            st = pd.read_feather(homeplace.daily_data_file + "sts.feather")
             df = st
+            df = df.set_index(list(df.columns)[0])
         elif state:
-            state = pd.read_feather(
-                homeplace.daily_data_file + "states.feather"
-            ).set_index("date")
+            state = pd.read_feather(homeplace.daily_data_file + "states.feather")
             df = state
+            df = df.set_index(list(df.columns)[0])
         else:
             raise IOError("阁下总得读点什么吧？🤒")
     else:
         if open:
-            opens = pd.read_feather(
-                homeplace.daily_data_file + "opens.feather"
-            ).set_index("date")
+            opens = pd.read_feather(homeplace.daily_data_file + "opens.feather")
             df = opens
+            df = df.set_index(list(df.columns)[0])
         elif close:
-            closes = pd.read_feather(
-                homeplace.daily_data_file + "closes.feather"
-            ).set_index("date")
+            closes = pd.read_feather(homeplace.daily_data_file + "closes.feather")
             df = closes
+            df = df.set_index(list(df.columns)[0])
         elif high:
-            highs = pd.read_feather(
-                homeplace.daily_data_file + "highs.feather"
-            ).set_index("date")
+            highs = pd.read_feather(homeplace.daily_data_file + "highs.feather")
             df = highs
+            df = df.set_index(list(df.columns)[0])
         elif low:
-            lows = pd.read_feather(
-                homeplace.daily_data_file + "lows.feather"
-            ).set_index("date")
+            lows = pd.read_feather(homeplace.daily_data_file + "lows.feather")
+            df = df.set_index(list(df.columns)[0])
             df = lows
         else:
             raise IOError("阁下总得读点什么吧？🤒")

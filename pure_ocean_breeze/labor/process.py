@@ -1,4 +1,4 @@
-__updated__ = "2022-09-15 22:05:26"
+__updated__ = "2022-09-16 10:38:19"
 
 import numpy as np
 import pandas as pd
@@ -1327,8 +1327,6 @@ class pure_moon(object):
     def __init__(
         cls,
         startdate: int,
-        zxindustry_dummies=0,
-        swindustry_dummies=0,
     ):
         cls.homeplace = HomePlace()
         # 已经算好的月度st状态文件
@@ -1336,30 +1334,37 @@ class pure_moon(object):
         # 已经算好的月度交易状态文件
         cls.states_monthly_file = homeplace.daily_data_file + "states_monthly.feather"
 
-        if swindustry_dummies:
-            cls.industry_dummy = (
-                pd.read_feather(cls.homeplace.daily_data_file + "申万行业2021版哑变量.feather")
-                .set_index("date")
-                .groupby("code")
-                .resample("M")
-                .last()
-            )
-        else:
-            cls.industry_dummy = (
-                pd.read_feather(cls.homeplace.daily_data_file + "中信一级行业哑变量代码版.feather")
-                .fillna(0)
-                .set_index("date")
-                .groupby("code")
-                .resample("M")
-                .last()
-            )
-        cls.industry_dummy = cls.industry_dummy.drop(columns=["code"]).reset_index()
-        cls.industry_ws = [f"w{i}" for i in range(1, cls.industry_dummy.shape[1] - 1)]
-        col = ["code", "date"] + cls.industry_ws
-        cls.industry_dummy.columns = col
-        cls.industry_dummy = cls.industry_dummy[
-            cls.industry_dummy.date >= pd.Timestamp(str(startdate))
-        ]
+        cls.swindustry_dummy = (
+            pd.read_feather(cls.homeplace.daily_data_file + "申万行业2021版哑变量.feather")
+            .fillna(0)
+            .set_index("date")
+            .groupby("code")
+            .resample("M")
+            .last()
+        )
+
+        cls.zxindustry_dummy = (
+            pd.read_feather(cls.homeplace.daily_data_file + "中信一级行业哑变量代码版.feather")
+            .fillna(0)
+            .set_index("date")
+            .groupby("code")
+            .resample("M")
+            .last()
+            .fillna(0)
+        )
+
+        def deal_dummy(industry_dummy):
+            industry_dummy = industry_dummy.drop(columns=["code"]).reset_index()
+            industry_ws = [f"w{i}" for i in range(1, industry_dummy.shape[1] - 1)]
+            col = ["code", "date"] + industry_ws
+            industry_dummy.columns = col
+            industry_dummy = industry_dummy[
+                industry_dummy.date >= pd.Timestamp(str(startdate))
+            ]
+            return industry_dummy
+
+        cls.swindustry_dummy = deal_dummy(cls.swindustry_dummy)
+        cls.zxindustry_dummy = deal_dummy(cls.zxindustry_dummy)
 
     def __call__(self):
         """调用对象则返回因子值"""
@@ -1513,7 +1518,11 @@ class pure_moon(object):
         else:
             cls.cap["cap_size"] = np.log(cls.cap["cap_size"])
 
-    def get_neutral_factors(self):
+    def get_neutral_factors(
+        self,
+        zxindustry_dummies=0,
+        swindustry_dummies=0,
+    ):
         """对因子进行市值中性化"""
         self.factors = self.factors.set_index("date")
         self.factors.index = self.factors.index + pd.DateOffset(months=1)
@@ -1530,7 +1539,14 @@ class pure_moon(object):
         self.factors = pd.merge(
             self.factors, self.cap, how="inner", on=["date", "code"]
         )
-        self.factors = pd.merge(self.factors, self.industry_dummy, on=["date", "code"])
+        if swindustry_dummies:
+            self.factors = pd.merge(
+                self.factors, self.swindustry_dummy, on=["date", "code"]
+            )
+        else:
+            self.factors = pd.merge(
+                self.factors, self.zxindustry_dummy, on=["date", "code"]
+            )
         self.factors = self.factors.set_index(["date", "code"])
         self.factors = self.factors.groupby(["date"]).apply(self.neutralize_factors)
         self.factors = self.factors.reset_index()
@@ -1847,6 +1863,8 @@ class pure_moon(object):
         rets_sheetname=None,
         on_paper=False,
         sheetname=None,
+        zxindustry_dummies=0,
+        swindustry_dummies=0,
     ):
         """运行回测部分"""
         if comments_writer and not (comments_sheetname or sheetname):
@@ -1857,11 +1875,17 @@ class pure_moon(object):
             raise IOError("把group_rets输出到excel中时，必须指定sheetname🤒")
         if neutralize:
             self.get_log_cap()
-            self.get_neutral_factors()
+            self.get_neutral_factors(
+                swindustry_dummies=swindustry_dummies,
+                zxindustry_dummies=zxindustry_dummies,
+            )
             self.deal_with_factors_after_neutralize()
         elif boxcox:
             self.get_log_cap(boxcox=True)
-            self.get_neutral_factors()
+            self.get_neutral_factors(
+                swindustry_dummies=swindustry_dummies,
+                zxindustry_dummies=zxindustry_dummies,
+            )
             self.deal_with_factors_after_neutralize()
         else:
             self.deal_with_factors()
@@ -2087,8 +2111,6 @@ class pure_moonnight(object):
             capitals = read_daily(flow_cap=1, start=start).resample("M").last()
         self.shen = pure_moon(
             startdate=start,
-            zxindustry_dummies=zxindustry_dummies,
-            swindustry_dummies=swindustry_dummies,
         )
         self.shen.set_basic_data(
             age=ages,
@@ -2120,6 +2142,8 @@ class pure_moonnight(object):
             rets_sheetname=rets_sheetname,
             on_paper=on_paper,
             sheetname=sheetname,
+            swindustry_dummies=swindustry_dummies,
+            zxindustry_dummies=zxindustry_dummies,
         )
 
     def __call__(self) -> pd.DataFrame:
