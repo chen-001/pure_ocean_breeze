@@ -1,4 +1,4 @@
-__updated__ = "2022-09-15 21:53:51"
+__updated__ = "2022-09-18 01:53:55"
 
 try:
     import rqdatac
@@ -544,9 +544,8 @@ def database_update_daily_files() -> None:
     homeplace = HomePlace()
 
     def single_file(name):
-        df = pd.read_feather(homeplace.daily_data_file + name + ".feather").set_index(
-            "date"
-        )
+        df = pd.read_feather(homeplace.daily_data_file + name + ".feather")
+        df = df.set_index(list(df.columns)[0])
         startdate = df.index.max() + pd.Timedelta(days=1)
         return startdate
 

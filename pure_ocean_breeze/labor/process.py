@@ -1,4 +1,4 @@
-__updated__ = "2022-09-16 10:38:19"
+__updated__ = "2022-09-19 17:48:57"
 
 import numpy as np
 import pandas as pd
@@ -22,7 +22,12 @@ from collections import Iterable
 import plotly.express as pe
 import plotly.io as pio
 from typing import Callable, Union
-from pure_ocean_breeze.data.read_data import read_daily, get_industry_dummies
+from pure_ocean_breeze.data.read_data import (
+    read_daily,
+    get_industry_dummies,
+    read_swindustry_prices,
+    read_zxindustry_prices,
+)
 from pure_ocean_breeze.state.homeplace import HomePlace
 
 homeplace = HomePlace()
@@ -30,6 +35,7 @@ from pure_ocean_breeze.state.states import STATES
 from pure_ocean_breeze.data.database import *
 from pure_ocean_breeze.data.dicts import INDUS_DICT
 from pure_ocean_breeze.data.tools import indus_name
+from pure_ocean_breeze.labor.comment import comments_on_twins, make_relative_comments
 
 
 def daily_factor_on300500(
@@ -75,69 +81,57 @@ def daily_factor_on300500(
     homeplace = HomePlace()
     if fac.shape[0] / last.shape[0] > 2:
         if hs300:
-            df = (
-                pd.read_feather(homeplace.daily_data_file + "沪深300日成分股.feather")
-                .set_index("index")
-                .replace(0, np.nan)
-            )
+            df = pd.read_feather(
+                homeplace.daily_data_file + "沪深300日成分股.feather"
+            ).replace(0, np.nan)
+            df = df.set_index(list(df.columns)[0])
             df = df * fac
             df = df.dropna(how="all")
         elif zz500:
-            df = (
-                pd.read_feather(homeplace.daily_data_file + "中证500日成分股.feather")
-                .set_index("index")
-                .replace(0, np.nan)
-            )
+            df = pd.read_feather(
+                homeplace.daily_data_file + "中证500日成分股.feather"
+            ).replace(0, np.nan)
+            df = df.set_index(list(df.columns)[0])
             df = df * fac
             df = df.dropna(how="all")
         elif zz800:
-            df1 = pd.read_feather(
-                homeplace.daily_data_file + "沪深300日成分股.feather"
-            ).set_index("index")
-            df2 = pd.read_feather(
-                homeplace.daily_data_file + "中证500日成分股.feather"
-            ).set_index("index")
+            df1 = pd.read_feather(homeplace.daily_data_file + "沪深300日成分股.feather")
+            df1 = df1.set_index(list(df1.columns)[0])
+            df2 = pd.read_feather(homeplace.daily_data_file + "中证500日成分股.feather")
+            df2 = df2.set_index(list(df2.columns)[0])
             df = df1 + df2
             df = df.replace(0, np.nan)
             df = df * fac
             df = df.dropna(how="all")
         elif zz1000:
-            df = (
-                pd.read_feather(homeplace.daily_data_file + "中证1000日成分股.feather")
-                .set_index("index")
-                .replace(0, np.nan)
-            )
+            df = pd.read_feather(
+                homeplace.daily_data_file + "中证1000日成分股.feather"
+            ).replace(0, np.nan)
+            df = df.set_index(list(df.columns)[0])
             df = df * fac
             df = df.dropna(how="all")
         elif gz2000:
-            df = (
-                pd.read_feather(homeplace.daily_data_file + "国证2000日成分股.feather")
-                .set_index("index")
-                .replace(0, np.nan)
-            )
+            df = pd.read_feather(
+                homeplace.daily_data_file + "国证2000日成分股.feather"
+            ).replace(0, np.nan)
+            df = df.set_index(list(df.columns)[0])
             df = df * fac
             df = df.dropna(how="all")
         elif other:
             tr = read_daily(tr=1).fillna(0).replace(0, 1)
             tr = np.sign(tr)
             df1 = (
-                tr
-                * pd.read_feather(
-                    homeplace.daily_data_file + "沪深300日成分股.feather"
-                ).set_index("index")
+                tr * pd.read_feather(homeplace.daily_data_file + "沪深300日成分股.feather")
             ).fillna(0)
+            df1 = df1.set_index(list(df1.columns)[0])
             df2 = (
-                tr
-                * pd.read_feather(
-                    homeplace.daily_data_file + "中证500日成分股.feather"
-                ).set_index("index")
+                tr * pd.read_feather(homeplace.daily_data_file + "中证500日成分股.feather")
             ).fillna(0)
+            df2 = df2.set_index(list(df2.columns)[0])
             df3 = (
-                tr
-                * pd.read_feather(
-                    homeplace.daily_data_file + "中证1000日成分股.feather"
-                ).set_index("index")
+                tr * pd.read_feather(homeplace.daily_data_file + "中证1000日成分股.feather")
             ).fillna(0)
+            df3 = df3.set_index(list(df3.columns)[0])
             df = (1 - df1) * (1 - df2) * (1 - df3) * tr
             df = df.replace(0, np.nan) * fac
             df = df.dropna(how="all")
@@ -145,86 +139,66 @@ def daily_factor_on300500(
             raise ValueError("总得指定一下是哪个成分股吧🤒")
     else:
         if hs300:
-            df = (
-                pd.read_feather(homeplace.daily_data_file + "沪深300日成分股.feather")
-                .set_index("index")
-                .replace(0, np.nan)
-                .resample("M")
-                .last()
-            )
+            df = pd.read_feather(
+                homeplace.daily_data_file + "沪深300日成分股.feather"
+            ).replace(0, np.nan)
+            df = df.set_index(list(df.columns)[0])
+            df = df.resample("M").last()
             df = df * fac
             df = df.dropna(how="all")
         elif zz500:
-            df = (
-                pd.read_feather(homeplace.daily_data_file + "中证500日成分股.feather")
-                .set_index("index")
-                .replace(0, np.nan)
-                .resample("M")
-                .last()
-            )
+            df = pd.read_feather(
+                homeplace.daily_data_file + "中证500日成分股.feather"
+            ).replace(0, np.nan)
+            df = df.set_index(list(df.columns)[0])
+            df = df.resample("M").last()
             df = df * fac
             df = df.dropna(how="all")
         elif zz800:
-            df1 = (
-                pd.read_feather(homeplace.daily_data_file + "沪深300日成分股.feather")
-                .set_index("index")
-                .resample("M")
-                .last()
-            )
-            df2 = (
-                pd.read_feather(homeplace.daily_data_file + "中证500日成分股.feather")
-                .set_index("index")
-                .resample("M")
-                .last()
-            )
+            df1 = pd.read_feather(homeplace.daily_data_file + "沪深300日成分股.feather")
+            df1 = df1.set_index(list(df1.columns)[0])
+            df1 = df1.resample("M").last()
+            df2 = pd.read_feather(homeplace.daily_data_file + "中证500日成分股.feather")
+            df2 = df2.set_index(list(df2.columns)[0])
+            df2 = df2.resample("M").last()
             df = df1 + df2
             df = df.replace(0, np.nan)
             df = df * fac
             df = df.dropna(how="all")
         elif zz1000:
-            df = (
-                pd.read_feather(homeplace.daily_data_file + "中证1000日成分股.feather")
-                .set_index("index")
-                .replace(0, np.nan)
-                .resample("M")
-                .last()
-            )
+            df = pd.read_feather(
+                homeplace.daily_data_file + "中证1000日成分股.feather"
+            ).replace(0, np.nan)
+            df = df.set_index(list(df.columns)[0])
+            df = df.resample("M").last()
             df = df * fac
             df = df.dropna(how="all")
         elif gz2000:
-            df = (
-                pd.read_feather(homeplace.daily_data_file + "国证2000日成分股.feather")
-                .set_index("index")
-                .replace(0, np.nan)
-                .resample("M")
-                .last()
-            )
+            df = pd.read_feather(
+                homeplace.daily_data_file + "国证2000日成分股.feather"
+            ).replace(0, np.nan)
+            df = df.set_index(list(df.columns)[0])
+            df = df.resample("M").last()
             df = df * fac
             df = df.dropna(how="all")
         elif other:
             tr = read_daily(tr=1).fillna(0).replace(0, 1).resample("M").last()
             tr = np.sign(tr)
             df1 = (
-                tr
-                * pd.read_feather(homeplace.daily_data_file + "沪深300日成分股.feather")
-                .set_index("index")
-                .resample("M")
-                .last()
+                tr * pd.read_feather(homeplace.daily_data_file + "沪深300日成分股.feather")
             ).fillna(0)
+            df1 = df1.set_index(list(df1.columns)[0])
+            df1 = df1.resample("M").last()
             df2 = (
-                tr
-                * pd.read_feather(homeplace.daily_data_file + "中证500日成分股.feather")
-                .set_index("index")
-                .resample("M")
-                .last()
+                tr * pd.read_feather(homeplace.daily_data_file + "中证500日成分股.feather")
             ).fillna(0)
+            df2 = df2.set_index(list(df2.columns)[0])
+            df2 = df2.resample("M").last()
             df3 = (
-                tr
-                * pd.read_feather(homeplace.daily_data_file + "中证1000日成分股.feather")
-                .set_index("index")
-                .resample("M")
-                .last()
+                tr * pd.read_feather(homeplace.daily_data_file + "中证1000日成分股.feather")
             ).fillna(0)
+            df3 = df3.set_index(list(df3.columns)[0])
+            df3 = df3.resample("M").last()
             df = (1 - df1) * (1 - df2) * (1 - df3)
             df = df.replace(0, np.nan) * fac
             df = df.dropna(how="all")
@@ -233,13 +207,19 @@ def daily_factor_on300500(
     return df
 
 
-def daily_factor_on_swindustry(df: pd.DataFrame) -> dict:
+def daily_factor_on_industry(
+    df: pd.DataFrame, swindustry: bool = 0, zxindustry: bool = 0
+) -> dict:
     """将一个因子变为仅在某个申万一级行业上的股票
 
     Parameters
     ----------
     df : pd.DataFrame
         全市场的因子值，index是时间，columns是股票代码
+    swindustry : bool, optional
+        选择使用申万一级行业, by default 0
+    zxindustry : bool, optional
+        选择使用中信一级行业, by default 0
 
     Returns
     -------
@@ -254,13 +234,23 @@ def daily_factor_on_swindustry(df: pd.DataFrame) -> dict:
         daily = 1
         monthly = 0
     start = int(datetime.datetime.strftime(df.index.min(), "%Y%m%d"))
-    ress = get_industry_dummies(daily=daily, monthly=monthly, start=start)
+    ress = get_industry_dummies(
+        daily=daily,
+        monthly=monthly,
+        start=start,
+        swindustry=swindustry,
+        zxindustry=zxindustry,
+    )
     ress = {k: v * df for k, v in ress.items()}
     return ress
 
 
-def group_test_on_swindustry(
-    df: pd.DataFrame, group_num: int = 10, net_values_writer: pd.ExcelWriter = None
+def group_test_on_industry(
+    df: pd.DataFrame,
+    group_num: int = 10,
+    net_values_writer: pd.ExcelWriter = None,
+    swindustry: bool = 0,
+    zxindustry: bool = 0,
 ) -> pd.DataFrame:
     """在申万一级行业上测试每个行业的分组回测
 
@@ -272,32 +262,55 @@ def group_test_on_swindustry(
         分组数量, by default 10
     net_values_writer : pd.ExcelWriter, optional
         用于存储各个行业分组及多空对冲净值序列的excel文件, by default None
+    swindustry : bool, optional
+        选择使用申万一级行业, by default 0
+    zxindustry : bool, optional
+        选择使用中信一级行业, by default 0
 
     Returns
     -------
     pd.DataFrame
         各个行业的绩效评价汇总
     """
-    dfs = daily_factor_on_swindustry(df)
+    dfs = daily_factor_on_industry(df, swindustry=swindustry, zxindustry=zxindustry)
+
     ks = []
     vs = []
-    for k, v in dfs.items():
-        shen = pure_moonnight(
-            v,
-            groups_num=group_num,
-            net_values_writer=net_values_writer,
-            sheetname=INDUS_DICT[k],
-            plt_plot=0,
-        )
-        ks.append(k)
-        vs.append(shen.shen.total_comments.T)
-    vs = pd.concat(vs)
-    vs.index = [INDUS_DICT[i] for i in ks]
+    if swindustry:
+        for k, v in dfs.items():
+            shen = pure_moonnight(
+                v,
+                groups_num=group_num,
+                net_values_writer=net_values_writer,
+                sheetname=INDUS_DICT[k],
+                plt_plot=0,
+            )
+            ks.append(k)
+            vs.append(shen.shen.total_comments.T)
+        vs = pd.concat(vs)
+        vs.index = [INDUS_DICT[i] for i in ks]
+    else:
+        for k, v in dfs.items():
+            shen = pure_moonnight(
+                v,
+                groups_num=group_num,
+                net_values_writer=net_values_writer,
+                sheetname=k,
+                plt_plot=0,
+            )
+            ks.append(k)
+            vs.append(shen.shen.total_comments.T)
+        vs = pd.concat(vs)
+        vs.index = ks
     return vs
 
 
-def rankic_test_on_swindustry(
-    df: pd.DataFrame, excel_name: str = "行业rankic.xlsx", png_name: str = "行业rankic图.png"
+def rankic_test_on_industry(
+    df: pd.DataFrame,
+    excel_name: str = "行业rankic.xlsx",
+    png_name: str = "行业rankic图.png",
+    swindustry: bool = 0,
+    zxindustry: bool = 0,
 ) -> pd.DataFrame:
     """专门计算因子值在各个申万一级行业上的Rank IC值，并绘制柱状图
 
@@ -309,13 +322,17 @@ def rankic_test_on_swindustry(
         用于保存各个行业Rank IC值的excel文件的名字, by default '行业rankic.xlsx'
     png_name : str, optional
         用于保存各个行业Rank IC值的柱状图的名字, by default '行业rankic图.png'
+    swindustry : bool, optional
+        选择使用申万一级行业, by default 0
+    zxindustry : bool, optional
+        选择使用中信一级行业, by default 0
 
     Returns
     -------
     pd.DataFrame
         行业名称与对应的Rank IC
     """
-    vs = group_test_on_swindustry(df)
+    vs = group_test_on_industry(df, swindustry=swindustry, zxindustry=zxindustry)
     rankics = vs[["RankIC"]].T
     rankics.to_excel(excel_name)
     rankics.plot(kind="bar")
@@ -361,23 +378,25 @@ def long_test_on_industry(
     IOError
         pos和neg必须有一个为1，否则将报错
     """
-    fac = decap_industry(fac, monthly=True)
+    fac = decap_industry(df, monthly=True)
 
     if swindustry:
         industry_dummy = pd.read_feather(
             homeplace.daily_data_file + "申万行业2021版哑变量.feather"
         ).fillna(0)
+        indus = read_swindustry_prices()
     else:
         industry_dummy = pd.read_feather(
-            homeplace.daily_data_file + "中信一级行业哑变量代码版.feather"
+            homeplace.daily_data_file + "中信一级行业哑变量名称版.feather"
         ).fillna(0)
+        indus = read_zxindustry_prices()
     inds = list(industry_dummy.columns)
     ret_next = (
         read_daily(close=1).resample("M").last()
         / read_daily(open=1).resample("M").first()
         - 1
     )
-    ages = read_daily(age=1)
+    ages = read_daily(age=1).resample("M").last()
     ages = (ages >= 60) + 0
     ages = ages.replace(0, np.nan)
     ret_next = ret_next * ages
@@ -410,17 +429,26 @@ def long_test_on_industry(
         ret_long = fi.mean(axis=1)
         return ret_long
 
-    ret_longs = {k: {} for k in nums}
+    ret_longs = {k: [] for k in nums}
     for num in tqdm.tqdm(nums):
         for code in inds[2:]:
-            ret_longs[num][code] = save_ind(code, num)
+            df = save_ind(code, num).to_frame(code)
+            ret_longs[num] = ret_longs[num] + [df]
 
-    coms = {
-        k: indus_name(pd.concat(v, axis=1).dropna(how="all").T).T
-        for k, v in ret_longs.items()
-    }
     indus = indus.resample("M").last().pct_change()
-    rets = {k: (v - indus_name(indus.T).T).dropna(how="all") for k, v in coms.items()}
+
+    if swindustry:
+        coms = {
+            k: indus_name(pd.concat(v, axis=1).dropna(how="all").T).T
+            for k, v in ret_longs.items()
+        }
+        rets = {
+            k: (v - indus_name(indus.T).T).dropna(how="all") for k, v in coms.items()
+        }
+    else:
+        coms = {k: pd.concat(v, axis=1).dropna(how="all") for k, v in ret_longs.items()}
+        rets = {k: (v - indus).dropna(how="all") for k, v in coms.items()}
+
     nets = {k: (v + 1).cumprod() for k, v in rets.items()}
     nets = {
         k: v.apply(lambda x: x.dropna() / x.dropna().iloc[0]) for k, v in nets.items()
@@ -717,11 +745,19 @@ def decap_industry(
     `NotImplementedError`
         如果未指定日频或月频，将报错
     """
+    start_date=int(datetime.datetime.strftime(df.index.min(),'%Y%m%d'))
     last = df.resample("M").last()
     homeplace = HomePlace()
-    share = read_daily("AllStock_DailyAShareNum.mat")
-    undi_close = read_daily("AllStock_DailyClose.mat")
-    cap = (share * undi_close).stack().reset_index()
+    if daily == 0 and monthly == 0:
+        if df.shape[0] / last.shape[0] < 2:
+            monthly = True
+        else:
+            daily = True
+    if monthly:
+        cap = read_daily(flow_cap=1,start=start_date).resample("M").last()
+    else:
+        cap = read_daily(flow_cap=1,start=start_date)
+    cap = cap.stack().reset_index()
     cap.columns = ["date", "code", "cap"]
     cap.cap = ss.boxcox(cap.cap)[0]
 
@@ -733,11 +769,6 @@ def decap_industry(
     df = df.stack().reset_index()
     df.columns = ["date", "code", "fac"]
     df = pd.merge(df, cap, on=["date", "code"])
-    if daily == 0 and monthly == 0:
-        if df.shape[0] / last.shape[0] < 2:
-            monthly = True
-        else:
-            daily = True
 
     def neutralize_factors(df):
         """组内对因子进行市值中性化"""
@@ -2109,6 +2140,14 @@ class pure_moonnight(object):
             closes = read_daily(close=1, start=start)
         if capitals is None:
             capitals = read_daily(flow_cap=1, start=start).resample("M").last()
+        if comments_writer is None:
+            from pure_ocean_breeze.state.states import COMMENTS_WRITER
+
+            comments_writer = COMMENTS_WRITER
+        if net_values_writer is None:
+            from pure_ocean_breeze.state.states import NET_VALUES_WRITER
+
+            net_values_writer = NET_VALUES_WRITER
         self.shen = pure_moon(
             startdate=start,
         )
@@ -2157,6 +2196,26 @@ class pure_moonnight(object):
         df = self.shen.factors_out.copy()
         df.columns = list(map(lambda x: x[1], list(df.columns)))
         return df
+
+    def comments_ten(self) -> pd.DataFrame:
+        """对回测的十分组结果分别给出评价
+
+        Returns
+        -------
+        `pd.DataFrame`
+            评价指标包括年化收益率、总收益率、年化波动率、年化夏普比率、最大回撤率、胜率
+        """
+        rets_cols = list(self.shen.group_rets.columns)
+        rets_cols = rets_cols[:-1]
+        coms = []
+        for i in rets_cols:
+            ret = self.shen.group_rets[i]
+            net = self.shen.group_net_values[i]
+            com = comments_on_twins(net, ret)
+            com = com.to_frame(i)
+            coms.append(com)
+        df = pd.concat(coms, axis=1)
+        return df.T
 
 
 class pure_fall(object):
@@ -2743,7 +2802,7 @@ class pure_fall_frequent(object):
         cuts = tuple(zip(cut_points[:-1], cut_points[1:]))
         print(f"共{len(cuts)}段")
         factor_new = []
-        if tqdm_inside==1:
+        if tqdm_inside == 1:
             # 开始计算因子值
             df_first = self.select_one_calculate(
                 date=cut_first,
@@ -2752,7 +2811,7 @@ class pure_fall_frequent(object):
                 show_time=show_time,
                 tqdm_inside=tqdm_inside,
             )
-            factor_new.append(factor_new)
+            factor_new.append(df_first)
             for date1, date2 in cuts:
                 if self.clickhouse == 1:
                     sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{dates[date1] * 100} and date<={dates[date2] * 100} order by code,date,num"
@@ -2771,7 +2830,7 @@ class pure_fall_frequent(object):
                 df = df.pivot(columns="code", index="date", values="fac")
                 df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
                 factor_new.append(df)
-        elif tqdm_inside==-1:
+        elif tqdm_inside == -1:
             # 开始计算因子值
             for date1, date2 in tqdm.tqdm_notebook(cuts, desc="不知乘月几人归，落月摇情满江树。"):
                 if self.clickhouse == 1:
@@ -3600,3 +3659,119 @@ class pure_dawn(object):
         self.get_fac_long_and_tradedays()
         self.get_month_starts_and_ends(backsee=backsee)
         self.get_monthly_factor(func)
+
+
+def follow_tests(
+    fac: pd.DataFrame,
+    comments_writer: pd.ExcelWriter=None,
+    net_values_writer: pd.ExcelWriter=None,
+    pos: bool = 0,
+    neg: bool = 0,
+    swindustry: bool = 0,
+    zxindustry: bool = 0,
+    nums: list[int] = [3],
+):
+    """因子完成全A测试后，进行的一些必要的后续测试，包括各个分组表现、相关系数与纯净化、3510的多空和多头、各个行业Rank IC、各个行业买3只超额表现
+
+    Parameters
+    ----------
+    fac : pd.DataFrame
+        要进行后续测试的因子值，index是时间，columns是股票代码，values是因子值
+    comments_writer : pd.ExcelWriter, optional
+        写入评价指标的excel, by default None
+    net_values_writer : pd.ExcelWriter, optional
+        写入净值序列的excel, by default None
+    pos : bool, optional
+        因子的方向为正, by default 0
+    neg : bool, optional
+        因子的方向为负, by default 0
+    swindustry : bool, optional
+        使用申万一级行业, by default 0
+    zxindustry : bool, optional
+        使用中信一级行业, by default 0
+    nums : list[int], optional
+        各个行业买几只股票, by default [3]
+
+    Raises
+    ------
+    IOError
+        如果未指定因子正负方向，将报错
+    """
+    if comments_writer is None:
+        from pure_ocean_breeze.state.states import COMMENTS_WRITER
+
+        comments_writer = COMMENTS_WRITER
+    if net_values_writer is None:
+        from pure_ocean_breeze.state.states import NET_VALUES_WRITER
+
+        net_values_writer = NET_VALUES_WRITER
+    
+    shen = pure_moonnight(fac)
+    shen.comments_ten().to_excel(comments_writer, sheet_name="十分组")
+    """相关系数与纯净化"""
+    pure_fac = pure_snowtrain(fac)
+    pure_fac.corr.to_excel(comments_writer, sheet_name="相关系数")
+    shen = pure_moonnight(
+        pure_fac(),
+        comments_writer=comments_writer,
+        net_values_writer=net_values_writer,
+        sheetname="纯净",
+    )
+    """3510多空和多头"""
+    # 300
+    fi300 = daily_factor_on300500(fac, hs300=1)
+    shen = pure_moonnight(
+        fi300,
+        comments_writer=comments_writer,
+        net_values_writer=net_values_writer,
+        sheetname="300多空",
+    )
+    if pos:
+        make_relative_comments(shen.shen.group_rets.group10, hs300=1).to_excel(
+            comments_writer, sheet_name="300超额"
+        )
+    elif neg:
+        make_relative_comments(shen.shen.group_rets.group1, hs300=1).to_excel(
+            comments_writer, sheet_name="300超额"
+        )
+    else:
+        raise IOError("请指定因子的方向是正是负🤒")
+    # 500
+    fi500 = daily_factor_on300500(fac, zz500=1)
+    shen = pure_moonnight(
+        fi500,
+        comments_writer=comments_writer,
+        net_values_writer=net_values_writer,
+        sheetname="500多空",
+    )
+    if pos:
+        make_relative_comments(shen.shen.group_rets.group10, zz500=1).to_excel(
+            comments_writer, sheet_name="500超额"
+        )
+    else:
+        make_relative_comments(shen.shen.group_rets.group1, zz500=1).to_excel(
+            comments_writer, sheet_name="500超额"
+        )
+    # 1000
+    fi1000 = daily_factor_on300500(fac, zz1000=1)
+    shen = pure_moonnight(
+        fi1000,
+        comments_writer=comments_writer,
+        net_values_writer=net_values_writer,
+        sheetname="1000多空",
+    )
+    if pos:
+        make_relative_comments(shen.shen.group_rets.group10, zz1000=1).to_excel(
+            comments_writer, sheet_name="1000超额"
+        )
+    else:
+        make_relative_comments(shen.shen.group_rets.group1, zz1000=1).to_excel(
+            comments_writer, sheet_name="1000超额"
+        )
+    # 各行业Rank IC
+    rankics = rankic_test_on_industry(fac, comments_writer)
+    # 买3只超额表现
+    rets = long_test_on_industry(
+        fac, nums, pos=pos, neg=neg, swindustry=swindustry, zxindustry=zxindustry
+    )
+    logger.success("因子后续的必要测试全部完成")

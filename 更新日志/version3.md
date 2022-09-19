@@ -1,5 +1,18 @@
 ## 更新日志🗓 — v3
 
+* v3.2.6 — 2022.09.19
+> 1. 通过import pure_ocean_breeze导入库的时候，不再自动导入pure_ocean_breeze.state.states模块内的内容，可通过pure_ocean_breeze.states来调用
+> 2. 新增了对因子一键进行必要后续测试的函数follow_tests，包括输出各个分组表现、与常用风格因子相关系数、barra纯净化、在沪深300、中证500、中证1000指数上的多空绩效和多头超额表现、在各个一级行业上的Rank IC值和各个一级行业买n只股票的超额表现
+> 3. 在pure_ocean_breeze.state.states模块中，新增COMMENTS_WRITER和NET_VALUES_WRITER参数，用于管理全局所有的pu re_moonnight和follow_tests的绩效记录和净值序列的记录
+> 4. 修复了更新日频数据函数database_update_daily_files中，读取旧数据部分的潜在bug
+> 5. 删去了pure_ocean_breeze.labor.comment模块中的，输出十组每组绩效表现的函数comments_ten，给pure_moonnight类新增函数pure_moonnight.comments_ten()，用于输入十分组各组绩效表现
+> 6. 修复了将因子限定在指数成分股内的函数daily_factor_on300500中，读取指数成分股数据时的潜在bug
+> 7. 给讲因子限定在各个一级行业成分股内的函数daily_factor_on_industry，增加了申万一级行业和中信一级行业可选的参数
+> 8. 将在各个一级行业上进行分组多空测试的函数group_test_on_swindustry更名为group_test_on_industry，并增加申万一级行业和中信一级行业可选的参数
+> 9. 将在各个一级行业上进行Rank IC测试的函数rankic_test_on_swindustry更名为rankic_test_on_industry，并增加申万一级行业和中信一级行业可选的参数
+> 10. 修复了在各个一级行业上进行购买n只股票的多头超额测试的函数long_test_on_industry内的中性化bug、读取中信哑变量的bug、股票上市天数的bug、计算收益率序列的bug、读取各个行业指数的bug、中信行业名称bug
+> 11. 修复了行业市值中性化函数decap_industry中读取流通市值数据的bug
+> 12. 修复了使用clickhouse或questdb的分钟数据更新因子值的类pure_fall_frequent更新因子值时，在每段第一个交易日时的bug
 * v3.2.5 — 2022.09.16
 > 1. 修复了读取日频数据函数read_daily由于索引名称更改导致的bug
 > 1. 修复了缓存机制导致同一内核中，无法转换中信行业和申万行业的bug

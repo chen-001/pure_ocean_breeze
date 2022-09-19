@@ -2,7 +2,7 @@
 一些默认的参数
 """
 
-__updated__ = "2022-08-18 03:23:48"
+__updated__ = "2022-09-19 17:34:19"
 
 STATES = {
     "NO_LOG": False,
@@ -15,3 +15,6 @@ STATES = {
     "db_user": "root",
     "db_password": "Kingwila98",
 }
+
+COMMENTS_WRITER=None
+NET_VALUES_WRITER=None

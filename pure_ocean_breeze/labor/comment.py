@@ -1,4 +1,4 @@
-__updated__ = "2022-08-21 13:40:12"
+__updated__ = "2022-09-19 15:23:25"
 
 import numpy as np
 import pandas as pd
@@ -10,7 +10,6 @@ import matplotlib.pyplot as plt
 plt.style.use(["science", "no-latex", "notebook"])
 plt.rcParams["axes.unicode_minus"] = False
 from pure_ocean_breeze.data.read_data import read_index_three, read_daily
-from pure_ocean_breeze.labor.process import pure_moonnight
 
 
 def comment_on_rets_and_nets(
@@ -231,30 +230,7 @@ def make_relative_comments_plot(
     return net
 
 
-def comments_ten(shen: pure_moonnight) -> pd.DataFrame:
-    """对回测的十分组结果分别给出评价
 
-    Parameters
-    ----------
-    shen : pure_moonnight
-        回测结果对象
-
-    Returns
-    -------
-    `pd.DataFrame`
-        评价指标包括年化收益率、总收益率、年化波动率、年化夏普比率、最大回撤率、胜率
-    """
-    rets_cols = list(shen.shen.group_rets.columns)
-    rets_cols = rets_cols[:-1]
-    coms = []
-    for i in rets_cols:
-        ret = shen.shen.group_rets[i]
-        net = shen.shen.group_net_values[i]
-        com = comments_on_twins(net, ret)
-        com = com.to_frame(i)
-        coms.append(com)
-    df = pd.concat(coms, axis=1)
-    return df.T
 
 
 def other_periods_comments_nets(
