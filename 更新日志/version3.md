@@ -1,5 +1,8 @@
 ## 更新日志🗓 — v3
 
+* v3.2.7 — 2022.09.20
+> 1. 修复了回测框架pure_moonnight不设置sheetname就无法回测的bug，改为不设置sheeetname就不会写入excel
+> 1. 给因子后续必要测试follow_tests增加写入多头在主要指数上的超额净值序列
 * v3.2.6 — 2022.09.19
 > 1. 通过import pure_ocean_breeze导入库的时候，不再自动导入pure_ocean_breeze.state.states模块内的内容，可通过pure_ocean_breeze.states来调用
 > 2. 新增了对因子一键进行必要后续测试的函数follow_tests，包括输出各个分组表现、与常用风格因子相关系数、barra纯净化、在沪深300、中证500、中证1000指数上的多空绩效和多头超额表现、在各个一级行业上的Rank IC值和各个一级行业买n只股票的超额表现

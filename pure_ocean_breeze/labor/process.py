@@ -1,5 +1,8 @@
-__updated__ = "2022-09-19 17:48:57"
+__updated__ = "2022-09-20 15:41:57"
 
+import warnings
+
+warnings.filterwarnings("ignore")
 import numpy as np
 import pandas as pd
 import knockknock as kk
@@ -14,6 +17,7 @@ import matplotlib.pyplot as plt
 
 plt.style.use(["science", "no-latex", "notebook"])
 plt.rcParams["axes.unicode_minus"] = False
+
 from functools import reduce, lru_cache, partial
 from dateutil.relativedelta import relativedelta
 from loguru import logger
@@ -35,7 +39,11 @@ from pure_ocean_breeze.state.states import STATES
 from pure_ocean_breeze.data.database import *
 from pure_ocean_breeze.data.dicts import INDUS_DICT
 from pure_ocean_breeze.data.tools import indus_name
-from pure_ocean_breeze.labor.comment import comments_on_twins, make_relative_comments
+from pure_ocean_breeze.labor.comment import (
+    comments_on_twins,
+    make_relative_comments,
+    make_relative_comments_plot,
+)
 
 
 def daily_factor_on300500(
@@ -745,7 +753,7 @@ def decap_industry(
     `NotImplementedError`
         如果未指定日频或月频，将报错
     """
-    start_date=int(datetime.datetime.strftime(df.index.min(),'%Y%m%d'))
+    start_date = int(datetime.datetime.strftime(df.index.min(), "%Y%m%d"))
     last = df.resample("M").last()
     homeplace = HomePlace()
     if daily == 0 and monthly == 0:
@@ -754,9 +762,9 @@ def decap_industry(
         else:
             daily = True
     if monthly:
-        cap = read_daily(flow_cap=1,start=start_date).resample("M").last()
+        cap = read_daily(flow_cap=1, start=start_date).resample("M").last()
     else:
-        cap = read_daily(flow_cap=1,start=start_date)
+        cap = read_daily(flow_cap=1, start=start_date)
     cap = cap.stack().reset_index()
     cap.columns = ["date", "code", "cap"]
     cap.cap = ss.boxcox(cap.cap)[0]
@@ -2140,11 +2148,11 @@ class pure_moonnight(object):
             closes = read_daily(close=1, start=start)
         if capitals is None:
             capitals = read_daily(flow_cap=1, start=start).resample("M").last()
-        if comments_writer is None:
+        if comments_writer is None and sheetname is not None:
             from pure_ocean_breeze.state.states import COMMENTS_WRITER
 
             comments_writer = COMMENTS_WRITER
-        if net_values_writer is None:
+        if net_values_writer is None and sheetname is not None:
             from pure_ocean_breeze.state.states import NET_VALUES_WRITER
 
             net_values_writer = NET_VALUES_WRITER
@@ -3663,8 +3671,8 @@ class pure_dawn(object):
 
 def follow_tests(
     fac: pd.DataFrame,
-    comments_writer: pd.ExcelWriter=None,
-    net_values_writer: pd.ExcelWriter=None,
+    comments_writer: pd.ExcelWriter = None,
+    net_values_writer: pd.ExcelWriter = None,
     pos: bool = 0,
     neg: bool = 0,
     swindustry: bool = 0,
@@ -3705,7 +3713,7 @@ def follow_tests(
         from pure_ocean_breeze.state.states import NET_VALUES_WRITER
 
         net_values_writer = NET_VALUES_WRITER
-    
+
     shen = pure_moonnight(fac)
     shen.comments_ten().to_excel(comments_writer, sheet_name="十分组")
     """相关系数与纯净化"""
@@ -3730,9 +3738,15 @@ def follow_tests(
         make_relative_comments(shen.shen.group_rets.group10, hs300=1).to_excel(
             comments_writer, sheet_name="300超额"
         )
+        make_relative_comments_plot(shen.shen.group_rets.group10, hs300=1).to_excel(
+            net_values_writer, sheet_name="300超额"
+        )
     elif neg:
         make_relative_comments(shen.shen.group_rets.group1, hs300=1).to_excel(
             comments_writer, sheet_name="300超额"
+        )
+        make_relative_comments_plot(shen.shen.group_rets.group1, hs300=1).to_excel(
+            net_values_writer, sheet_name="300超额"
         )
     else:
         raise IOError("请指定因子的方向是正是负🤒")
@@ -3748,9 +3762,15 @@ def follow_tests(
         make_relative_comments(shen.shen.group_rets.group10, zz500=1).to_excel(
             comments_writer, sheet_name="500超额"
         )
+        make_relative_comments_plot(shen.shen.group_rets.group10, zz500=1).to_excel(
+            net_values_writer, sheet_name="500超额"
+        )
     else:
         make_relative_comments(shen.shen.group_rets.group1, zz500=1).to_excel(
             comments_writer, sheet_name="500超额"
+        )
+        make_relative_comments_plot(shen.shen.group_rets.group1, zz500=1).to_excel(
+            net_values_writer, sheet_name="500超额"
         )
     # 1000
     fi1000 = daily_factor_on300500(fac, zz1000=1)
@@ -3764,9 +3784,15 @@ def follow_tests(
         make_relative_comments(shen.shen.group_rets.group10, zz1000=1).to_excel(
             comments_writer, sheet_name="1000超额"
         )
+        make_relative_comments_plot(shen.shen.group_rets.group10, zz1000=1).to_excel(
+            net_values_writer, sheet_name="1000超额"
+        )
     else:
         make_relative_comments(shen.shen.group_rets.group1, zz1000=1).to_excel(
             comments_writer, sheet_name="1000超额"
+        )
+        make_relative_comments_plot(shen.shen.group_rets.group1, zz1000=1).to_excel(
+            net_values_writer, sheet_name="1000超额"
         )
     # 各行业Rank IC
     rankics = rankic_test_on_industry(fac, comments_writer)
