@@ -1,4 +1,4 @@
-__updated__ = "2022-09-26 14:08:47"
+__updated__ = "2022-09-26 14:18:10"
 
 import warnings
 
@@ -2487,17 +2487,17 @@ class pure_fall(object):
                 self.daily_factors = self.daily_factors[
                     self.daily_factors.index >= pd.Timestamp(str(STATES["START"]))
                 ]
-                self.daily_factors = self.daily_factors.reset_index()
-                self.daily_factors = self.daily_factors.rename(
-                    columns={list(self.daily_factors.columns)[0]: "date"}
-                )
-                self.daily_factors = self.daily_factors.drop_duplicates(
-                    subset=["date"], keep="first"
-                )
-                self.daily_factors = self.daily_factors.set_index("date")
-                self.daily_factors.reset_index().to_feather(self.daily_factors_path)
-                if not STATES["NO_LOG"]:
-                    logger.success("更新已完成")
+            self.daily_factors = self.daily_factors.reset_index()
+            self.daily_factors = self.daily_factors.rename(
+                columns={list(self.daily_factors.columns)[0]: "date"}
+            )
+            self.daily_factors = self.daily_factors.drop_duplicates(
+                subset=["date"], keep="first"
+            )
+            self.daily_factors = self.daily_factors.set_index("date")
+            self.daily_factors.reset_index().to_feather(self.daily_factors_path)
+            if not STATES["NO_LOG"]:
+                logger.success("更新已完成")
 
         except Exception:
             raise IOError(
@@ -3848,6 +3848,19 @@ class pure_helper(object):
         func: Callable = None,
         group: int = 10,
     ) -> None:
+        """使用因子b的值大小，对因子a进行分组，并可以在组内进行某种操作
+
+        Parameters
+        ----------
+        df_main : pd.DataFrame
+            要被分组并进行操作的因子
+        df_helper : pd.DataFrame
+            用来做分组的依据
+        func : Callable, optional
+            分组后，组内要进行的操作, by default None
+        group : int, optional
+            要分的组数, by default 10
+        """        
         self.df_main = df_main
         self.df_helper = df_helper
         self.func = func
