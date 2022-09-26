@@ -1,4 +1,4 @@
-__updated__ = "2022-09-20 15:41:57"
+__updated__ = "2022-09-26 14:08:47"
 
 import warnings
 
@@ -1358,7 +1358,7 @@ class pure_moon(object):
         "industry_codes",
         "industry_codes_str",
         "industry_ws",
-        "factors_out",
+        "__factors_out",
     ]
 
     @classmethod
@@ -1405,11 +1405,13 @@ class pure_moon(object):
         cls.swindustry_dummy = deal_dummy(cls.swindustry_dummy)
         cls.zxindustry_dummy = deal_dummy(cls.zxindustry_dummy)
 
+    @property
+    def factors_out(self):
+        return self.__factors_out
+
     def __call__(self):
         """调用对象则返回因子值"""
-        df = self.factors_out.copy()
-        df.columns = list(map(lambda x: x[1], list(df.columns)))
-        return df
+        return self.factors_out
 
     @classmethod
     def set_basic_data(
@@ -1593,7 +1595,8 @@ class pure_moon(object):
     def deal_with_factors(self):
         """删除不符合交易条件的因子数据"""
         self.factors = self.factors.set_index("date")
-        self.factors_out = self.factors.copy()
+        self.__factors_out = self.factors.copy()
+        self.__factors_out.columns = [i[1] for i in list(self.__factors_out.columns)]
         self.factors.index = self.factors.index + pd.DateOffset(months=1)
         self.factors = self.factors.resample("M").last()
         self.factors = self.factors * self.tris_monthly
@@ -1604,7 +1607,8 @@ class pure_moon(object):
         """中性化之后的因子处理方法"""
         self.factors = self.factors.set_index(["date", "code"])
         self.factors = self.factors.unstack()
-        self.factors_out = self.factors.copy()
+        self.__factors_out = self.factors.copy()
+        self.__factors_out.columns = [i[1] for i in list(self.__factors_out.columns)]
         self.factors.index = self.factors.index + pd.DateOffset(months=1)
         self.factors = self.factors.resample("M").last()
         self.factors.columns = list(map(lambda x: x[1], list(self.factors.columns)))
@@ -2134,7 +2138,7 @@ class pure_moonnight(object):
         """
 
         if isinstance(factors, pure_fallmount):
-            factors = factors().copy()
+            factors = factors()
         start = datetime.datetime.strftime(factors.index.min(), "%Y%m%d")
         if ages is None:
             ages = read_daily(age=1, start=start)
@@ -2201,9 +2205,7 @@ class pure_moonnight(object):
         `pd.DataFrame`
             如果做了行业市值中性化，则行业市值中性化之后的因子数据，否则返回原因子数据
         """
-        df = self.shen.factors_out.copy()
-        df.columns = list(map(lambda x: x[1], list(df.columns)))
-        return df
+        return self.shen.factors_out
 
     def comments_ten(self) -> pd.DataFrame:
         """对回测的十分组结果分别给出评价
@@ -2485,6 +2487,14 @@ class pure_fall(object):
                 self.daily_factors = self.daily_factors[
                     self.daily_factors.index >= pd.Timestamp(str(STATES["START"]))
                 ]
+                self.daily_factors = self.daily_factors.reset_index()
+                self.daily_factors = self.daily_factors.rename(
+                    columns={list(self.daily_factors.columns)[0]: "date"}
+                )
+                self.daily_factors = self.daily_factors.drop_duplicates(
+                    subset=["date"], keep="first"
+                )
+                self.daily_factors = self.daily_factors.set_index("date")
                 self.daily_factors.reset_index().to_feather(self.daily_factors_path)
                 if not STATES["NO_LOG"]:
                     logger.success("更新已完成")
@@ -2952,7 +2962,7 @@ class pure_fall_frequent(object):
             self.factor = self.factor.rename(
                 columns={list(self.factor.columns)[0]: "date"}
             )
-            self.factor = self.factor.drop_duplicates(subset=["date"])
+            self.factor = self.factor.drop_duplicates(subset=["date"], keep="first")
             self.factor = self.factor.set_index("date")
             new_end_date = datetime.datetime.strftime(self.factor.index.max(), "%Y%m%d")
             # 存入本地
@@ -2961,6 +2971,14 @@ class pure_fall_frequent(object):
 
         else:
             self.factor = self.factor_old
+            self.factor = self.factor.reset_index()
+            self.factor = self.factor.rename(
+                columns={list(self.factor.columns)[0]: "date"}
+            )
+            self.factor = self.factor.drop_duplicates(subset=["date"], keep="first")
+            self.factor = self.factor.set_index("date")
+            # 存入本地
+            self.factor.reset_index().to_feather(self.factor_file)
             new_end_date = datetime.datetime.strftime(self.factor.index.max(), "%Y%m%d")
             logger.info(f"当前截止到{new_end_date}的因子值已经是最新的了")
 
@@ -3801,3 +3819,69 @@ def follow_tests(
         fac, nums, pos=pos, neg=neg, swindustry=swindustry, zxindustry=zxindustry
     )
     logger.success("因子后续的必要测试全部完成")
+
+
+def to_group(df: pd.DataFrame, group: int = 10) -> pd.DataFrame:
+    """把一个index为时间，code为时间的df，每个截面上的值，按照排序分为group组，将值改为组号，从0开始
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        要改为组号的df
+    group : int, optional
+        分为多少组, by default 10
+
+    Returns
+    -------
+    pd.DataFrame
+        组号组成的dataframe
+    """
+    df = df.T.apply(lambda x: pd.qcut(x, group, labels=False, duplicates="drop")).T
+    return df
+
+
+class pure_helper(object):
+    def __init__(
+        self,
+        df_main: pd.DataFrame,
+        df_helper: pd.DataFrame,
+        func: Callable = None,
+        group: int = 10,
+    ) -> None:
+        self.df_main = df_main
+        self.df_helper = df_helper
+        self.func = func
+        self.group = group
+        if self.func is None:
+            self.__data = self.sort_a_with_b()
+        else:
+            self.__data = self.sort_a_with_b_func()
+
+    @property
+    def data(self):
+        return self.__data
+
+    def __call__(self) -> pd.DataFrame:
+        return self.data
+
+    def sort_a_with_b(self):
+        dfb = to_group(self.df_helper, group=self.group)
+        dfb = dfb.stack().reset_index()
+        dfb.columns = ["date", "code", "group"]
+        dfa = self.df_main.stack().reset_index()
+        dfa.columns = ["date", "code", "target"]
+        df = pd.merge(dfa, dfb, on=["date", "code"])
+        return df
+
+    def sort_a_with_b_func(self):
+        the_func = partial(self.func)
+        df = self.sort_a_with_b().drop(columns=["code"])
+        df = (
+            df.groupby(["date", "group"])
+            .apply(the_func)
+            .drop(columns=["group"])
+            .reset_index()
+        )
+        df = df.pivot(index="date", columns="group", values="target")
+        df.columns = [f"group{str(int(i+1))}" for i in list(df.columns)]
+        return df
