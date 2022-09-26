@@ -1,5 +1,9 @@
 ## 更新日志🗓 — v3
 
+* v3.3.0 — 2022.09.26
+> 1. 修复了单独更新questdb内分钟数据的函数database_update_minute_data_to_questdb中的bug
+> 1. 新增了依据index去重的函数drop_duplicates_index
+> 1. 修复了更新日频数据可能重复的潜在bug
 * v3.2.9 — 2022.09.26
 > 1. 给pure_helper增加说明
 > 1. 修复了以mysql分钟数据更新因子值的类pure_fall的出现重复数据的潜在bug

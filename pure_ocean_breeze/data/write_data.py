@@ -1,4 +1,4 @@
-__updated__ = "2022-09-18 01:53:55"
+__updated__ = "2022-09-26 17:36:12"
 
 try:
     import rqdatac
@@ -284,7 +284,7 @@ def database_update_minute_data_to_questdb(kind: str) -> None:
     ts.num = ts.num.astype(int).astype(str)
     # 数据写入数据库
     qdb = Questdb()
-    qdb.write_via_csv(df, f"minute_data_{kind}")
+    qdb.write_via_csv(ts, f"minute_data_{kind}")
     # 获取剩余使用额
     user2 = round(rqdatac.user.get_quota()["bytes_used"] / 1024 / 1024, 2)
     user12 = round(user2 - user1, 2)
@@ -533,6 +533,14 @@ def download_calendar(startdate, enddate):
         return df0
 
 
+def drop_duplicates_index(new):
+    new = new.reset_index()
+    new = new.rename(columns={list(new.columns)[0]: "date"})
+    new = new.drop_duplicates(subset=["date"], keep="first")
+    new = new.set_index("date")
+    return new
+
+
 def database_update_daily_files() -> None:
     """更新数据库中的日频数据
 
@@ -611,6 +619,7 @@ def database_update_daily_files() -> None:
             "date"
         )
         new = pd.concat([old, df]).drop_duplicates()
+        new = drop_duplicates_index(new)
         new = new[sorted(list(new.columns))]
         new.reset_index().to_feather(homeplace.daily_data_file + name + ".feather")
         logger.success(name + "已更新")
@@ -651,6 +660,7 @@ def database_update_daily_files() -> None:
     part2_new = part2_new.drop_duplicates()
     part2_new = part2_new[closes.columns]
     part2_new = part2_new[sorted(list(part2_new.columns))]
+    part2_new = drop_duplicates_index(part2_new)
     part2_new.reset_index().to_feather(homeplace.daily_data_file + "trs.feather")
     logger.success("换手率更新完成")
 
@@ -665,6 +675,7 @@ def database_update_daily_files() -> None:
     ).set_index("date")
     part3_new = pd.concat([part3_old, part3]).drop_duplicates()
     part3_new = part3_new[closes.columns]
+    part3_new = drop_duplicates_index(part3_new)
     part3_new = part3_new[sorted(list(part3_new.columns))]
     part3_new.reset_index().to_feather(homeplace.daily_data_file + "sharenums.feather")
     logger.success("流通股数更新完成")
@@ -706,6 +717,7 @@ def database_update_daily_files() -> None:
     part4_0 = part4_0.T
     part4_0 = part4_0[closes.columns]
     part4_0 = part4_0.drop_duplicates()
+    part4_0 = drop_duplicates_index(part4_0)
     part4_0 = part4_0[sorted(list(part4_0.columns))]
     part4_0.reset_index().to_feather(homeplace.daily_data_file + "sts.feather")
     logger.success("st更新完了")
@@ -723,6 +735,7 @@ def database_update_daily_files() -> None:
     part5 = part5[part5.index.isin(list(part2_new.columns))]
     part5 = part5.T
     part5 = part5[closes.columns]
+    part5 = drop_duplicates_index(part5)
     part5 = part5[sorted(list(part5.columns))]
     part5.reset_index().to_feather(homeplace.daily_data_file + "ages.feather")
     logger.success("上市天数更新完了")
