@@ -1,4 +1,4 @@
-__updated__ = "2022-09-16 10:32:20"
+__updated__ = "2022-09-30 23:50:56"
 
 import os
 import numpy as np
@@ -29,6 +29,17 @@ def read_daily(
     st: bool = 0,
     state: bool = 0,
     unadjust: bool = 0,
+    ret: bool = 0,
+    ret_inday: bool = 0,
+    ret_night: bool = 0,
+    vol: bool = 0,
+    vol_inday: bool = 0,
+    vol_night: bool = 0,
+    swing: bool = 0,
+    pb: bool = 0,
+    pe: bool = 0,
+    iret: bool = 0,
+    ivol: bool = 0,
     start: int = STATES["START"],
 ) -> pd.DataFrame:
     """直接读取常用的量价读取日频数据，默认为复权价格，
@@ -62,6 +73,28 @@ def read_daily(
         为1则选择读取当日交易状态是否正常，1表示正常交易，空值则不是, by default 0
     unadjust : bool, optional
         为1则将上述价格改为不复权价格, by default 0
+    ret : bool, optional
+        为1则选择读取日间收益率, by default 0
+    ret_inday : bool, optional
+        为1则表示读取日内收益率, by default 0
+    ret_night : bool, optional
+        为1则表示读取隔夜波动率, by default 0
+    vol : bool, optional
+        为1则选择读取滚动20日日间波动率, by default 0
+    vol_inday : bool, optional
+        为1则表示读取滚动20日日内收益率波动率, by default 0
+    vol_night : bool, optional
+        为1则表示读取滚动20日隔夜收益率波动率, by default 0
+    swing : bool, optional
+        为1则表示读取振幅, by default 0
+    pb : bool, optional
+        为1则表示读取市净率, by default 0
+    pe : bool, optional
+        为1则表示读取市盈率, by default 0
+    iret : bool, optional
+        为1则表示读取20日回归的fama三因子（市场、流通市值、市净率）特质收益率, by default 0
+    ivol : bool, optional
+        为1则表示读取20日回归的20日fama三因子（市场、流通市值、市净率）特质波动率, by default 0
     start : int, optional
         起始日期，形如20130101, by default STATES["START"]
 
@@ -127,6 +160,44 @@ def read_daily(
             state = pd.read_feather(homeplace.daily_data_file + "states.feather")
             df = state
             df = df.set_index(list(df.columns)[0])
+        elif ret:
+            df = read_daily(close=1, start=start)
+            df = df / df.shift(1) - 1
+        elif ret_inday:
+            df = read_daily(close=1, start=start) / read_daily(open=1, start=start) - 1
+        elif ret_night:
+            df = (
+                read_daily(open=1, start=start)
+                / read_daily(close, start=start).shift(1)
+                - 1
+            )
+        elif vol:
+            df = read_daily(ret=1, start=start)
+            df = df.rolling(20, min_periods=10).std()
+        elif vol_inday:
+            df = read_daily(ret_inday=1, start=start)
+            df = df.rolling(20, min_periods=10).std()
+        elif vol_night:
+            df = read_daily(ret_night=1, start=start)
+            df = df.rolling(20, min_periods=10).std()
+        elif swing:
+            df = (
+                read_daily(high=1, start=start) - read_daily(low=1, start=start)
+            ) / read_daily(close=1, start=start)
+        elif pb:
+            df = pd.read_feather(homeplace.daily_data_file + "pb.feather")
+            df = df.set_index(list(df.columns)[0])
+        elif pe:
+            df = pd.read_feather(homeplace.daily_data_file + "pe.feather")
+            df = df.set_index(list(df.columns)[0])
+        elif iret:
+            df = pd.read_feather(
+                homeplace.daily_data_file + "idiosyncratic_ret.feather"
+            )
+            df = df.set_index(list(df.columns)[0])
+        elif ivol:
+            df = read_daily(iret=1, start=start)
+            df = df.rolling(20, min_periods=10).std()
         else:
             raise IOError("阁下总得读点什么吧？🤒")
     else:

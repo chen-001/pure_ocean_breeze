@@ -58,3 +58,5 @@ from tenacity import retry
 warnings.filterwarnings("ignore")
 import bs4
 from wrapt_timeout_decorator import timeout
+import pyfinance.ols as po
+from texttable import Texttable

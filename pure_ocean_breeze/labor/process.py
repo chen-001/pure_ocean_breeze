@@ -1,4 +1,4 @@
-__updated__ = "2022-09-26 17:21:48"
+__updated__ = "2022-10-01 02:01:16"
 
 import warnings
 
@@ -25,9 +25,12 @@ import datetime
 from collections import Iterable
 import plotly.express as pe
 import plotly.io as pio
+import pyfinance.ols as po
+from texttable import Texttable
 from typing import Callable, Union
 from pure_ocean_breeze.data.read_data import (
     read_daily,
+    read_market,
     get_industry_dummies,
     read_swindustry_prices,
     read_zxindustry_prices,
@@ -1359,6 +1362,12 @@ class pure_moon(object):
         "industry_codes_str",
         "industry_ws",
         "__factors_out",
+        "ics",
+        "rankics",
+        "factor_turnover_rates",
+        "factor_turnover_rate",
+        "group_rets_std",
+        "group_rets_stds"
     ]
 
     @classmethod
@@ -1669,6 +1678,10 @@ class pure_moon(object):
     def get_ic_icir_and_rank(cls, df):
         """计算IC、ICIR、RankIC、RankICIR"""
         df1 = df.groupby("date").apply(cls.get_ic_rankic)
+        cls.ics = df1.ic
+        cls.rankics = df1.rankic
+        cls.ics = cls.ics.reset_index(drop=True, level=1).to_frame()
+        cls.rankics = cls.rankics.reset_index(drop=True, level=1).to_frame()
         df2 = cls.get_icir_rankicir(df1)
         df2 = df2.T
         dura = (df.date.max() - df.date.min()).days / 365
@@ -1728,6 +1741,14 @@ class pure_moon(object):
         self.data = self.data.groupby("date").apply(
             lambda x: self.get_groups(x, groups_num)
         )
+        self.factor_turnover_rates = self.data.pivot(
+            index="date", columns="code", values="group"
+        )
+        self.factor_turnover_rates = self.factor_turnover_rates.diff()
+        change = ((np.abs(np.sign(self.factor_turnover_rates)) == 1) + 0).sum(axis=1)
+        still = ((self.factor_turnover_rates == 0) + 0).sum(axis=1)
+        self.factor_turnover_rates = change / (change + still)
+        self.factor_turnover_rate = self.factor_turnover_rates.mean()
         self.data = self.data.reset_index(drop=True)
         limit_ups_object = self.limit_old_to_new(self.limit_ups, self.data)
         limit_downs_object = self.limit_old_to_new(self.limit_downs, self.data)
@@ -1774,10 +1795,15 @@ class pure_moon(object):
                 return df.ret.sum()
 
             self.group_rets = self.data.groupby(["date", "group"]).apply(in_g)
+            self.group_rets_std = "市值加权暂未设置该功能，敬请期待🌙"
         else:
             self.group_rets = self.data.groupby(["date", "group"]).apply(
                 lambda x: x.ret.mean()
             )
+            self.group_rets_stds = self.data.groupby(["date", "group"]).apply(
+                lambda x: x.ret.std()
+            )
+            self.group_rets_std = self.group_rets_stds.groupby('group').mean()
         # dropna是因为如果股票行情数据比因子数据的截止日期晚，而最后一个月发生月初跌停时，会造成最后某组多出一个月的数据
         self.group_rets = self.group_rets.unstack()
         self.group_rets = self.group_rets[
@@ -1861,12 +1887,22 @@ class pure_moon(object):
     def get_total_comments(self):
         """综合IC、ICIR、RankIC、RankICIR,年化收益率、年化波动率、信息比率、月度胜率、最大回撤率"""
         self.total_comments = pd.concat(
-            [self.ic_icir_and_rank, self.long_short_comments]
+            [
+                self.ic_icir_and_rank,
+                self.long_short_comments,
+                pd.DataFrame({"评价指标": [self.factor_turnover_rate]}, index=["月平均换手率"]),
+            ]
         )
 
     def plot_net_values(self, y2, filename):
         """使用matplotlib来画图，y2为是否对多空组合采用双y轴"""
-        self.group_net_values.plot(secondary_y=y2, rot=60)
+        fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(33, 8))
+        self.group_net_values.plot(secondary_y=y2, rot=60, ax=ax[0])
+        b = self.rankics.copy()
+        b.index = [int(i.year) if i.month == 1 else "" for i in list(b.index)]
+        b.plot(kind="bar", rot=60, ax=ax[1])
+        self.factor_turnover_rates.plot(rot=60, ax=ax[2])
+
         filename_path = filename + ".png"
         if not STATES["NO_SAVE"]:
             plt.savefig(filename_path)
@@ -1964,7 +2000,12 @@ class pure_moon(object):
                     )
         if print_comments:
             if not STATES["NO_COMMENT"]:
-                print(self.total_comments)
+                tb = Texttable()
+                tb.set_cols_width([8] * 4 + [12] + [8] * 2 + [7] * 2 + [8] + [10])
+                tb.set_cols_dtype(["f"] * 11)
+                tb.header(list(self.total_comments.T.columns))
+                tb.add_rows(self.total_comments.T.to_numpy(), header=False)
+                print(tb.draw())
         if sheetname:
             if comments_writer:
                 total_comments = self.total_comments.copy()
@@ -1979,6 +2020,7 @@ class pure_moon(object):
                 tc[7] = str(round(tc[7], 2))
                 tc[8] = str(round(tc[8] * 100, 2)) + "%"
                 tc[9] = str(round(tc[9] * 100, 2)) + "%"
+                tc[10] = str(round(tc[10] * 100, 2)) + "%"
                 new_total_comments = pd.DataFrame(
                     {sheetname: tc}, index=total_comments.index
                 )
@@ -2011,6 +2053,7 @@ class pure_moon(object):
                 tc[7] = str(round(tc[7], 2))
                 tc[8] = str(round(tc[8] * 100, 2)) + "%"
                 tc[9] = str(round(tc[9] * 100, 2)) + "%"
+                tc[10] = str(round(tc[10] * 100, 2)) + "%"
                 new_total_comments = pd.DataFrame(
                     {comments_sheetname: tc}, index=total_comments.index
                 )
@@ -3860,7 +3903,7 @@ class pure_helper(object):
             分组后，组内要进行的操作, by default None
         group : int, optional
             要分的组数, by default 10
-        """        
+        """
         self.df_main = df_main
         self.df_helper = df_helper
         self.func = func
@@ -3898,3 +3941,211 @@ class pure_helper(object):
         df = df.pivot(index="date", columns="group", values="target")
         df.columns = [f"group{str(int(i+1))}" for i in list(df.columns)]
         return df
+
+
+class pure_fama(object):
+    def __init__(
+        self,
+        factors: list[pd.DataFrame],
+        minus_group: Union[list, float] = 3,
+        backsee: int = 20,
+        rets: pd.DataFrame = None,
+        value_weighted: bool = 1,
+        add_market: bool = 1,
+        add_market_series: pd.Series = None,
+        factors_names: list = None,
+        betas_rets: bool = 0,
+    ) -> None:
+        """使用fama三因子的方法，将个股的收益率，拆分出各个因子带来的收益率以及特质的收益率
+        分别计算每一期，各个因子收益率的值，超额收益率，因子的暴露，以及特质收益率
+
+        Parameters
+        ----------
+        factors : list[pd.DataFrame]
+            用于解释收益的各个因子值，每一个都是index为时间，columns为股票代码，values为因子值的dataframe
+        minus_group : Union[list, float], optional
+            每一个因子将截面上的股票分为几组, by default 3
+        backsee : int, optional
+            做时序回归时，回看的天数, by default 20
+        rets : pd.DataFrame, optional
+            每只个股的收益率，index为时间，columns为股票代码，values为收益率，默认使用当日日间收益率, by default None
+        value_weighted : bool, optional
+            是否使用流通市值加权, by default 1
+        add_market : bool, optional
+            是否加入市场收益率因子，默认使用中证全指的每日日间收益率, by default 1
+        add_market_series : bool, optional
+            加入的市场收益率的数据，如果没指定，则使用中证全指的日间收益率, by default None
+        factors_names : list, optional
+            各个因子的名字，默认为fac0(市场收益率因子，如果没有，则从fac1开始),fac1,fac2,fac3, by default None
+        betas_rets : bool, optional
+            是否计算每只个股的由于暴露在每个因子上所带来的收益率, by default 0
+        """
+        start = max(
+            [int(datetime.datetime.strftime(i.index.min(), "%Y%m%d")) for i in factors]
+        )
+        self.backsee = backsee
+        self.add_market = add_market
+        self.factors = factors
+        self.factors_names = factors_names
+        if isinstance(minus_group, int):
+            minus_group = [minus_group] * len(factors)
+        self.minus_group = minus_group
+        if rets is None:
+            closes = read_daily(close=1, start=start)
+            rets = closes / closes.shift(1) - 1
+        self.rets = rets
+        self.factors_group = [
+            to_group(i, group=j) for i, j in zip(self.factors, self.minus_group)
+        ]
+        self.factors_group_long = [(i == 0) + 0 for i in self.factors_group]
+        self.factors_group_short = [
+            (i == (j - 1)) + 0 for i, j in zip(self.factors_group, self.minus_group)
+        ]
+        self.value_weighted = value_weighted
+        if value_weighted:
+            self.cap = read_daily(flow_cap=1, start=start)
+            self.factors_group_long = [self.cap * i for i in self.factors_group_long]
+            self.factors_group_short = [self.cap * i for i in self.factors_group_short]
+            self.factors_group_long = [
+                (i.T / i.T.sum()).T for i in self.factors_group_long
+            ]
+            self.factors_group_short = [
+                (i.T / i.T.sum()).T for i in self.factors_group_short
+            ]
+            self.factors_rets_long = [
+                (self.rets * i).sum(axis=1).to_frame(f"fac{num+1}")
+                for num, i in enumerate(self.factors_group_long)
+            ]
+            self.factors_rets_short = [
+                (self.rets * i).sum(axis=1).to_frame(f"fac{num+1}")
+                for num, i in enumerate(self.factors_group_short)
+            ]
+        else:
+            self.factors_rets_long = [
+                (self.rets * i).mean(axis=1).to_frame(f"fac{num+1}")
+                for num, i in enumerate(self.factors_group_long)
+            ]
+            self.factors_rets_short = [
+                (self.rets * i).mean(axis=1).to_frame(f"fac{num+1}")
+                for num, i in enumerate(self.factors_group_short)
+            ]
+        self.rets_long = pd.concat(self.factors_rets_long, axis=1)
+        self.rets_short = pd.concat(self.factors_rets_short, axis=1)
+        self.__factors_rets = self.rets_long - self.rets_short
+        if add_market:
+            if add_market_series is None:
+                closes = read_market(close=1, every_stock=0, start=start).to_frame(
+                    "fac0"
+                )
+            else:
+                closes = add_market_series.to_frame("fac0")
+            rets = closes / closes.shift(1) - 1
+            self.__factors_rets = pd.concat([rets, self.__factors_rets], axis=1)
+            if factors_names is not None:
+                factors_names = ["市场"] + factors_names
+        self.__data = self.make_df(self.rets, self.__factors_rets)
+        tqdm.tqdm.pandas()
+        self.coefficients = (
+            self.__data.groupby("code").progress_apply(self.ols_in).reset_index()
+        )
+        self.coefficients = self.coefficients.rename(
+            columns={i: "co" + i for i in list(self.coefficients.columns) if "fac" in i}
+        )
+        self.__data = pd.merge(
+            self.__data.reset_index(), self.coefficients, on=["date", "code"]
+        )
+        betas = [
+            self.__data[i] * self.__data["co" + i]
+            for i in list(self.__data.columns)
+            if i.startswith("fac")
+        ]
+        betas = sum(betas)
+        self.__data = self.__data.assign(
+            idiosyncratic=self.__data.ret - self.__data.intercept - betas
+        )
+        self.__idiosyncratic = self.__data.pivot(
+            index="date", columns="code", values="idiosyncratic"
+        )
+        self.__alphas = self.__data.pivot(
+            index="date", columns="code", values="intercept"
+        )
+        if factors_names is None:
+            self.__betas = {
+                i: self.__data.pivot(index="date", columns="code", values=i)
+                for i in list(self.__data.columns)
+                if i.startswith("fac")
+            }
+        else:
+            facs = [i for i in list(self.__data.columns) if i.startswith("fac")]
+            self.__betas = {
+                factors_names[num]: self.__data.pivot(
+                    index="date", columns="code", values=i
+                )
+                for num, i in enumerate(facs)
+            }
+        if betas_rets:
+            if add_market:
+                if add_market_series is None:
+                    factors = [read_market(close=1, start=start)] + factors
+                else:
+                    factors = [
+                        pd.DataFrame(
+                            {k: add_market_series for k in list(factors[0].columns)},
+                            index=factors[0].index,
+                        )
+                    ] + factors
+            self.__betas_rets = {
+                d1[0]: d1[1] * d2 for d1, d2 in zip(self.__betas, factors)
+            }
+        else:
+            self.__betas_rets = "您如果想计算各个股票在各个因子的收益率，请先指定betas_rets参数为True"
+
+    @property
+    def idiosyncratic(self):
+        return self.__idiosyncratic
+
+    @property
+    def data(self):
+        return self.__data
+
+    @property
+    def alphas(self):
+        return self.__alphas
+
+    @property
+    def betas(self):
+        return self.__betas
+
+    @property
+    def betas_rets(self):
+        return self.__betas_rets
+
+    @property
+    def factors_rets(self):
+        return self.__factors_rets
+
+    def __call__(self):
+        return self.idiosyncratic
+
+    def make_df(self, rets, facs):
+        rets = rets.stack().reset_index()
+        rets.columns = ["date", "code", "ret"]
+        facs = facs.reset_index()
+        facs.columns = ["date"] + list(facs.columns)[1:]
+        df = pd.merge(rets, facs, on=["date"])
+        df = df.set_index("date")
+        return df
+
+    def ols_in(self, df):
+        try:
+            ols = po.PandasRollingOLS(
+                y=df[["ret"]],
+                x=df[["fac0"] + [f"fac{i+1}" for i in range(len(self.factors))]],
+                window=self.backsee,
+            )
+            betas = ols.beta
+            alpha = ols.alpha
+            return pd.concat([alpha, betas], axis=1)
+        except Exception:
+            # 有些数据总共不足，那就跳过
+            ...

@@ -1,4 +1,4 @@
-__updated__ = "2022-09-26 17:36:12"
+__updated__ = "2022-09-30 23:50:57"
 
 try:
     import rqdatac
@@ -35,6 +35,7 @@ from pure_ocean_breeze.data.database import (
 from pure_ocean_breeze.data.read_data import read_daily, read_money_flow
 from pure_ocean_breeze.data.dicts import INDUS_DICT, INDEX_DICT, ZXINDUS_DICT
 from pure_ocean_breeze.data.tools import 生成每日分类表, add_suffix, convert_code
+from pure_ocean_breeze.labor.process import pure_fama
 
 
 def database_update_minute_data_to_clickhouse_and_questdb(kind: str) -> None:
@@ -484,7 +485,14 @@ def download_single_daily(day):
         # 换手率，流通股本，换手率要除以100，流通股本要乘以10000
         df2 = pro.daily_basic(
             trade_date=day,
-            fields=["ts_code", "trade_date", "turnover_rate_f", "float_share"],
+            fields=[
+                "ts_code",
+                "trade_date",
+                "turnover_rate_f",
+                "float_share",
+                "pe",
+                "pb",
+            ],
         )
         time.sleep(1)
         return df1, df2
@@ -511,7 +519,14 @@ def download_single_daily(day):
         # 换手率，流通股本，换手率要除以100，流通股本要乘以10000
         df2 = pro.daily_basic(
             trade_date=day,
-            fields=["ts_code", "trade_date", "turnover_rate_f", "float_share"],
+            fields=[
+                "ts_code",
+                "trade_date",
+                "turnover_rate_f",
+                "float_share",
+                "pe",
+                "pb",
+            ],
         )
         time.sleep(1)
         return df1, df2
@@ -572,6 +587,8 @@ def database_update_daily_files() -> None:
         "sts",
         "states",
         "volumes",
+        "pb",
+        "pe",
     ]
     startdates = list(map(single_file, names))
     startdate = min(startdates)
@@ -679,6 +696,36 @@ def database_update_daily_files() -> None:
     part3_new = part3_new[sorted(list(part3_new.columns))]
     part3_new.reset_index().to_feather(homeplace.daily_data_file + "sharenums.feather")
     logger.success("流通股数更新完成")
+
+    # pb
+    partpb = df2s[["date", "code", "pb"]].pivot(
+        index="date", columns="code", values="pb"
+    )
+    partpb_old = pd.read_feather(homeplace.daily_data_file + "pb.feather").set_index(
+        "date"
+    )
+    partpb_new = pd.concat([partpb_old, partpb])
+    partpb_new = partpb_new.drop_duplicates()
+    partpb_new = partpb_new[closes.columns]
+    partpb_new = partpb_new[sorted(list(partpb_new.columns))]
+    partpb_new = drop_duplicates_index(partpb_new)
+    partpb_new.reset_index().to_feather(homeplace.daily_data_file + "pb.feather")
+    logger.success("市净率更新完成")
+
+    # pe
+    partpe = df2s[["date", "code", "pe"]].pivot(
+        index="date", columns="code", values="pe"
+    )
+    partpe_old = pd.read_feather(homeplace.daily_data_file + "pe.feather").set_index(
+        "date"
+    )
+    partpe_new = pd.concat([partpe_old, partpe])
+    partpe_new = partpe_new.drop_duplicates()
+    partpe_new = partpe_new[closes.columns]
+    partpe_new = partpe_new[sorted(list(partpe_new.columns))]
+    partpe_new = drop_duplicates_index(partpe_new)
+    partpe_new.reset_index().to_feather(homeplace.daily_data_file + "pe.feather")
+    logger.success("市盈率更新完成")
 
     # st
     part4 = df3[["s_info_windcode", "entry_dt", "remove_dt"]]
@@ -1214,3 +1261,11 @@ def database_update_zxindustry_member():
     dfs_codes = save(dfs_codes, old_codes, "中信一级行业哑变量代码版.feather")
     dfs_names = save(dfs_names, old_names, "中信一级行业哑变量名称版.feather")
     logger.success(f"中信一级行业数据已经更新至{now_str}了")
+
+
+def database_update_idiosyncratic_ret():
+    pb = read_daily(pb=1, start=20040101)
+    cap = read_daily(flow_cap=1, start=20040101)
+    fama = pure_fama([cap, pb])
+    fama().reset_index().to_feather("idiosyncratic_ret.feather")
+    logger.success("特质收益率已经更新完成")
