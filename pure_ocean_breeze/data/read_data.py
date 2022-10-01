@@ -1,4 +1,4 @@
-__updated__ = "2022-10-01 10:14:38"
+__updated__ = "2022-10-01 11:23:30"
 
 import os
 import numpy as np
@@ -10,7 +10,7 @@ from loguru import logger
 from pure_ocean_breeze.state.states import STATES
 from pure_ocean_breeze.state.homeplace import HomePlace
 from pure_ocean_breeze.state.decorators import *
-from pure_ocean_breeze.data.database import ClickHouseClient
+from pure_ocean_breeze.data.database import ClickHouseClient, Questdb
 
 homeplace = HomePlace()
 
@@ -258,12 +258,19 @@ def read_market(
     IOError
         如果没有指定任何指数，将报错
     """
-    chc = ClickHouseClient("minute_data")
-    df = chc.get_data(
-        f"select * from minute_data.minute_data_index where code='000985.SH' and date>={start}00 order by date,num"
-    )
-    df = df.set_index("code")
-    df = df / 100
+    try:
+        chc = ClickHouseClient("minute_data")
+        df = chc.get_data(
+            f"select * from minute_data.minute_data_index where code='000985.SH' and date>={start}00 order by date,num"
+        )
+        df = df.set_index("code")
+        df = df / 100
+    except Exception:
+        qdb = Questdb()
+        df = qdb.get_data(
+            "select date,num,close from minute_data_index where code='000985.SH'"
+        )
+        df.num = df.num.astype(int)
     df = df.set_index("date")
     df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
     if open:
@@ -353,6 +360,41 @@ def read_money_flow(
     return df
 
 
+def read_index_single(code: str) -> pd.Series:
+    try:
+        chc = ClickHouseClient("minute_data")
+        hs300 = (
+            chc.get_data(
+                f"select date,num,close FROM minute_data.minute_data_index WHERE code='{code}'"
+            )
+            / 100
+        )
+        hs300.date = pd.to_datetime(hs300.date, format="%Y%m%d")
+        hs300 = (
+            hs300.sort_values(["date", "num"])
+            .groupby("date")
+            .last()
+            .drop(columns=["num"])
+            .close
+        )
+        return hs300
+    except Exception:
+        qdb = Questdb()
+        hs300 = qdb.get_data(
+            f"select date,num,close FROM 'minute_data_index' WHERE code='{code}'"
+        )
+        hs300.date = pd.to_datetime(hs300.date, format="%Y%m%d")
+        hs300.num = hs300.num.astype(int)
+        hs300 = (
+            hs300.sort_values(["date", "num"])
+            .groupby("date")
+            .last()
+            .drop(columns=["num"])
+            .close
+        )
+        return hs300
+
+
 def read_index_three(day: int = None) -> tuple[pd.DataFrame]:
     """读取三大指数的原始行情数据，返回并保存在本地
 
@@ -368,24 +410,16 @@ def read_index_three(day: int = None) -> tuple[pd.DataFrame]:
     """
     if day is None:
         day = STATES["START"]
-    res = pd.read_feather(homeplace.daily_data_file + "3510行情.feather").set_index(
-        "date"
+
+    hs300, zz500, zz1000 = (
+        read_index_single("000300.SH").resample("M").last(),
+        read_index_single("000905.SH").resample("M").last(),
+        read_index_single("000852.SH").resample("M").last(),
     )
-    hs300, zz500, zz1000 = res.沪深300, res.中证500, res.中证1000
     hs300 = hs300[hs300.index >= pd.Timestamp(str(day))]
     zz500 = zz500[zz500.index >= pd.Timestamp(str(day))]
     zz1000 = zz1000[zz1000.index >= pd.Timestamp(str(day))]
 
-    def to_one(df):
-        df = df / df.iloc[0]
-        return df
-
-    w = pd.ExcelWriter("3510原始行情.xlsx")
-    hs300.to_excel(w, sheet_name="300")
-    zz500.to_excel(w, sheet_name="500")
-    zz1000.to_excel(w, sheet_name="1000")
-    w.save()
-    w.close()
     return hs300, zz500, zz1000
 
 

@@ -1,4 +1,4 @@
-__updated__ = "2022-10-01 10:14:27"
+__updated__ = "2022-10-01 11:39:37"
 
 import warnings
 
@@ -2730,24 +2730,19 @@ class pure_fall_frequent(object):
             类型为股票还是指数，指数为'index', by default "stock"
         clickhouse : bool, optional
             使用clickhouse作为数据源，如果postgresql与本参数都为0，将依然从clickhouse中读取, by default 0
-        postgresql : bool, optional
-            使用postgresql作为数据源, by default 0
         questdb : bool, optional
             使用questdb作为数据源, by default 0
         """
         homeplace = HomePlace()
         self.kind = kind
-        if clickhouse == 0 and postgresql == 0 and questdb == 0:
+        if clickhouse == 0 and questdb == 0:
             clickhouse = 1
         self.clickhouse = clickhouse
-        self.postgresql = postgresql
         self.questdb = questdb
         if clickhouse == 1:
             # 连接clickhouse
             self.chc = ClickHouseClient("minute_data")
-        elif postgresql == 1:
-            self.chc = PostgreSQL("minute_data")
-        else:
+        elif questdb == 1:
             self.chc = Questdb()
         # 完整的因子文件路径
         factor_file = homeplace.factor_data_file + factor_file
@@ -2768,6 +2763,7 @@ class pure_fall_frequent(object):
             logger.info("这个因子以前没有，正在重新计算")
         # 读取当前所有的日子
         dates_all = self.chc.show_all_dates(f"minute_data_{kind}")
+        dates_all = [int(i) for i in dates_all]
         if startdate is None:
             ...
         else:
@@ -2829,13 +2825,17 @@ class pure_fall_frequent(object):
             if self.clickhouse == 1:
                 sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date={date * 100} order by code,date,num"
             else:
-                sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date={date} order by code,date,num"
+                sql_order = f"select {fields} from minute_data_{self.kind} where date='{date}'"
             if show_time:
                 df = self.chc.get_data_show_time(sql_order)
             else:
                 df = self.chc.get_data(sql_order)
             if self.clickhouse == 1:
                 df = ((df.set_index("code")) / 100).reset_index()
+            else:
+                df.num=df.num.astype(int)
+                df.date=df.date.astype(int)
+                df=df.sort_values(['date','num'])
             tqdm.tqdm.pandas()
             df = df.groupby(["date", "code"]).progress_apply(the_func)
             df = df.to_frame("fac").reset_index()
@@ -2847,13 +2847,17 @@ class pure_fall_frequent(object):
             if self.clickhouse == 1:
                 sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date={date * 100} order by code,date,num"
             else:
-                sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date={date} order by code,date,num"
+                sql_order = f"select {fields} from minute_data_{self.kind} where date='{date}'"
             if show_time:
                 df = self.chc.get_data_show_time(sql_order)
             else:
                 df = self.chc.get_data(sql_order)
             if self.clickhouse == 1:
                 df = ((df.set_index("code")) / 100).reset_index()
+            else:
+                df.num=df.num.astype(int)
+                df.date=df.date.astype(int)
+                df=df.sort_values(['date','num'])
             df = df.groupby(["date", "code"]).apply(the_func)
             df = df.to_frame("fac").reset_index()
             df.columns = ["date", "code", "fac"]
@@ -2895,13 +2899,17 @@ class pure_fall_frequent(object):
                 if self.clickhouse == 1:
                     sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{dates[date1] * 100} and date<={dates[date2] * 100} order by code,date,num"
                 else:
-                    sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{dates[date1]} and date<={dates[date2]} order by code,date,num"
+                    sql_order = f"select {fields} from minute_data_{self.kind} where cast(date as int)>{dates[date1]} and cast(date as int)<={dates[date2]}"
                 if show_time:
                     df = self.chc.get_data_show_time(sql_order)
                 else:
                     df = self.chc.get_data(sql_order)
                 if self.clickhouse == 1:
                     df = ((df.set_index("code")) / 100).reset_index()
+                else:
+                    df.num=df.num.astype(int)
+                    df.date=df.date.astype(int)
+                    df=df.sort_values(['date','num'])
                 tqdm.tqdm.pandas()
                 df = df.groupby(["date", "code"]).progress_apply(the_func)
                 df = df.to_frame("fac").reset_index()
@@ -2934,13 +2942,17 @@ class pure_fall_frequent(object):
                 if self.clickhouse == 1:
                     sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{dates[date1] * 100} and date<={dates[date2] * 100} order by code,date,num"
                 else:
-                    sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{dates[date1]} and date<={dates[date2]} order by code,date,num"
+                    sql_order = f"select {fields} from minute_data_{self.kind} where cast(date as int)>{dates[date1]} and cast(date as int)<={dates[date2]}"
                 if show_time:
                     df = self.chc.get_data_show_time(sql_order)
                 else:
                     df = self.chc.get_data(sql_order)
                 if self.clickhouse == 1:
                     df = ((df.set_index("code")) / 100).reset_index()
+                else:
+                    df.num=df.num.astype(int)
+                    df.date=df.date.astype(int)
+                    df=df.sort_values(['date','num'])
                 df = df.groupby(["date", "code"]).apply(the_func)
                 df = df.to_frame("fac").reset_index()
                 df.columns = ["date", "code", "fac"]
@@ -3052,7 +3064,6 @@ class pure_fall_flexible(object):
         enddate: int = None,
         kind: str = "stock",
         clickhouse: bool = 0,
-        postgresql: bool = 0,
         questdb: bool = 0,
     ) -> None:
         """基于clickhouse的分钟数据，计算因子值，每天的因子值用到多日的数据，或者用到截面的数据
@@ -3072,24 +3083,19 @@ class pure_fall_flexible(object):
             指定计算股票还是指数，指数则为'index', by default "stock"
         clickhouse : bool, optional
             使用clickhouse作为数据源，如果postgresql与本参数都为0，将依然从clickhouse中读取, by default 0
-        postgresql : bool, optional
-            使用postgresql作为数据源, by default 0
         questdb : bool, optional
             使用questdb作为数据源, by default 0
         """
         homeplace = HomePlace()
         self.kind = kind
-        if clickhouse == 0 and postgresql == 0 and questdb == 0:
+        if clickhouse == 0 and questdb == 0:
             clickhouse = 1
         self.clickhouse = clickhouse
-        self.postgresql = postgresql
         self.questdb = questdb
         if clickhouse == 1:
             # 连接clickhouse
             self.chc = ClickHouseClient("minute_data")
-        elif postgresql == 1:
-            self.chc = PostgreSQL("minute_data")
-        else:
+        elif questdb:
             self.chc = Questdb()
         # 完整的因子文件路径
         factor_file = homeplace.factor_data_file + factor_file
@@ -3174,7 +3180,7 @@ class pure_fall_flexible(object):
                     if self.clickhouse == 1:
                         sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{self.dates_new[date1]*100} and date<={self.dates_new[date2]*100} order by code,date,num"
                     else:
-                        sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{self.dates_new[date1]} and date<={self.dates_new[date2]} order by code,date,num"
+                        sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{self.dates_new[date1]} and date<={self.dates_new[date2]}"
                     if show_time:
                         df = self.chc.get_data_show_time(sql_order)
                     else:
