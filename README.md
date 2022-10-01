@@ -26,18 +26,13 @@
 3. 日常调用
 >* **导入框架** 
 >>```python
->>import pure_ocean_breeze as pob
+>>import pure_ocean_breeze as p
 >>```
 >* **一键回测** 
 >>```python
->>shen=pob.pure_moonnight(fac)
+>>shen=p.pure_moonnight(fac)
 >>```
 >>`fac`为因子矩阵
->* **一键读入日频数据**
->>```python
->>pob.read_daily(path=None,open=0,close=0,high=0,low=0,tr=0,sharenum=0,volume=0,unadjust=0,start=STATES['START'])
->>```
->>将其中任何一个为0的参数改为1，可以读取对应的复权价，或者换手率，`unadjust`可以修改为不复权，`start`可以指定起始日期。
 >* **因子合成运算** 其他用法详见[说明文档](https://chen-001.github.io/pure_ocean_breeze/)
 >* **其余内容敬请期待**
 
