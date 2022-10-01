@@ -1,4 +1,4 @@
-__updated__ = "2022-09-30 23:50:57"
+__updated__ = "2022-10-01 09:55:11"
 
 try:
     import rqdatac
@@ -1264,8 +1264,8 @@ def database_update_zxindustry_member():
 
 
 def database_update_idiosyncratic_ret():
-    pb = read_daily(pb=1, start=20040101)
-    cap = read_daily(flow_cap=1, start=20040101)
+    pb = read_daily(pb=1, start=20100101)
+    cap = read_daily(flow_cap=1, start=20100101).dropna(how='all')
     fama = pure_fama([cap, pb])
-    fama().reset_index().to_feather("idiosyncratic_ret.feather")
+    fama().reset_index().to_feather(homeplace.daily_data_file+"idiosyncratic_ret.feather")
     logger.success("特质收益率已经更新完成")

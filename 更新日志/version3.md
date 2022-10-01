@@ -1,5 +1,11 @@
 ## 更新日志🗓 — v3
 
+* v3.3.2 — 2022.10.01
+> 1. 修复了读取隔夜收益率的bug
+> 1. 将更新特质收益率数据的起始时间点改为2010年1月1日，并修复了其中的bug
+> 1. 给pure_moon和pure_moonnight增加了no_read_indu参数，使回测时不必读入行业哑变量数据，便于调试
+> 1. 给pure_moon和pure_moonnight增加了only_cap参数，使回测时只做市值中性化，而不做行业中性化
+> 1. 优化了pure_moon和pure_moonnight的参数逻辑，当neutralize和boxcox均为0时，自动开启no_read_indu参数；当no_read_indu和only_cap任一为0时，自动开启另一个参数
 * v3.3.1 — 2022.10.01
 > 1. 给一键导入库的requires中，增加了import pyfinance.ols as go
 > 1. 增加了用于fama三因子与特质收益率相关的类pure_fama，可以计算各期因子收益率、个股各期特质收益率、个股各期因子暴露、超额收益率等内容

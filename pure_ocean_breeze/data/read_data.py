@@ -1,4 +1,4 @@
-__updated__ = "2022-09-30 23:50:56"
+__updated__ = "2022-10-01 10:14:38"
 
 import os
 import numpy as np
@@ -168,7 +168,7 @@ def read_daily(
         elif ret_night:
             df = (
                 read_daily(open=1, start=start)
-                / read_daily(close, start=start).shift(1)
+                / read_daily(close=1, start=start).shift(1)
                 - 1
             )
         elif vol:

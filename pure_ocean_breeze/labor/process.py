@@ -1,4 +1,4 @@
-__updated__ = "2022-10-01 02:01:16"
+__updated__ = "2022-10-01 10:14:27"
 
 import warnings
 
@@ -1367,7 +1367,7 @@ class pure_moon(object):
         "factor_turnover_rates",
         "factor_turnover_rate",
         "group_rets_std",
-        "group_rets_stds"
+        "group_rets_stds",
     ]
 
     @classmethod
@@ -1375,6 +1375,7 @@ class pure_moon(object):
     def __init__(
         cls,
         startdate: int,
+        no_read_indu: bool = 0,
     ):
         cls.homeplace = HomePlace()
         # 已经算好的月度st状态文件
@@ -1382,37 +1383,38 @@ class pure_moon(object):
         # 已经算好的月度交易状态文件
         cls.states_monthly_file = homeplace.daily_data_file + "states_monthly.feather"
 
-        cls.swindustry_dummy = (
-            pd.read_feather(cls.homeplace.daily_data_file + "申万行业2021版哑变量.feather")
-            .fillna(0)
-            .set_index("date")
-            .groupby("code")
-            .resample("M")
-            .last()
-        )
+        if not no_read_indu:
+            cls.swindustry_dummy = (
+                pd.read_feather(cls.homeplace.daily_data_file + "申万行业2021版哑变量.feather")
+                .fillna(0)
+                .set_index("date")
+                .groupby("code")
+                .resample("M")
+                .last()
+            )
 
-        cls.zxindustry_dummy = (
-            pd.read_feather(cls.homeplace.daily_data_file + "中信一级行业哑变量代码版.feather")
-            .fillna(0)
-            .set_index("date")
-            .groupby("code")
-            .resample("M")
-            .last()
-            .fillna(0)
-        )
+            cls.zxindustry_dummy = (
+                pd.read_feather(cls.homeplace.daily_data_file + "中信一级行业哑变量代码版.feather")
+                .fillna(0)
+                .set_index("date")
+                .groupby("code")
+                .resample("M")
+                .last()
+                .fillna(0)
+            )
 
-        def deal_dummy(industry_dummy):
-            industry_dummy = industry_dummy.drop(columns=["code"]).reset_index()
-            industry_ws = [f"w{i}" for i in range(1, industry_dummy.shape[1] - 1)]
-            col = ["code", "date"] + industry_ws
-            industry_dummy.columns = col
-            industry_dummy = industry_dummy[
-                industry_dummy.date >= pd.Timestamp(str(startdate))
-            ]
-            return industry_dummy
+            def deal_dummy(industry_dummy):
+                industry_dummy = industry_dummy.drop(columns=["code"]).reset_index()
+                industry_ws = [f"w{i}" for i in range(1, industry_dummy.shape[1] - 1)]
+                col = ["code", "date"] + industry_ws
+                industry_dummy.columns = col
+                industry_dummy = industry_dummy[
+                    industry_dummy.date >= pd.Timestamp(str(startdate))
+                ]
+                return industry_dummy
 
-        cls.swindustry_dummy = deal_dummy(cls.swindustry_dummy)
-        cls.zxindustry_dummy = deal_dummy(cls.zxindustry_dummy)
+            cls.swindustry_dummy = deal_dummy(cls.swindustry_dummy)
+            cls.zxindustry_dummy = deal_dummy(cls.zxindustry_dummy)
 
     @property
     def factors_out(self):
@@ -1540,7 +1542,10 @@ class pure_moon(object):
         industry_codes = list(df.columns)
         industry_codes = [i for i in industry_codes if i.startswith("w")]
         industry_codes_str = "+".join(industry_codes)
-        ols_result = smf.ols("fac~cap_size+" + industry_codes_str, data=df).fit()
+        if len(industry_codes_str) > 0:
+            ols_result = smf.ols("fac~cap_size+" + industry_codes_str, data=df).fit()
+        else:
+            ols_result = smf.ols("fac~cap_size", data=df).fit()
         ols_w = ols_result.params["cap_size"]
         ols_b = ols_result.params["Intercept"]
         ols_bs = {}
@@ -1569,11 +1574,9 @@ class pure_moon(object):
             cls.cap["cap_size"] = np.log(cls.cap["cap_size"])
 
     def get_neutral_factors(
-        self,
-        zxindustry_dummies=0,
-        swindustry_dummies=0,
+        self, zxindustry_dummies=0, swindustry_dummies=0, only_cap=0
     ):
-        """对因子进行市值中性化"""
+        """对因子进行行业市值中性化"""
         self.factors = self.factors.set_index("date")
         self.factors.index = self.factors.index + pd.DateOffset(months=1)
         self.factors = self.factors.resample("M").last()
@@ -1589,14 +1592,15 @@ class pure_moon(object):
         self.factors = pd.merge(
             self.factors, self.cap, how="inner", on=["date", "code"]
         )
-        if swindustry_dummies:
-            self.factors = pd.merge(
-                self.factors, self.swindustry_dummy, on=["date", "code"]
-            )
-        else:
-            self.factors = pd.merge(
-                self.factors, self.zxindustry_dummy, on=["date", "code"]
-            )
+        if not only_cap:
+            if swindustry_dummies:
+                self.factors = pd.merge(
+                    self.factors, self.swindustry_dummy, on=["date", "code"]
+                )
+            else:
+                self.factors = pd.merge(
+                    self.factors, self.zxindustry_dummy, on=["date", "code"]
+                )
         self.factors = self.factors.set_index(["date", "code"])
         self.factors = self.factors.groupby(["date"]).apply(self.neutralize_factors)
         self.factors = self.factors.reset_index()
@@ -1803,7 +1807,7 @@ class pure_moon(object):
             self.group_rets_stds = self.data.groupby(["date", "group"]).apply(
                 lambda x: x.ret.std()
             )
-            self.group_rets_std = self.group_rets_stds.groupby('group').mean()
+            self.group_rets_std = self.group_rets_stds.groupby("group").mean()
         # dropna是因为如果股票行情数据比因子数据的截止日期晚，而最后一个月发生月初跌停时，会造成最后某组多出一个月的数据
         self.group_rets = self.group_rets.unstack()
         self.group_rets = self.group_rets[
@@ -1944,6 +1948,7 @@ class pure_moon(object):
         sheetname=None,
         zxindustry_dummies=0,
         swindustry_dummies=0,
+        only_cap=0,
     ):
         """运行回测部分"""
         if comments_writer and not (comments_sheetname or sheetname):
@@ -1964,6 +1969,7 @@ class pure_moon(object):
             self.get_neutral_factors(
                 swindustry_dummies=swindustry_dummies,
                 zxindustry_dummies=zxindustry_dummies,
+                only_cap=only_cap,
             )
             self.deal_with_factors_after_neutralize()
         else:
@@ -2113,6 +2119,8 @@ class pure_moonnight(object):
         opens: pd.DataFrame = None,
         closes: pd.DataFrame = None,
         capitals: pd.DataFrame = None,
+        no_read_indu: bool = 0,
+        only_cap: bool = 0,
     ) -> None:
         """一键回测框架，测试单因子的月频调仓的分组表现
         每月月底计算因子值，月初第一天开盘时买入，月末收盘最后一天收盘时卖出
@@ -2168,16 +2176,20 @@ class pure_moonnight(object):
             行业中性化时，选用申万一级行业, by default 0
         ages : pd.DataFrame, optional
             输入股票上市天数的数据，index是时间，columns是股票代码，values是天数, by default None
-        sts : pd.DataFrame,
+        sts : pd.DataFrame, optional
             输入股票每天是否st的数据，是st股即为1，否则为0，index是时间，columns是股票代码，values是0或1, by default None
-        states : pd.DataFrame,
+        states : pd.DataFrame, optional
             输入股票每天交易状态的数据，正常交易为1，否则为0，index是时间，columns是股票代码，values是0或1, by default None
-        opens : pd.DataFrame,
+        opens : pd.DataFrame, optional
             输入股票的复权开盘价数据，index是时间，columns是股票代码，values是价格, by default None
-        closes : pd.DataFrame,
+        closes : pd.DataFrame, optional
             输入股票的复权收盘价数据，index是时间，columns是股票代码，values是价格, by default None
-        capitals : pd.DataFrame,
+        capitals : pd.DataFrame, optional
             输入股票的每月月末流通市值数据，index是时间，columns是股票代码，values是流通市值, by default None
+        no_read_indu : bool, optional
+            不读入行业数据, by default 0
+        only_cap : bool, optional
+            仅做市值中性化, by default 0
         """
 
         if isinstance(factors, pure_fallmount):
@@ -2203,8 +2215,13 @@ class pure_moonnight(object):
             from pure_ocean_breeze.state.states import NET_VALUES_WRITER
 
             net_values_writer = NET_VALUES_WRITER
+        if boxcox + neutralize == 0:
+            no_read_indu = 1
+        if only_cap + no_read_indu > 0:
+            only_cap = no_read_indu = 1
         self.shen = pure_moon(
             startdate=start,
+            no_read_indu=no_read_indu,
         )
         self.shen.set_basic_data(
             age=ages,
@@ -2238,6 +2255,7 @@ class pure_moonnight(object):
             sheetname=sheetname,
             swindustry_dummies=swindustry_dummies,
             zxindustry_dummies=zxindustry_dummies,
+            only_cap=only_cap,
         )
 
     def __call__(self) -> pd.DataFrame:
