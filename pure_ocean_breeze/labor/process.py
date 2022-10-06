@@ -1,4 +1,4 @@
-__updated__ = "2022-10-01 11:39:37"
+__updated__ = "2022-10-06 10:21:36"
 
 import warnings
 
@@ -1372,11 +1372,7 @@ class pure_moon(object):
 
     @classmethod
     @lru_cache(maxsize=None)
-    def __init__(
-        cls,
-        startdate: int,
-        no_read_indu: bool = 0,
-    ):
+    def __init__(cls, no_read_indu):
         cls.homeplace = HomePlace()
         # 已经算好的月度st状态文件
         cls.sts_monthly_file = homeplace.daily_data_file + "sts_monthly.feather"
@@ -1409,7 +1405,7 @@ class pure_moon(object):
                 col = ["code", "date"] + industry_ws
                 industry_dummy.columns = col
                 industry_dummy = industry_dummy[
-                    industry_dummy.date >= pd.Timestamp(str(startdate))
+                    industry_dummy.date >= pd.Timestamp("20100101")
                 ]
                 return industry_dummy
 
@@ -2220,7 +2216,7 @@ class pure_moonnight(object):
         if only_cap + no_read_indu > 0:
             only_cap = no_read_indu = 1
         self.shen = pure_moon(
-            startdate=start,
+            # startdate=start,
             no_read_indu=no_read_indu,
         )
         self.shen.set_basic_data(
@@ -2825,7 +2821,9 @@ class pure_fall_frequent(object):
             if self.clickhouse == 1:
                 sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date={date * 100} order by code,date,num"
             else:
-                sql_order = f"select {fields} from minute_data_{self.kind} where date='{date}'"
+                sql_order = (
+                    f"select {fields} from minute_data_{self.kind} where date='{date}'"
+                )
             if show_time:
                 df = self.chc.get_data_show_time(sql_order)
             else:
@@ -2833,9 +2831,9 @@ class pure_fall_frequent(object):
             if self.clickhouse == 1:
                 df = ((df.set_index("code")) / 100).reset_index()
             else:
-                df.num=df.num.astype(int)
-                df.date=df.date.astype(int)
-                df=df.sort_values(['date','num'])
+                df.num = df.num.astype(int)
+                df.date = df.date.astype(int)
+                df = df.sort_values(["date", "num"])
             tqdm.tqdm.pandas()
             df = df.groupby(["date", "code"]).progress_apply(the_func)
             df = df.to_frame("fac").reset_index()
@@ -2847,7 +2845,9 @@ class pure_fall_frequent(object):
             if self.clickhouse == 1:
                 sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date={date * 100} order by code,date,num"
             else:
-                sql_order = f"select {fields} from minute_data_{self.kind} where date='{date}'"
+                sql_order = (
+                    f"select {fields} from minute_data_{self.kind} where date='{date}'"
+                )
             if show_time:
                 df = self.chc.get_data_show_time(sql_order)
             else:
@@ -2855,9 +2855,9 @@ class pure_fall_frequent(object):
             if self.clickhouse == 1:
                 df = ((df.set_index("code")) / 100).reset_index()
             else:
-                df.num=df.num.astype(int)
-                df.date=df.date.astype(int)
-                df=df.sort_values(['date','num'])
+                df.num = df.num.astype(int)
+                df.date = df.date.astype(int)
+                df = df.sort_values(["date", "num"])
             df = df.groupby(["date", "code"]).apply(the_func)
             df = df.to_frame("fac").reset_index()
             df.columns = ["date", "code", "fac"]
@@ -2907,9 +2907,9 @@ class pure_fall_frequent(object):
                 if self.clickhouse == 1:
                     df = ((df.set_index("code")) / 100).reset_index()
                 else:
-                    df.num=df.num.astype(int)
-                    df.date=df.date.astype(int)
-                    df=df.sort_values(['date','num'])
+                    df.num = df.num.astype(int)
+                    df.date = df.date.astype(int)
+                    df = df.sort_values(["date", "num"])
                 tqdm.tqdm.pandas()
                 df = df.groupby(["date", "code"]).progress_apply(the_func)
                 df = df.to_frame("fac").reset_index()
@@ -2950,9 +2950,9 @@ class pure_fall_frequent(object):
                 if self.clickhouse == 1:
                     df = ((df.set_index("code")) / 100).reset_index()
                 else:
-                    df.num=df.num.astype(int)
-                    df.date=df.date.astype(int)
-                    df=df.sort_values(['date','num'])
+                    df.num = df.num.astype(int)
+                    df.date = df.date.astype(int)
+                    df = df.sort_values(["date", "num"])
                 df = df.groupby(["date", "code"]).apply(the_func)
                 df = df.to_frame("fac").reset_index()
                 df.columns = ["date", "code", "fac"]
@@ -3968,6 +3968,7 @@ class pure_helper(object):
 
 
 class pure_fama(object):
+    # @lru_cache(maxsize=None)
     def __init__(
         self,
         factors: list[pd.DataFrame],
@@ -4056,6 +4057,8 @@ class pure_fama(object):
         self.rets_long = pd.concat(self.factors_rets_long, axis=1)
         self.rets_short = pd.concat(self.factors_rets_short, axis=1)
         self.__factors_rets = self.rets_long - self.rets_short
+        if add_market_series is not None:
+            add_market = 1
         if add_market:
             if add_market_series is None:
                 closes = read_market(close=1, every_stock=0, start=start).to_frame(

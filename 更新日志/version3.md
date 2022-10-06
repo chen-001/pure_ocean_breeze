@@ -1,5 +1,11 @@
 ## 更新日志🗓 — v3
 
+* v3.3.4 — 2022.10.06
+> 1. 删去了回测类pure_moon和pure_moonnight中起始日期startdate参数，以避免输入因子值起点不同，会导致缓存失效的bug
+> 1. 优化了pure_fama的参数逻辑，在输入add_markert_series参数时，自动将add_market参数指定为1
+> 1. 新增了merge_many函数，将多个index为时间，columns位股票代码的dataframe拼接在一起，变成一个长表
+> 1. 新增函数func_two_daily，用于对两个index为时间，columns为股票代码的dataframe，每只股票下，各自沿着时间序列，做某个函数操作，最终得到一个index为时间，columns为股票代码的dataframe
+> 1. 新增func_two_daily的特例函数，corr_two_daily，求两个因子同一股票滚动窗口下的时序相关系数
 * v3.3.3 — 2022.10.01
 > 1. 将读取300、500、1000指数的行情read_index_three改为从分钟数据读取
 > 1. 给读取市场行情（中证全指）行情read_market增加从questdb读取

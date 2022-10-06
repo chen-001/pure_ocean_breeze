@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2022-09-30 22:33:15"
+__updated__ = "2022-10-06 10:18:49"
 
 import h5py
 import pandas as pd
@@ -10,6 +10,9 @@ import tqdm
 import datetime
 import scipy.io as scio
 import numpy as np
+import numpy_ext as npext
+from functools import reduce, partial
+from typing import Callable
 
 try:
     import rqdatac
@@ -345,3 +348,98 @@ def change_index_name(df: pd.DataFrame, name: str = "date") -> pd.DataFrame:
     df.columns = [name] + list(df.columns)[1:]
     df = set_index_first(df)
     return df
+
+
+def merge_many(dfs: list[pd.DataFrame], names: list = None) -> pd.DataFrame:
+    """将多个宽dataframe依据columns和index，拼接在一起，拼成一个长dataframe
+
+    Parameters
+    ----------
+    dfs : list[pd.DataFrame]
+        将所有要拼接的宽表放在一个列表里
+    names : list, optional
+        拼接后，每一列宽表对应的名字, by default None
+
+    Returns
+    -------
+    pd.DataFrame
+        拼接后的dataframe
+    """
+    num = len(dfs)
+    if names is None:
+        names = [f"fac{i+1}" for i in range(num)]
+    dfs = [i.stack().reset_index() for i in dfs]
+    dfs = [i.rename(columns={list(i.columns)[-1]: j}) for i, j in zip(dfs, names)]
+    df = reduce(lambda x, y: pd.merge(x, y, on=["date", "code"]))
+    return df
+
+
+def corr_two_daily(
+    df1: pd.DataFrame, df2: pd.DataFrame, rolling_window: int = 20
+) -> pd.DataFrame:
+    """求两个因子，在相同股票上，时序上滚动窗口下的相关系数
+
+    Parameters
+    ----------
+    df1 : pd.DataFrame
+        第一个因子，index为时间，columns为股票代码
+    df2 : pd.DataFrame
+        第二个因子，index为时间，columns为股票代码
+    rolling_window : int, optional
+        滚动窗口, by default 20
+
+    Returns
+    -------
+    pd.DataFrame
+        相关系数后的结果，index为时间，columns为股票代码
+    """
+
+    def corr_in(a, b, c):
+        return c.iloc[-1], np.corrcoef(a, b)[0, 1]
+
+    return func_two_daily(df1=df1, df2=df2, func=corr_in, rolling_window=rolling_window)
+
+
+def func_two_daily(
+    df1: pd.DataFrame, df2: pd.DataFrame, func: Callable, rolling_window: int = 20
+) -> pd.DataFrame:
+    """求两个因子，在相同股票上，时序上滚动窗口下的相关系数
+
+    Parameters
+    ----------
+    df1 : pd.DataFrame
+        第一个因子，index为时间，columns为股票代码
+    df2 : pd.DataFrame
+        第二个因子，index为时间，columns为股票代码
+    func : Callable
+        要对两列数进行操作的函数
+    rolling_window : int, optional
+        滚动窗口, by default 20
+
+    Returns
+    -------
+    pd.DataFrame
+        计算后的结果，index为时间，columns为股票代码
+    """
+
+    the_func = partial(func)
+
+    def func_rolling(df):
+        df = df.sort_values(["date"])
+        if df.shape[0] > rolling_window:
+            df = npext.rolling_apply(
+                the_func, rolling_window, df.fac1, df.fac2, df.date, n_jobs=6
+            )
+            return df
+
+    twins = merge_many([df1, df2])
+    tqdm.tqdm.pandas()
+    corrs = twins.groupby(["code"]).progress_apply(func_rolling)
+    cor = []
+    for i in tqdm.tqdm_notebook(range(len(corrs))):
+        df = pd.DataFrame(corrs.iloc[i]).dropna().assign(code=corrs.index[i])
+        cor.append(df)
+    cors = pd.concat(cor)
+    cors.columns = ["date", "corr", "code"]
+    cors = cors.pivot(index="date", columns="code", values="corr")
+    return cors
