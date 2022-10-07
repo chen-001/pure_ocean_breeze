@@ -1,4 +1,4 @@
-__updated__ = "2022-10-06 10:21:36"
+__updated__ = "2022-10-07 19:52:21"
 
 import warnings
 
@@ -27,6 +27,7 @@ import plotly.express as pe
 import plotly.io as pio
 import pyfinance.ols as po
 from texttable import Texttable
+from xpinyin import Pinyin
 from typing import Callable, Union
 from pure_ocean_breeze.data.read_data import (
     read_daily,
@@ -41,7 +42,7 @@ homeplace = HomePlace()
 from pure_ocean_breeze.state.states import STATES
 from pure_ocean_breeze.data.database import *
 from pure_ocean_breeze.data.dicts import INDUS_DICT
-from pure_ocean_breeze.data.tools import indus_name
+from pure_ocean_breeze.data.tools import indus_name, drop_duplicates_index
 from pure_ocean_breeze.labor.comment import (
     comments_on_twins,
     make_relative_comments,
@@ -695,8 +696,8 @@ def decap(df: pd.DataFrame, daily: bool = 0, monthly: bool = 0) -> pd.DataFrame:
         如果未指定日频或月频，将报错
     """
     tqdm.tqdm.pandas()
-    share = read_daily("AllStock_DailyAShareNum.mat")
-    undi_close = read_daily("AllStock_DailyClose.mat")
+    share = read_daily(sharenum=1)
+    undi_close = read_daily(close=1, unadjust=1)
     cap = (share * undi_close).stack().reset_index()
     cap.columns = ["date", "code", "cap"]
     cap.cap = ss.boxcox(cap.cap)[0]
@@ -1372,7 +1373,7 @@ class pure_moon(object):
 
     @classmethod
     @lru_cache(maxsize=None)
-    def __init__(cls, no_read_indu):
+    def __init__(cls, no_read_indu: bool = 0):
         cls.homeplace = HomePlace()
         # 已经算好的月度st状态文件
         cls.sts_monthly_file = homeplace.daily_data_file + "sts_monthly.feather"
@@ -2709,7 +2710,6 @@ class pure_fall_frequent(object):
         enddate: int = None,
         kind: str = "stock",
         clickhouse: bool = 0,
-        postgresql: bool = 0,
         questdb: bool = 0,
     ) -> None:
         """基于clickhouse的分钟数据，计算因子值，每天的因子值只用到当日的数据
@@ -2740,6 +2740,12 @@ class pure_fall_frequent(object):
             self.chc = ClickHouseClient("minute_data")
         elif questdb == 1:
             self.chc = Questdb()
+        # 将计算到一半的因子，存入questdb中，避免中途被打断后重新计算，表名即为因子文件名的汉语拼音
+        pinyin = Pinyin()
+        self.factor_file_pinyin = pinyin.get_pinyin(
+            factor_file.replace(".feather", ""), ""
+        )
+        self.factor_steps = Questdb()
         # 完整的因子文件路径
         factor_file = homeplace.factor_data_file + factor_file
         self.factor_file = factor_file
@@ -2753,6 +2759,31 @@ class pure_fall_frequent(object):
             # 已经算好的日子
             dates_old = sorted(list(factor_old.index.strftime("%Y%m%d").astype(int)))
             self.dates_old = dates_old
+        elif self.factor_file_pinyin in list(
+            self.factor_steps.get_data("show tables").table
+        ):
+            logger.info(
+                f"上次计算途中被打断，已经将数据备份在questdb数据库的表{self.factor_file_pinyin}中，现在将读取上次的数据，继续计算"
+            )
+            factor_old = self.factor_steps.get_data(
+                f"select * from {self.factor_file_pinyin}"
+            )
+            # 判断一下每天是否生成多个数据，单个数据就以float形式存储，多个数据以list形式存储
+            if "f0" in list(factor_old.columns):
+                factor_old = factor_old[factor_old.f0 != "date"]
+                factor_old.columns = ["date", "code", "fac"]
+                factor_old.fac = factor_old.fac.apply(
+                    lambda x: [float(i) for i in x[1:-1].split(" ") if i != ""]
+                )
+            factor_old = factor_old.pivot(index="date", columns="code", values="fac")
+            factor_old.index = pd.to_datetime(factor_old.index)
+            factor_old = factor_old.sort_index()
+            factor_old = drop_duplicates_index(factor_old)
+            self.factor_old = factor_old
+            # 已经算好的日子
+            dates_old = sorted(list(factor_old.index.strftime("%Y%m%d").astype(int)))
+            self.dates_old = dates_old
+
         else:
             self.factor_old = None
             self.dates_old = []
@@ -2815,7 +2846,8 @@ class pure_fall_frequent(object):
         tqdm_inside: bool = 0,
     ) -> None:
         the_func = partial(func)
-        date = int(datetime.datetime.strftime(date, "%Y%m%d"))
+        if not isinstance(date, int):
+            date = int(datetime.datetime.strftime(date, "%Y%m%d"))
         if tqdm_inside:
             # 开始计算因子值
             if self.clickhouse == 1:
@@ -2885,16 +2917,20 @@ class pure_fall_frequent(object):
         cuts = tuple(zip(cut_points[:-1], cut_points[1:]))
         print(f"共{len(cuts)}段")
         factor_new = []
+        df_first = self.select_one_calculate(
+            date=dates[0],
+            func=func,
+            fields=fields,
+            show_time=show_time,
+            tqdm_inside=tqdm_inside,
+        )
+        factor_new.append(df_first)
+        to_save = df_first.stack().reset_index()
+        to_save.columns = ["date", "code", "fac"]
+        self.factor_steps.write_via_csv(to_save, self.factor_file_pinyin)
+
         if tqdm_inside == 1:
             # 开始计算因子值
-            df_first = self.select_one_calculate(
-                date=cut_first,
-                func=func,
-                fields=fields,
-                show_time=show_time,
-                tqdm_inside=tqdm_inside,
-            )
-            factor_new.append(df_first)
             for date1, date2 in cuts:
                 if self.clickhouse == 1:
                     sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{dates[date1] * 100} and date<={dates[date2] * 100} order by code,date,num"
@@ -2917,6 +2953,9 @@ class pure_fall_frequent(object):
                 df = df.pivot(columns="code", index="date", values="fac")
                 df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
                 factor_new.append(df)
+                to_save = df.stack().reset_index()
+                to_save.columns = ["date", "code", "fac"]
+                self.factor_steps.write_via_csv(to_save, self.factor_file_pinyin)
         elif tqdm_inside == -1:
             # 开始计算因子值
             for date1, date2 in tqdm.tqdm_notebook(cuts, desc="不知乘月几人归，落月摇情满江树。"):
@@ -2936,6 +2975,9 @@ class pure_fall_frequent(object):
                 df = df.pivot(columns="code", index="date", values="fac")
                 df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
                 factor_new.append(df)
+                to_save = df.stack().reset_index()
+                to_save.columns = ["date", "code", "fac"]
+                self.factor_steps.write_via_csv(to_save, self.factor_file_pinyin)
         else:
             # 开始计算因子值
             for date1, date2 in tqdm.tqdm(cuts, desc="不知乘月几人归，落月摇情满江树。"):
@@ -2959,6 +3001,9 @@ class pure_fall_frequent(object):
                 df = df.pivot(columns="code", index="date", values="fac")
                 df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
                 factor_new.append(df)
+                to_save = df.stack().reset_index()
+                to_save.columns = ["date", "code", "fac"]
+                self.factor_steps.write_via_csv(to_save, self.factor_file_pinyin)
         factor_new = pd.concat(factor_new)
         return factor_new
 
@@ -3041,6 +3086,9 @@ class pure_fall_frequent(object):
             # 存入本地
             self.factor.reset_index().to_feather(self.factor_file)
             logger.info(f"截止到{new_end_date}的因子值计算完了")
+            # 删除存储在questdb的中途备份数据
+            self.factor_steps.do_order(f"drop table {self.factor_file_pinyin}")
+            logger.info("备份在questdb的表格已删除")
 
         else:
             self.factor = self.factor_old

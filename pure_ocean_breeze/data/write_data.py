@@ -1,4 +1,4 @@
-__updated__ = "2022-10-01 09:55:11"
+__updated__ = "2022-10-07 19:02:49"
 
 try:
     import rqdatac
@@ -34,7 +34,7 @@ from pure_ocean_breeze.data.database import (
 )
 from pure_ocean_breeze.data.read_data import read_daily, read_money_flow
 from pure_ocean_breeze.data.dicts import INDUS_DICT, INDEX_DICT, ZXINDUS_DICT
-from pure_ocean_breeze.data.tools import 生成每日分类表, add_suffix, convert_code
+from pure_ocean_breeze.data.tools import 生成每日分类表, add_suffix, convert_code,drop_duplicates_index
 from pure_ocean_breeze.labor.process import pure_fama
 
 
@@ -197,7 +197,7 @@ def database_update_minute_data_to_postgresql(kind: str) -> None:
         index=False,
         dtype={
             "code": VARCHAR(9),
-            "date": p.INT,
+            "date": INT,
             "open": FLOAT,
             "high": FLOAT,
             "low": FLOAT,
@@ -547,13 +547,6 @@ def download_calendar(startdate, enddate):
         time.sleep(1)
         return df0
 
-
-def drop_duplicates_index(new):
-    new = new.reset_index()
-    new = new.rename(columns={list(new.columns)[0]: "date"})
-    new = new.drop_duplicates(subset=["date"], keep="first")
-    new = new.set_index("date")
-    return new
 
 
 def database_update_daily_files() -> None:

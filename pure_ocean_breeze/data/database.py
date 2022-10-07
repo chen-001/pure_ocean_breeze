@@ -1,4 +1,4 @@
-__updated__ = "2022-08-28 22:47:54"
+__updated__ = "2022-10-07 19:56:40"
 
 import pandas as pd
 import pymysql
@@ -293,7 +293,7 @@ class sqlConfig(object):
                 db=db_name,
             )
         return mydb
-    
+
     def do_order(self, sql_order: str) -> any:
         """执行任意一句sql语句
 
@@ -887,7 +887,7 @@ class Questdb(DriverOfPostgre):
         register_adapter(np.int64, self.__addapt_numpy_int64)
         conn = self.connect()
         # SQL quert to execute
-        tmp_df = self.tmp_csv_path
+        tmp_df = self.tmp_csv_path + str(np.random.randint(100000000))
         if index_id is None:
             df.to_csv(tmp_df, index=None)
         else:

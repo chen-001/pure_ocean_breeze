@@ -1,4 +1,4 @@
-__updated__ = '2022-08-30 15:01:11'
+__updated__ = "2022-10-07 19:49:38"
 
 from setuptools import setup
 import setuptools
@@ -7,11 +7,13 @@ import os
 
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
-    
+
+
 def get_version(package):
     """Return package version as listed in `__version__` in `init.py`."""
-    init_py = open(os.path.join(package, '__init__.py')).read()
+    init_py = open(os.path.join(package, "__init__.py")).read()
     return re.search("__version__ = ['\"]([^'\"]+)['\"]", init_py).group(1)
+
 
 setup(
     name="pure_ocean_breeze",
@@ -23,7 +25,7 @@ setup(
     author="chenzongwei",
     author_email="winterwinter999@163.com",
     url="https://github.com/chen-001/pure_ocean_breeze.git",
-    project_urls={'Documentation':'https://chen-001.github.io/pure_ocean_breeze/'},
+    project_urls={"Documentation": "https://chen-001.github.io/pure_ocean_breeze/"},
     install_requires=[
         "numpy",
         "pandas",
@@ -47,10 +49,14 @@ setup(
         "psycopg2",
         "requests",
         "bs4",
-        "wrapt_timeout_decorator"
+        "wrapt_timeout_decorator",
+        "pyfinance",
+        "texttable",
+        "numpy_ext",
+        "xpinyin",
     ],
     python_requires=">=3",
     license="MIT",
     packages=setuptools.find_packages(),
-    requires=[]
-    )
+    requires=[],
+)

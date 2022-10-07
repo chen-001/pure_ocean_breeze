@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2022-10-06 10:18:49"
+__updated__ = "2022-10-07 19:02:02"
 
 import h5py
 import pandas as pd
@@ -436,10 +436,30 @@ def func_two_daily(
     tqdm.tqdm.pandas()
     corrs = twins.groupby(["code"]).progress_apply(func_rolling)
     cor = []
-    for i in tqdm.tqdm_notebook(range(len(corrs))):
+    for i in range(len(corrs)):
         df = pd.DataFrame(corrs.iloc[i]).dropna().assign(code=corrs.index[i])
         cor.append(df)
     cors = pd.concat(cor)
     cors.columns = ["date", "corr", "code"]
     cors = cors.pivot(index="date", columns="code", values="corr")
     return cors
+
+
+def drop_duplicates_index(new:pd.DataFrame)->pd.DataFrame:
+    """对dataframe依照其index进行去重，并保留最上面的行
+
+    Parameters
+    ----------
+    new : pd.DataFrame
+        要去重的dataframe
+
+    Returns
+    -------
+    pd.DataFrame
+        去重后的dataframe
+    """
+    new = new.reset_index()
+    new = new.rename(columns={list(new.columns)[0]: "date"})
+    new = new.drop_duplicates(subset=["date"], keep="first")
+    new = new.set_index("date")
+    return new

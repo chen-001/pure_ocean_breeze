@@ -60,3 +60,5 @@ import bs4
 from wrapt_timeout_decorator import timeout
 import pyfinance.ols as po
 from texttable import Texttable
+import numpy_ext as npext
+from xpinyin import Pinyin
