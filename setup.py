@@ -1,4 +1,4 @@
-__updated__ = "2022-10-07 19:49:38"
+__updated__ = "2022-10-09 12:08:17"
 
 from setuptools import setup
 import setuptools
@@ -54,6 +54,7 @@ setup(
         "texttable",
         "numpy_ext",
         "xpinyin",
+        "cufflinks",
     ],
     python_requires=">=3",
     license="MIT",

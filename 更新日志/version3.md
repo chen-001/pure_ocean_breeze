@@ -1,5 +1,16 @@
 ## 更新日志🗓 — v3
 
+* v3.3.6 — 2022.10.09
+> 1. 新增了剔除北交所因子数据的函数debj
+> 1. 新增了对因子做横截面zscore标准化的函数standardlize
+> 1. 新增了统计dataframe中有多少（非0）非空数据的函数count_value
+> 1. 优化了检测dataframe中是否存在空值的函数detect_nan的计算方法
+> 1. 新增了使用若干因子对目标因子正交化的函数de_cross
+> 1. 对pure_moon和pure_moonnight新增了使用cufflinks展示回测结果和绘图的参数iplot和ilegend，优化了结果展示的样式
+> 1. 修复了pure_fama中，不包含市场因子时的潜在bug
+> 1. 对pure_fama中的coefficients属性进行保护
+> 1. 新增了pure_rollingols类，用于对若干个因子，对应股票下，进行固定时间窗口的滚动回归
+> 1. 调整了一些工具函数的分类，以减少循环引用bug的可能性
 * v3.3.5 — 2022.10.07
 > 1. 给pure_fall_frequent增加了中途写入questdb防止运算被打断的功能，并可以在打断后通过识别questdb中的数据继续计算，该临时表将在运算全部完成，并成功写入feather文件后删除
 > 1. 在Questdb的写入函数write_via_csv的临时csv文件名中，加入了随机数，以避免同时写入文件时的冲突

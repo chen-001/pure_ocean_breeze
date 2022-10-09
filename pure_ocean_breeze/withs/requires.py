@@ -62,3 +62,8 @@ import pyfinance.ols as po
 from texttable import Texttable
 import numpy_ext as npext
 from xpinyin import Pinyin
+import cufflinks as cf
+cf.set_config_file(offline=True)
+from plotly.tools import FigureFactory as FF
+import plotly.graph_objects as go
+import plotly.tools as plyoo

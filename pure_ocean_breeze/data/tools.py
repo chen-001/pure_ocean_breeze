@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2022-10-07 19:02:02"
+__updated__ = "2022-10-08 23:05:12"
 
 import h5py
 import pandas as pd
@@ -11,8 +11,9 @@ import datetime
 import scipy.io as scio
 import numpy as np
 import numpy_ext as npext
+import scipy.stats as ss
 from functools import reduce, partial
-from typing import Callable
+from typing import Callable, Union
 
 try:
     import rqdatac
@@ -445,7 +446,7 @@ def func_two_daily(
     return cors
 
 
-def drop_duplicates_index(new:pd.DataFrame)->pd.DataFrame:
+def drop_duplicates_index(new: pd.DataFrame) -> pd.DataFrame:
     """对dataframe依照其index进行去重，并保留最上面的行
 
     Parameters
@@ -463,3 +464,367 @@ def drop_duplicates_index(new:pd.DataFrame)->pd.DataFrame:
     new = new.drop_duplicates(subset=["date"], keep="first")
     new = new.set_index("date")
     return new
+
+
+def select_max(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
+    """两个columns与index完全相同的df，每个值都挑出较大值
+
+    Parameters
+    ----------
+    df1 : pd.DataFrame
+        第一个df
+    df2 : pd.DataFrame
+        第二个df
+
+    Returns
+    -------
+    `pd.DataFrame`
+        两个df每个value中的较大者
+    """
+    return (df1 + df2 + np.abs(df1 - df2)) / 2
+
+
+def select_min(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
+    """两个columns与index完全相同的df，每个值都挑出较小值
+
+    Parameters
+    ----------
+    df1 : pd.DataFrame
+        第一个df
+    df2 : pd.DataFrame
+        第二个df
+
+    Returns
+    -------
+    `pd.DataFrame`
+        两个df每个value中的较小者
+    """
+    return (df1 + df2 - np.abs(df1 - df2)) / 2
+
+
+def debj(df: pd.DataFrame) -> pd.DataFrame:
+    """去除因子中的北交所数据
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        包含北交所的因子dataframe，index是时间，columns是股票代码
+
+    Returns
+    -------
+    pd.DataFrame
+        去除北交所股票的因子dataframe
+    """
+    df = df[[i for i in list(df.columns) if i[0] in ["0", "3", "6"]]]
+    return df
+
+
+def standardlize(df: pd.DataFrame, all_pos: bool = 0) -> pd.DataFrame:
+    """对因子dataframe做横截面z-score标准化
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        要做中性化的因子值，index是时间，columns是股票代码
+    all_pos : bool, optional
+        是否要将值都变成正数，通过减去截面的最小值实现, by default 0
+
+    Returns
+    -------
+    pd.DataFrame
+        标准化之后的因子
+    """
+    df = ((df.T - df.T.mean()) / df.T.std()).T
+    if all_pos:
+        df = (df.T - df.T.min()).T
+    return df
+
+
+def count_value(df: pd.DataFrame, with_zero: bool = 0) -> int:
+    """计算dataframe中总共有多少（非0）非空的值
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        要检测的dataframe
+    with_zero : bool, optional
+        统计数量时，是否也把值为0的数据统计进去, by default 0
+
+    Returns
+    -------
+    int
+        （非0）非空的数据的个数
+    """
+    y = np.sign(np.abs(df))
+    if with_zero:
+        y = np.sign(y + 1)
+    return y.sum().sum()
+
+
+def detect_nan(df: pd.DataFrame) -> bool:
+    """检查一个pd.DataFrame中是否存在空值
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        待检查的pd.DataFrame
+
+    Returns
+    -------
+    `bool`
+        检查结果，有空值为True，否则为False
+    """
+    x = df.isna() + 0
+    if x.sum().sum():
+        print("存在空值")
+        return True
+    else:
+        print("不存在空值")
+        return False
+
+
+def get_abs(df: pd.DataFrame, median: bool = 0, square: bool = 0) -> pd.DataFrame:
+    """均值距离化：计算因子与截面均值的距离
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        未均值距离化的因子，index为时间，columns为股票代码
+    median : bool, optional
+        为1则计算到中位数的距离, by default 0
+    square : bool, optional
+        为1则计算距离的平方, by default 0
+
+    Returns
+    -------
+    `pd.DataFrame`
+        均值距离化之后的因子值
+    """
+    if not square:
+        if median:
+            return np.abs((df.T - df.T.median()).T)
+        else:
+            return np.abs((df.T - df.T.mean()).T)
+    else:
+        if median:
+            return ((df.T - df.T.median()).T) ** 2
+        else:
+            return ((df.T - df.T.mean()).T) ** 2
+
+
+def get_normal(df: pd.DataFrame) -> pd.DataFrame:
+    """将因子横截面正态化
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        原始因子，index是时间，columns是股票代码
+
+    Returns
+    -------
+    `pd.DataFrame`
+        每个横截面都呈现正态分布的因子
+    """
+    df = df.replace(0, np.nan)
+    df = df.T.apply(lambda x: ss.boxcox(x)[0]).T
+    return df
+
+
+def coin_reverse(
+    ret20: pd.DataFrame, vol20: pd.DataFrame, mean: bool = 1, positive_negtive: bool = 0
+) -> pd.DataFrame:
+    """球队硬币法：根据vol20的大小，翻转一半ret20，把vol20较大的部分，给ret20添加负号
+
+    Parameters
+    ----------
+    ret20 : pd.DataFrame
+        要被翻转的因子，index是时间，columns是股票代码
+    vol20 : pd.DataFrame
+        翻转的依据，index是时间，columns是股票代码
+    mean : bool, optional
+        为1则以是否大于截面均值为标准翻转，否则以是否大于截面中位数为标准, by default 1
+    positive_negtive : bool, optional
+        是否截面上正负值的两部分，各翻转一半, by default 0
+
+    Returns
+    -------
+    `pd.DataFrame`
+        翻转后的因子值
+    """
+    if positive_negtive:
+        if not mean:
+            down20 = np.sign(ret20)
+            down20 = down20.replace(1, np.nan)
+            down20 = down20.replace(-1, 1)
+
+            vol20_down = down20 * vol20
+            vol20_down = (vol20_down.T - vol20_down.T.median()).T
+            vol20_down = np.sign(vol20_down)
+            ret20_down = ret20[ret20 < 0]
+            ret20_down = vol20_down * ret20_down
+
+            up20 = np.sign(ret20)
+            up20 = up20.replace(-1, np.nan)
+
+            vol20_up = up20 * vol20
+            vol20_up = (vol20_up.T - vol20_up.T.median()).T
+            vol20_up = np.sign(vol20_up)
+            ret20_up = ret20[ret20 > 0]
+            ret20_up = vol20_up * ret20_up
+
+            ret20_up = ret20_up.replace(np.nan, 0)
+            ret20_down = ret20_down.replace(np.nan, 0)
+            new_ret20 = ret20_up + ret20_down
+            new_ret20_tr = new_ret20.replace(0, np.nan)
+            return new_ret20_tr
+        else:
+            down20 = np.sign(ret20)
+            down20 = down20.replace(1, np.nan)
+            down20 = down20.replace(-1, 1)
+
+            vol20_down = down20 * vol20
+            vol20_down = (vol20_down.T - vol20_down.T.mean()).T
+            vol20_down = np.sign(vol20_down)
+            ret20_down = ret20[ret20 < 0]
+            ret20_down = vol20_down * ret20_down
+
+            up20 = np.sign(ret20)
+            up20 = up20.replace(-1, np.nan)
+
+            vol20_up = up20 * vol20
+            vol20_up = (vol20_up.T - vol20_up.T.mean()).T
+            vol20_up = np.sign(vol20_up)
+            ret20_up = ret20[ret20 > 0]
+            ret20_up = vol20_up * ret20_up
+
+            ret20_up = ret20_up.replace(np.nan, 0)
+            ret20_down = ret20_down.replace(np.nan, 0)
+            new_ret20 = ret20_up + ret20_down
+            new_ret20_tr = new_ret20.replace(0, np.nan)
+            return new_ret20_tr
+    else:
+        if not mean:
+            vol20_dummy = np.sign((vol20.T - vol20.T.median()).T)
+            ret20 = ret20 * vol20_dummy
+            return ret20
+        else:
+            vol20_dummy = np.sign((vol20.T - vol20.T.mean()).T)
+            ret20 = ret20 * vol20_dummy
+            return ret20
+
+
+def multidfs_to_one(*args: list) -> pd.DataFrame:
+    """很多个df，各有一部分，其余位置都是空，
+    想把各自df有值的部分保留，都没有值的部分继续设为空
+
+    Returns
+    -------
+    `pd.DataFrame`
+        合并后的df
+    """
+    dfs = [i.fillna(0) for i in args]
+    background = np.sign(np.abs(np.sign(sum(dfs))) + 1).replace(1, 0)
+    dfs = [(i + background).fillna(0) for i in dfs]
+    df_nans = [i.isna() for i in dfs]
+    nan = reduce(lambda x, y: x * y, df_nans)
+    nan = nan.replace(1, np.nan)
+    nan = nan.replace(0, 1)
+    df_final = sum(dfs) * nan
+    return df_final
+
+
+def to_percent(x: float) -> Union[float, str]:
+    """把小数转化为2位小数的百分数
+
+    Parameters
+    ----------
+    x : float
+        要转换的小数
+
+    Returns
+    -------
+    Union[float,str]
+        空值则依然为空，否则返回带%的字符串
+    """
+    if np.isnan(x):
+        return x
+    else:
+        x = str(round(x * 100, 2)) + "%"
+        return x
+
+
+def calc_exp_list(window: int, half_life: int) -> np.ndarray:
+    """生成半衰序列
+
+    Parameters
+    ----------
+    window : int
+        窗口期
+    half_life : int
+        半衰期
+
+    Returns
+    -------
+    `np.ndarray`
+        半衰序列
+    """
+    exp_wt = np.asarray([0.5 ** (1 / half_life)] * window) ** np.arange(window)
+    return exp_wt[::-1] / np.sum(exp_wt)
+
+
+def calcWeightedStd(series: pd.Series, weights: Union[pd.Series, np.ndarray]) -> float:
+    """计算半衰加权标准差
+
+    Parameters
+    ----------
+    series : pd.Series
+        目标序列
+    weights : Union[pd.Series,np.ndarray]
+        权重序列
+
+    Returns
+    -------
+    `float`
+        半衰加权标准差
+    """
+    weights /= np.sum(weights)
+    return np.sqrt(np.sum((series - np.mean(series)) ** 2 * weights))
+
+
+def get_list_std(delta_sts: list[pd.DataFrame]) -> pd.DataFrame:
+    """同一天多个因子，计算这些因子在当天的标准差
+
+    Parameters
+    ----------
+    delta_sts : list[pd.DataFrame]
+        多个因子构成的list，每个因子index为时间，columns为股票代码
+
+    Returns
+    -------
+    `pd.DataFrame`
+        每天每只股票多个因子的标准差
+    """
+    delta_sts_mean = sum(delta_sts) / len(delta_sts)
+    delta_sts_std = [(i - delta_sts_mean) ** 2 for i in delta_sts]
+    delta_sts_std = sum(delta_sts_std)
+    delta_sts_std = delta_sts_std**0.5 / len(delta_sts)
+    return delta_sts_std
+
+
+def to_group(df: pd.DataFrame, group: int = 10) -> pd.DataFrame:
+    """把一个index为时间，code为时间的df，每个截面上的值，按照排序分为group组，将值改为组号，从0开始
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        要改为组号的df
+    group : int, optional
+        分为多少组, by default 10
+
+    Returns
+    -------
+    pd.DataFrame
+        组号组成的dataframe
+    """
+    df = df.T.apply(lambda x: pd.qcut(x, group, labels=False, duplicates="drop")).T
+    return df
