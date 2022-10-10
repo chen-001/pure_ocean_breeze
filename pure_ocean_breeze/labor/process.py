@@ -1,4 +1,4 @@
-__updated__ = "2022-10-09 18:43:45"
+__updated__ = "2022-10-10 21:52:47"
 
 import warnings
 
@@ -2389,6 +2389,9 @@ class pure_fall(object):
                     self.daily_factors_path[0] + self.daily_factors_path[1]
                 )
                 self.daily_factors = pd.read_feather(self.daily_factors_path)
+            self.daily_factors = self.daily_factors.rename(
+                columns={list(self.daily_factors.columns)[0]: "date"}
+            )
             self.daily_factors = self.daily_factors.drop_duplicates(
                 subset=["date"], keep="last"
             )
