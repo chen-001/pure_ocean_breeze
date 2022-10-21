@@ -1,4 +1,4 @@
-__updated__ = "2022-10-07 19:56:40"
+__updated__ = "2022-10-20 23:11:06"
 
 import pandas as pd
 import pymysql
@@ -11,6 +11,7 @@ import psycopg2.extras as extras
 import numpy as np
 import requests
 import os
+from typing import Union
 from psycopg2.extensions import register_adapter, AsIs
 from pure_ocean_breeze.state.states import STATES
 
@@ -76,7 +77,9 @@ class MetaSQLDriver(object):
         except Exception:
             logger.warning(f"已经存在名为{db_name}的数据库，请检查")
 
-    def get_data(self, sql_order: str) -> pd.DataFrame:
+    def get_data(
+        self, sql_order: str, only_array: bool = 0
+    ) -> Union[pd.DataFrame, np.ndarray]:
         """以sql命令的方式，从数据库中读取数据
 
         Parameters
@@ -86,16 +89,19 @@ class MetaSQLDriver(object):
 
         Returns
         -------
-        pd.DataFrame
+        Union[pd.DataFrame, np.ndarray]
             读取的结果
         """
         conn = self.connect()
         cursor = conn.cursor()
         cursor.execute(sql_order)
-        columns = [i[0] for i in cursor.description]
         df_data = cursor.fetchall()
-        df = pd.DataFrame(df_data, columns=columns)
-        return df
+        if not only_array:
+            columns = [i[0] for i in cursor.description]
+            df = pd.DataFrame(df_data, columns=columns)
+            return df
+        else:
+            return np.array(df_data)
 
     def get_data_show_time(self, sql_order: str) -> pd.DataFrame:
         """以sql命令的方式，从数据库中读取数据，并告知所用时间
@@ -588,9 +594,11 @@ class ClickHouseClient(object):
         """
         a = pd.read_sql(sql_order, con=self.engine)
         return a
-
-    def get_data(self, sql_order: str) -> pd.DataFrame:
-        """以cursor的方式读取数据
+    
+    def get_data(
+        self, sql_order: str, only_array: bool = 0
+    ) -> Union[pd.DataFrame, np.ndarray]:
+        """以sql命令的方式，从数据库中读取数据
 
         Parameters
         ----------
@@ -599,16 +607,19 @@ class ClickHouseClient(object):
 
         Returns
         -------
-        pd.DataFrame
+        Union[pd.DataFrame, np.ndarray]
             读取的结果
         """
-        conn = self.engine.raw_connection()
+        conn = self.connect()
         cursor = conn.cursor()
         cursor.execute(sql_order)
-        columns = [i[0] for i in cursor.description]
         df_data = cursor.fetchall()
-        df = pd.DataFrame(df_data, columns=columns)
-        return df
+        if not only_array:
+            columns = [i[0] for i in cursor.description]
+            df = pd.DataFrame(df_data, columns=columns)
+            return df
+        else:
+            return np.array(df_data)
 
     def get_data_old_show_time(self, sql_order: str) -> pd.DataFrame:
         """以pd.read_sql和sql命令的方式，从数据库中读取数据，并告知所用时间

@@ -1,4 +1,4 @@
-__updated__ = "2022-10-10 21:52:47"
+__updated__ = "2022-10-11 12:35:40"
 
 import warnings
 
@@ -1118,6 +1118,7 @@ class pure_moon(object):
         "factor_turnover_rate",
         "group_rets_std",
         "group_rets_stds",
+        "wind_out"
     ]
 
     @classmethod
@@ -1491,6 +1492,7 @@ class pure_moon(object):
         self.data = self.data.groupby("date").apply(
             lambda x: self.get_groups(x, groups_num)
         )
+        self.wind_out=self.data.copy()
         self.factor_turnover_rates = self.data.pivot(
             index="date", columns="code", values="group"
         )
@@ -2723,53 +2725,28 @@ class pure_fall_frequent(object):
         the_func = partial(func)
         if not isinstance(date, int):
             date = int(datetime.datetime.strftime(date, "%Y%m%d"))
-        if tqdm_inside:
-            # 开始计算因子值
-            if self.clickhouse == 1:
-                sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date={date * 100} order by code,date,num"
-            else:
-                sql_order = (
-                    f"select {fields} from minute_data_{self.kind} where date='{date}'"
-                )
-            if show_time:
-                df = self.chc.get_data_show_time(sql_order)
-            else:
-                df = self.chc.get_data(sql_order)
-            if self.clickhouse == 1:
-                df = ((df.set_index("code")) / 100).reset_index()
-            else:
-                df.num = df.num.astype(int)
-                df.date = df.date.astype(int)
-                df = df.sort_values(["date", "num"])
-            tqdm.tqdm.pandas()
-            df = df.groupby(["date", "code"]).progress_apply(the_func)
-            df = df.to_frame("fac").reset_index()
-            df.columns = ["date", "code", "fac"]
-            df = df.pivot(columns="code", index="date", values="fac")
-            df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
+        # 开始计算因子值
+        if self.clickhouse == 1:
+            sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date={date * 100} order by code,date,num"
         else:
-            # 开始计算因子值
-            if self.clickhouse == 1:
-                sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date={date * 100} order by code,date,num"
-            else:
-                sql_order = (
-                    f"select {fields} from minute_data_{self.kind} where date='{date}'"
-                )
-            if show_time:
-                df = self.chc.get_data_show_time(sql_order)
-            else:
-                df = self.chc.get_data(sql_order)
-            if self.clickhouse == 1:
-                df = ((df.set_index("code")) / 100).reset_index()
-            else:
-                df.num = df.num.astype(int)
-                df.date = df.date.astype(int)
-                df = df.sort_values(["date", "num"])
-            df = df.groupby(["date", "code"]).apply(the_func)
-            df = df.to_frame("fac").reset_index()
-            df.columns = ["date", "code", "fac"]
-            df = df.pivot(columns="code", index="date", values="fac")
-            df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
+            sql_order = (
+                f"select {fields} from minute_data_{self.kind} where date='{date}'"
+            )
+        if show_time:
+            df = self.chc.get_data_show_time(sql_order)
+        else:
+            df = self.chc.get_data(sql_order)
+        if self.clickhouse == 1:
+            df = ((df.set_index("code")) / 100).reset_index()
+        else:
+            df.num = df.num.astype(int)
+            df.date = df.date.astype(int)
+            df = df.sort_values(["date", "num"])
+        df = df.groupby(["date", "code"]).apply(the_func)
+        df = df.to_frame("fac").reset_index()
+        df.columns = ["date", "code", "fac"]
+        df = df.pivot(columns="code", index="date", values="fac")
+        df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
         return df
 
     def select_many_calculate(

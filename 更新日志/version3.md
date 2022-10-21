@@ -1,5 +1,9 @@
 ## 更新日志🗓 — v3
 
+* v3.3.8 — 2022.10.21
+> 1. 对clickhouse、questdb、postgresql数据库的get_data方法增加了只获取np.ndarray的参数
+> 1. 给pure_moon增加wind_out属性，用于输出每个时期股票所属分组
+> 1. 将pure_fall_frequent中，计算单日因子值的进度条删去
 * v3.3.7 — 2022.10.10
 > 1. 修复了使用pure_fall（mysql）的分钟数据，更新因子值时的，读取之前因子数据的bug
 * v3.3.6 — 2022.10.09
