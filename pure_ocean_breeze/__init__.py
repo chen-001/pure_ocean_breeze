@@ -2,8 +2,8 @@
 一个量化多因子研究的框架，包含数据、回测、因子加工等方面的功能
 """
 
-__updated__ = "2022-10-11 23:49:28"
-__version__ = "3.3.8"
+__updated__ = "2022-10-24 19:47:46"
+__version__ = "3.3.9"
 __author__ = "chenzongwei"
 __author_email__ = "winterwinter999@163.com"
 __url__ = "https://github.com/chen-001/pure_ocean_breeze"

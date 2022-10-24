@@ -610,7 +610,7 @@ class ClickHouseClient(object):
         Union[pd.DataFrame, np.ndarray]
             读取的结果
         """
-        conn = self.connect()
+        conn = self.engine.raw_connection()
         cursor = conn.cursor()
         cursor.execute(sql_order)
         df_data = cursor.fetchall()

@@ -41,6 +41,7 @@ from pure_ocean_breeze.data.read_data import (
     get_industry_dummies,
     read_swindustry_prices,
     read_zxindustry_prices,
+    database_read_final_factors,
 )
 from pure_ocean_breeze.state.homeplace import HomePlace
 
@@ -53,6 +54,7 @@ from pure_ocean_breeze.data.tools import (
     drop_duplicates_index,
     to_percent,
     to_group,
+    show_corrs,
 )
 from pure_ocean_breeze.labor.comment import (
     comments_on_twins,
@@ -1059,6 +1061,27 @@ def de_cross(
     y = pure_fallmount(y)
     xs = [pure_fallmount(i) for i in xs]
     return (y - xs)()
+
+
+def show_corrs_with_old(df):
+    df0=df.resample('M').last()
+    if df.shape[0]/df0.shape[0]>2:
+        daily=1
+    else:
+        daily=0
+    olds=[]
+    for i in range(1,100):
+        try:
+            if daily:
+                old=database_read_final_factors(order=i)[0]
+            else:
+                old=database_read_final_factors(order=i)[0].resample('M').last()
+            olds.append(old)
+        except Exception:
+            break
+    olds=[df]+olds
+    corrs=show_corrs(olds,['new']+[f'old{i}' for i in range(1,len(olds))])
+    return corrs
 
 
 class pure_moon(object):
@@ -2649,9 +2672,14 @@ class pure_fall_frequent(object):
             if "f0" in list(factor_old.columns):
                 factor_old = factor_old[factor_old.f0 != "date"]
                 factor_old.columns = ["date", "code", "fac"]
-                factor_old.fac = factor_old.fac.apply(
-                    lambda x: [float(i) for i in x[1:-1].split(" ") if i != ""]
-                )
+                try:
+                    factor_old.fac = factor_old.fac.apply(
+                        lambda x: [float(i) for i in x[1:-1].split(" ") if i != ""]
+                    )
+                except Exception:
+                    factor_old.fac = factor_old.fac.apply(
+                        lambda x: [float(i) for i in x[1:-1].split(", ") if i != ""]
+                    )
             factor_old = factor_old.pivot(index="date", columns="code", values="fac")
             factor_old.index = pd.to_datetime(factor_old.index)
             factor_old = factor_old.sort_index()

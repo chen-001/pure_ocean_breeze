@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2022-10-08 23:05:12"
+__updated__ = "2022-10-24 19:10:19"
 
 import h5py
 import pandas as pd
@@ -371,12 +371,12 @@ def merge_many(dfs: list[pd.DataFrame], names: list = None) -> pd.DataFrame:
         names = [f"fac{i+1}" for i in range(num)]
     dfs = [i.stack().reset_index() for i in dfs]
     dfs = [i.rename(columns={list(i.columns)[-1]: j}) for i, j in zip(dfs, names)]
-    df = reduce(lambda x, y: pd.merge(x, y, on=["date", "code"]))
+    df = reduce(lambda x, y: pd.merge(x, y, on=["date", "code"]), dfs)
     return df
 
 
 def corr_two_daily(
-    df1: pd.DataFrame, df2: pd.DataFrame, rolling_window: int = 20
+    df1: pd.DataFrame, df2: pd.DataFrame, rolling_window: int = 20, n_jobs: int = 6
 ) -> pd.DataFrame:
     """求两个因子，在相同股票上，时序上滚动窗口下的相关系数
 
@@ -388,6 +388,8 @@ def corr_two_daily(
         第二个因子，index为时间，columns为股票代码
     rolling_window : int, optional
         滚动窗口, by default 20
+    n_jobs : int, optional
+        并行数量, by default 6
 
     Returns
     -------
@@ -398,11 +400,47 @@ def corr_two_daily(
     def corr_in(a, b, c):
         return c.iloc[-1], np.corrcoef(a, b)[0, 1]
 
-    return func_two_daily(df1=df1, df2=df2, func=corr_in, rolling_window=rolling_window)
+    return func_two_daily(
+        df1=df1, df2=df2, func=corr_in, rolling_window=rolling_window, n_jobs=n_jobs
+    )
+
+
+def cov_two_daily(
+    df1: pd.DataFrame, df2: pd.DataFrame, rolling_window: int = 20, n_jobs: int = 6
+) -> pd.DataFrame:
+    """求两个因子，在相同股票上，时序上滚动窗口下的协方差
+
+    Parameters
+    ----------
+    df1 : pd.DataFrame
+        第一个因子，index为时间，columns为股票代码
+    df2 : pd.DataFrame
+        第二个因子，index为时间，columns为股票代码
+    rolling_window : int, optional
+        滚动窗口, by default 20
+    n_jobs : int, optional
+        并行数量, by default 6
+
+    Returns
+    -------
+    pd.DataFrame
+        求协方差后的结果，index为时间，columns为股票代码
+    """
+
+    def cov_in(a, b, c):
+        return c.iloc[-1], np.cov(a, b)[0, 1]
+
+    return func_two_daily(
+        df1=df1, df2=df2, func=cov_in, rolling_window=rolling_window, n_jobs=n_jobs
+    )
 
 
 def func_two_daily(
-    df1: pd.DataFrame, df2: pd.DataFrame, func: Callable, rolling_window: int = 20
+    df1: pd.DataFrame,
+    df2: pd.DataFrame,
+    func: Callable,
+    rolling_window: int = 20,
+    n_jobs: int = 6,
 ) -> pd.DataFrame:
     """求两个因子，在相同股票上，时序上滚动窗口下的相关系数
 
@@ -416,6 +454,8 @@ def func_two_daily(
         要对两列数进行操作的函数
     rolling_window : int, optional
         滚动窗口, by default 20
+    n_jobs : int, optional
+        并行数量, by default 6
 
     Returns
     -------
@@ -429,7 +469,7 @@ def func_two_daily(
         df = df.sort_values(["date"])
         if df.shape[0] > rolling_window:
             df = npext.rolling_apply(
-                the_func, rolling_window, df.fac1, df.fac2, df.date, n_jobs=6
+                the_func, rolling_window, df.fac1, df.fac2, df.date, n_jobs=n_jobs
             )
             return df
 

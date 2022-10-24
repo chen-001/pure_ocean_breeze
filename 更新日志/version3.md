@@ -1,5 +1,12 @@
 ## 更新日志🗓 — v3
 
+* v3.3.9 — 2022.10.24
+> 1. 修复了使用clickhouse中get_data时的连接bug
+> 1. 修复了拼接多个dataframe的函数merge_many中的bug
+> 1. 给func_two_daily、corr_two_daily增加了n_jobs参数，用于决定并行数量
+> 1. 新增了滚动求两因子协方差的函数cov_two_daily
+> 1. 新增了求目标因子与已发研报因子之间的相关系数的函数show_corrs_with_old
+> 1. 修复了pure_fall_frequent计算因子值被打断后，从questdb读取已经计算的因子值时潜在的bug
 * v3.3.8 — 2022.10.21
 > 1. 对clickhouse、questdb、postgresql数据库的get_data方法增加了只获取np.ndarray的参数
 > 1. 给pure_moon增加wind_out属性，用于输出每个时期股票所属分组

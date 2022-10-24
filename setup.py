@@ -1,4 +1,4 @@
-__updated__ = "2022-10-09 12:08:17"
+__updated__ = "2022-10-22 00:04:06"
 
 from setuptools import setup
 import setuptools
@@ -18,7 +18,7 @@ def get_version(package):
 setup(
     name="pure_ocean_breeze",
     version=get_version("pure_ocean_breeze"),
-    description="芷琦哥的回测框架",
+    description="众人的回测框架",
     # long_description="详见homepage\nhttps://github.com/chen-001/pure_ocean_breeze.git",
     long_description=long_description,
     long_description_content_type="text/markdown",
