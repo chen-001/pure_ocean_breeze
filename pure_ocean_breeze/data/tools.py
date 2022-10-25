@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2022-10-24 19:10:19"
+__updated__ = "2022-10-24 20:33:41"
 
 import h5py
 import pandas as pd
@@ -371,6 +371,7 @@ def merge_many(dfs: list[pd.DataFrame], names: list = None) -> pd.DataFrame:
         names = [f"fac{i+1}" for i in range(num)]
     dfs = [i.stack().reset_index() for i in dfs]
     dfs = [i.rename(columns={list(i.columns)[-1]: j}) for i, j in zip(dfs, names)]
+    dfs = [i.rename(columns={list(i.columns)[-2]: "code"}) for i in dfs]
     df = reduce(lambda x, y: pd.merge(x, y, on=["date", "code"]), dfs)
     return df
 

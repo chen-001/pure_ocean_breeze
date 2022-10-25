@@ -54,7 +54,6 @@ from pure_ocean_breeze.data.tools import (
     drop_duplicates_index,
     to_percent,
     to_group,
-    show_corrs,
 )
 from pure_ocean_breeze.labor.comment import (
     comments_on_twins,
@@ -4213,3 +4212,63 @@ class pure_rollingols(object):
         except Exception:
             # 有些数据总共不足，那就跳过
             ...
+
+
+def test_on_300500(df:pd.DataFrame,hs300:bool=0,zz500:bool=0,zz1000:bool=0,zz2000:bool=0)->pd.Series:
+    """对因子在指数成分股内进行多空和多头测试
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        因子值，index为时间，columns为股票代码
+    hs300 : bool, optional
+        在沪深300成分股内测试, by default 0
+    zz500 : bool, optional
+        在中证500成分股内测试, by default 0
+    zz1000 : bool, optional
+        在中证1000成分股内测试, by default 0
+    zz2000 : bool, optional
+        在国证2000成分股内测试, by default 0
+
+    Returns
+    -------
+    pd.Series
+        多头组在该指数上的超额收益序列
+    """    
+    fi300=daily_factor_on300500(df,hs300=hs300,zz500=zz500,zz1000=zz1000,zz2000=zz2000)
+    shen=pure_moonnight(fi300)
+    if shen.shen.group_net_values.group1.iloc[-1]>shen.shen.group_net_values.group10.iloc[-1]:
+        print(make_relative_comments(shen.shen.group_rets.group1,hs300=hs300,zz500=zz500,zz1000=zz1000,zz2000=zz2000))
+        abrets=make_relative_comments_plot(shen.shen.group_rets.group1,hs300=hs300,zz500=zz500,zz1000=zz1000,zz2000=zz2000)
+        return abrets
+    else:
+        print(make_relative_comments(shen.shen.group_rets.group10,hs300=hs300,zz500=zz500,zz1000=zz1000,zz2000=zz2000))
+        abrets=make_relative_comments_plot(shen.shen.group_rets.group10,hs300=hs300,zz500=zz500,zz1000=zz1000,zz2000=zz2000)
+        return abrets
+    
+    
+def test_on_index_four(df:pd.DataFrame,gz2000:bool=0)->pd.DataFrame:
+    """对因子同时在沪深300、中证500、中证1000、国证2000这4个指数成分股内进行多空和多头超额测试
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        因子值，index为时间，columns为股票代码
+    gz2000 : bool, optional
+        是否进行国证2000上的测试, by default 0
+
+    Returns
+    -------
+    pd.DataFrame
+        多头组在各个指数上的超额收益序列
+    """    
+    abrets300=test_on_300500(df,hs300=1).to_frame('沪深300')
+    abrets500=test_on_300500(df,zz500=1).to_frame('中证500')
+    abrets1000=test_on_300500(df,zz1000=1).to_frame('中证1000')
+    if gz2000:
+        abrets2000=test_on_300500(df,gz2000=1).to_frame('国证2000')
+        abrs=pd.concat([abrets300,abrets500,abrets1000,abrets2000],axis=1)
+    else:
+        abrs=pd.concat([abrets300,abrets500,abrets1000],axis=1)
+    return abrs
+    
