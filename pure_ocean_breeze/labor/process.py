@@ -1,4 +1,4 @@
-__updated__ = "2022-10-11 12:35:40"
+__updated__ = "2022-10-26 18:52:42"
 
 import warnings
 
@@ -999,6 +999,7 @@ def show_corrs(
     factor_names: list[str] = None,
     print_bool: bool = True,
     show_percent: bool = True,
+    method: str='spearman',
 ) -> pd.DataFrame:
     """展示很多因子两两之间的截面相关性
 
@@ -1012,6 +1013,8 @@ def show_corrs(
         是否打印出两两之间相关系数的表格, by default True
     show_percent : bool, optional
         是否以百分数的形式展示, by default True
+    method : str, optional
+        计算相关系数的方法, by default "spearman"
 
     Returns
     -------
@@ -1022,7 +1025,7 @@ def show_corrs(
     for i in range(len(factors)):
         main_i = factors[i]
         follows = factors[i + 1 :]
-        corr = [show_corr(main_i, i, plt_plot=False) for i in follows]
+        corr = [show_corr(main_i, i, plt_plot=False,method=method) for i in follows]
         corr = [np.nan] * (i + 1) + corr
         corrs.append(corr)
     if factor_names is None:
@@ -1062,12 +1065,27 @@ def de_cross(
     return (y - xs)()
 
 
-def show_corrs_with_old(df):
-    df0=df.resample('M').last()
-    if df.shape[0]/df0.shape[0]>2:
-        daily=1
-    else:
-        daily=0
+def show_corrs_with_old(df:pd.DataFrame=None,method:str='spearman')->pd.DataFrame:
+    """计算新因子和已有因子的相关系数
+
+    Parameters
+    ----------
+    df : pd.DataFrame, optional
+        新因子, by default None
+    method : str, optional
+        求相关系数的方法, by default 'spearman'
+
+    Returns
+    -------
+    pd.DataFrame
+        相关系数矩阵
+    """
+    if df is not None:    
+        df0=df.resample('M').last()
+        if df.shape[0]/df0.shape[0]>2:
+            daily=1
+        else:
+            daily=0
     olds=[]
     for i in range(1,100):
         try:
@@ -1078,8 +1096,11 @@ def show_corrs_with_old(df):
             olds.append(old)
         except Exception:
             break
-    olds=[df]+olds
-    corrs=show_corrs(olds,['new']+[f'old{i}' for i in range(1,len(olds))])
+    if df is not None:
+        olds=[df]+olds
+        corrs=show_corrs(olds,['new']+[f'old{i}' for i in range(1,len(olds))],method=method)
+    else:
+        corrs=show_corrs(olds,[f'old{i}' for i in range(1,len(olds))],method=method)
     return corrs
 
 
@@ -4214,7 +4235,7 @@ class pure_rollingols(object):
             ...
 
 
-def test_on_300500(df:pd.DataFrame,hs300:bool=0,zz500:bool=0,zz1000:bool=0,zz2000:bool=0)->pd.Series:
+def test_on_300500(df:pd.DataFrame,hs300:bool=0,zz500:bool=0,zz1000:bool=0,iplot:bool=1)->pd.Series:
     """对因子在指数成分股内进行多空和多头测试
 
     Parameters
@@ -4227,33 +4248,35 @@ def test_on_300500(df:pd.DataFrame,hs300:bool=0,zz500:bool=0,zz1000:bool=0,zz200
         在中证500成分股内测试, by default 0
     zz1000 : bool, optional
         在中证1000成分股内测试, by default 0
-    zz2000 : bool, optional
-        在国证2000成分股内测试, by default 0
+    iplot : bol,optional
+        多空回测的时候，是否使用cufflinks绘画
 
     Returns
     -------
     pd.Series
         多头组在该指数上的超额收益序列
     """    
-    fi300=daily_factor_on300500(df,hs300=hs300,zz500=zz500,zz1000=zz1000,zz2000=zz2000)
-    shen=pure_moonnight(fi300)
+    fi300=daily_factor_on300500(df,hs300=hs300,zz500=zz500,zz1000=zz1000)
+    shen=pure_moonnight(fi300,iplot=iplot)
     if shen.shen.group_net_values.group1.iloc[-1]>shen.shen.group_net_values.group10.iloc[-1]:
-        print(make_relative_comments(shen.shen.group_rets.group1,hs300=hs300,zz500=zz500,zz1000=zz1000,zz2000=zz2000))
-        abrets=make_relative_comments_plot(shen.shen.group_rets.group1,hs300=hs300,zz500=zz500,zz1000=zz1000,zz2000=zz2000)
+        print(make_relative_comments(shen.shen.group_rets.group1,hs300=hs300,zz500=zz500,zz1000=zz1000))
+        abrets=make_relative_comments_plot(shen.shen.group_rets.group1,hs300=hs300,zz500=zz500,zz1000=zz1000)
         return abrets
     else:
-        print(make_relative_comments(shen.shen.group_rets.group10,hs300=hs300,zz500=zz500,zz1000=zz1000,zz2000=zz2000))
-        abrets=make_relative_comments_plot(shen.shen.group_rets.group10,hs300=hs300,zz500=zz500,zz1000=zz1000,zz2000=zz2000)
+        print(make_relative_comments(shen.shen.group_rets.group10,hs300=hs300,zz500=zz500,zz1000=zz1000))
+        abrets=make_relative_comments_plot(shen.shen.group_rets.group10,hs300=hs300,zz500=zz500,zz1000=zz1000)
         return abrets
     
     
-def test_on_index_four(df:pd.DataFrame,gz2000:bool=0)->pd.DataFrame:
+def test_on_index_four(df:pd.DataFrame,iplot:bool=1,gz2000:bool=0)->pd.DataFrame:
     """对因子同时在沪深300、中证500、中证1000、国证2000这4个指数成分股内进行多空和多头超额测试
 
     Parameters
     ----------
     df : pd.DataFrame
         因子值，index为时间，columns为股票代码
+    iplot : bol,optional
+        多空回测的时候，是否使用cufflinks绘画
     gz2000 : bool, optional
         是否进行国证2000上的测试, by default 0
 
@@ -4262,11 +4285,11 @@ def test_on_index_four(df:pd.DataFrame,gz2000:bool=0)->pd.DataFrame:
     pd.DataFrame
         多头组在各个指数上的超额收益序列
     """    
-    abrets300=test_on_300500(df,hs300=1).to_frame('沪深300')
-    abrets500=test_on_300500(df,zz500=1).to_frame('中证500')
-    abrets1000=test_on_300500(df,zz1000=1).to_frame('中证1000')
+    abrets300=test_on_300500(df,hs300=1,iplot=iplot).to_frame('沪深300')
+    abrets500=test_on_300500(df,zz500=1,iplot=iplot).to_frame('中证500')
+    abrets1000=test_on_300500(df,zz1000=1,iplot=iplot).to_frame('中证1000')
     if gz2000:
-        abrets2000=test_on_300500(df,gz2000=1).to_frame('国证2000')
+        abrets2000=test_on_300500(df,gz2000=1,iplot=iplot).to_frame('国证2000')
         abrs=pd.concat([abrets300,abrets500,abrets1000,abrets2000],axis=1)
     else:
         abrs=pd.concat([abrets300,abrets500,abrets1000],axis=1)

@@ -1,5 +1,10 @@
 ## 更新日志🗓 — v3
 
+* v3.4.1 — 2022.10.26
+> 1. 给func_two_daily、corr_two_daily、cov_two_daily增加了history参数，用于将计算出的结果记录在本地
+> 1. 给show_corrs、show_corrs_with_old函数增加了method参数，可以修改求相关系数的方式
+> 1. 暂时删去了test_on_300500的国证2000的参数
+> 1. 给test_on_300500和test_on_index_four新增了iplot参数，决定是否使用cufflinks画图
 * v3.4.0 — 2022.10.25
 > 1. 修复了拼接多个dataframe的函数merge_many中的bug
 > 1. 修复了导入process模块时的bug

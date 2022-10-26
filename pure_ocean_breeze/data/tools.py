@@ -2,8 +2,9 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2022-10-24 20:33:41"
+__updated__ = "2022-10-26 18:51:43"
 
+import os
 import h5py
 import pandas as pd
 import tqdm
@@ -13,6 +14,7 @@ import numpy as np
 import numpy_ext as npext
 import scipy.stats as ss
 from functools import reduce, partial
+from loguru import logger
 from typing import Callable, Union
 
 try:
@@ -21,6 +23,7 @@ try:
     rqdatac.init()
 except Exception:
     print("暂时未连接米筐")
+from pure_ocean_breeze.state.homeplace import HomePlace
 
 
 def read_h5(path: str) -> dict:
@@ -377,7 +380,11 @@ def merge_many(dfs: list[pd.DataFrame], names: list = None) -> pd.DataFrame:
 
 
 def corr_two_daily(
-    df1: pd.DataFrame, df2: pd.DataFrame, rolling_window: int = 20, n_jobs: int = 6
+    df1: pd.DataFrame,
+    df2: pd.DataFrame,
+    history: str = None,
+    rolling_window: int = 20,
+    n_jobs: int = 6,
 ) -> pd.DataFrame:
     """求两个因子，在相同股票上，时序上滚动窗口下的相关系数
 
@@ -387,6 +394,8 @@ def corr_two_daily(
         第一个因子，index为时间，columns为股票代码
     df2 : pd.DataFrame
         第二个因子，index为时间，columns为股票代码
+    history : str, optional
+        从某处读取计算好的历史文件
     rolling_window : int, optional
         滚动窗口, by default 20
     n_jobs : int, optional
@@ -402,12 +411,21 @@ def corr_two_daily(
         return c.iloc[-1], np.corrcoef(a, b)[0, 1]
 
     return func_two_daily(
-        df1=df1, df2=df2, func=corr_in, rolling_window=rolling_window, n_jobs=n_jobs
+        df1=df1,
+        df2=df2,
+        func=corr_in,
+        history=history,
+        rolling_window=rolling_window,
+        n_jobs=n_jobs,
     )
 
 
 def cov_two_daily(
-    df1: pd.DataFrame, df2: pd.DataFrame, rolling_window: int = 20, n_jobs: int = 6
+    df1: pd.DataFrame,
+    df2: pd.DataFrame,
+    history: str = None,
+    rolling_window: int = 20,
+    n_jobs: int = 6,
 ) -> pd.DataFrame:
     """求两个因子，在相同股票上，时序上滚动窗口下的协方差
 
@@ -417,6 +435,8 @@ def cov_two_daily(
         第一个因子，index为时间，columns为股票代码
     df2 : pd.DataFrame
         第二个因子，index为时间，columns为股票代码
+    history : str, optional
+        从某处读取计算好的历史文件
     rolling_window : int, optional
         滚动窗口, by default 20
     n_jobs : int, optional
@@ -432,7 +452,12 @@ def cov_two_daily(
         return c.iloc[-1], np.cov(a, b)[0, 1]
 
     return func_two_daily(
-        df1=df1, df2=df2, func=cov_in, rolling_window=rolling_window, n_jobs=n_jobs
+        df1=df1,
+        df2=df2,
+        func=cov_in,
+        history=history,
+        rolling_window=rolling_window,
+        n_jobs=n_jobs,
     )
 
 
@@ -440,6 +465,7 @@ def func_two_daily(
     df1: pd.DataFrame,
     df2: pd.DataFrame,
     func: Callable,
+    history: str = None,
     rolling_window: int = 20,
     n_jobs: int = 6,
 ) -> pd.DataFrame:
@@ -453,6 +479,8 @@ def func_two_daily(
         第二个因子，index为时间，columns为股票代码
     func : Callable
         要对两列数进行操作的函数
+    history : str, optional
+        从某处读取计算好的历史文件
     rolling_window : int, optional
         滚动窗口, by default 20
     n_jobs : int, optional
@@ -474,17 +502,64 @@ def func_two_daily(
             )
             return df
 
-    twins = merge_many([df1, df2])
-    tqdm.tqdm.pandas()
-    corrs = twins.groupby(["code"]).progress_apply(func_rolling)
-    cor = []
-    for i in range(len(corrs)):
-        df = pd.DataFrame(corrs.iloc[i]).dropna().assign(code=corrs.index[i])
-        cor.append(df)
-    cors = pd.concat(cor)
-    cors.columns = ["date", "corr", "code"]
-    cors = cors.pivot(index="date", columns="code", values="corr")
-    return cors
+    homeplace = HomePlace()
+    if history is not None:
+        if os.path.exists(homeplace.update_data_file + history):
+            old = pd.read_feather(homeplace.update_data_file + history)
+            old = old.set_index(list(old.columns)[0])
+            new_end = min(df1.index.max(), df2.index.max())
+            if new_end > old.index.max():
+                old_end = datetime.datetime.strftime(old.index.max(), "%Y%m%d")
+                logger.info(f"上次更新到了{old_end}")
+                df1a = df1[df1.index <= old.index.max()].tail(rolling_window - 1)
+                df1b = df1[df1.index > old.index.max()]
+                df1 = pd.concat([df1a, df1b])
+                df2a = df2[df2.index <= old.index.max()].tail(rolling_window - 1)
+                df2b = df2[df2.index > old.index.max()]
+                df2 = pd.concat([df2a, df2b])
+                twins = merge_many([df1, df2])
+                tqdm.tqdm.pandas()
+                corrs = twins.groupby(["code"]).progress_apply(func_rolling)
+                cor = []
+                for i in range(len(corrs)):
+                    df = (
+                        pd.DataFrame(corrs.iloc[i]).dropna().assign(code=corrs.index[i])
+                    )
+                    cor.append(df)
+                cors = pd.concat(cor)
+                cors.columns = ["date", "corr", "code"]
+                cors = cors.pivot(index="date", columns="code", values="corr")
+                if history is not None:
+                    if os.path.exists(homeplace.update_data_file + history):
+                        cors = pd.concat([old, cors])
+                    cors = drop_duplicates_index(cors)
+                    cors.reset_index().to_feather(homeplace.update_data_file + history)
+                    new_end = datetime.datetime.strftime(cors.index.max(), "%Y%m%d")
+                    logger.info(f"已经更新至{new_end}")
+                return cors
+            else:
+                logger.info(f"已经是最新的了")
+                return old
+        else:
+            logger.info("第一次计算，请耐心等待，计算完成后将存储")
+            twins = merge_many([df1, df2])
+            tqdm.tqdm.pandas()
+            corrs = twins.groupby(["code"]).progress_apply(func_rolling)
+            cor = []
+            for i in range(len(corrs)):
+                df = pd.DataFrame(corrs.iloc[i]).dropna().assign(code=corrs.index[i])
+                cor.append(df)
+            cors = pd.concat(cor)
+            cors.columns = ["date", "corr", "code"]
+            cors = cors.pivot(index="date", columns="code", values="corr")
+            if history is not None:
+                if os.path.exists(homeplace.update_data_file + history):
+                    cors = pd.concat([old, cors])
+                cors = drop_duplicates_index(cors)
+                cors.reset_index().to_feather(homeplace.update_data_file + history)
+                new_end = datetime.datetime.strftime(cors.index.max(), "%Y%m%d")
+                logger.info(f"已经更新至{new_end}")
+            return cors
 
 
 def drop_duplicates_index(new: pd.DataFrame) -> pd.DataFrame:
