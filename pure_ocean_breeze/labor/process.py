@@ -1,4 +1,4 @@
-__updated__ = "2022-10-26 18:52:42"
+__updated__ = "2022-10-27 00:09:03"
 
 import warnings
 
@@ -46,7 +46,7 @@ from pure_ocean_breeze.data.read_data import (
 from pure_ocean_breeze.state.homeplace import HomePlace
 
 homeplace = HomePlace()
-from pure_ocean_breeze.state.states import STATES
+from pure_ocean_breeze.state.states import STATES,is_notebook
 from pure_ocean_breeze.data.database import *
 from pure_ocean_breeze.data.dicts import INDUS_DICT
 from pure_ocean_breeze.data.tools import (
@@ -454,10 +454,16 @@ def long_test_on_industry(
         return ret_long
 
     ret_longs = {k: [] for k in nums}
-    for num in tqdm.tqdm(nums):
-        for code in inds[2:]:
-            df = save_ind(code, num).to_frame(code)
-            ret_longs[num] = ret_longs[num] + [df]
+    if is_notebook():
+        for num in tqdm.tqdm_notebook(nums):
+            for code in inds[2:]:
+                df = save_ind(code, num).to_frame(code)
+                ret_longs[num] = ret_longs[num] + [df]
+    else:
+        for num in tqdm.tqdm(nums):
+            for code in inds[2:]:
+                df = save_ind(code, num).to_frame(code)
+                ret_longs[num] = ret_longs[num] + [df]
 
     indus = indus.resample("M").last().pct_change()
 
@@ -546,9 +552,14 @@ def long_test_on_industry(
             return fi
 
         stocks_longs = {k: {} for k in nums}
-        for num in tqdm.tqdm(nums):
-            for code in inds[2:]:
-                stocks_longs[num][code] = save_ind_stocks(code, num)
+        if is_notebook():
+            for num in tqdm.tqdm_notebook(nums):
+                for code in inds[2:]:
+                    stocks_longs[num][code] = save_ind_stocks(code, num)
+        else:
+            for num in tqdm.tqdm(nums):
+                for code in inds[2:]:
+                    stocks_longs[num][code] = save_ind_stocks(code, num)
 
         for num in nums:
             w1 = pd.ExcelWriter(f"各个{name}一级行业买{num}只的股票名单.xlsx")
@@ -671,7 +682,10 @@ def decap(df: pd.DataFrame, daily: bool = 0, monthly: bool = 0) -> pd.DataFrame:
     `NotImplementedError`
         如果未指定日频或月频，将报错
     """
-    tqdm.tqdm.pandas()
+    if is_notebook():
+        tqdm.tqdm_notebook().pandas()
+    else:
+        tqdm.tqdm.pandas()
     share = read_daily(sharenum=1)
     undi_close = read_daily(close=1, unadjust=1)
     cap = (share * undi_close).stack().reset_index()
@@ -803,7 +817,10 @@ def decap_industry(
     industry_dummy.columns = col
     df = pd.merge(df, industry_dummy, on=["date", "code"])
     df = df.set_index(["date", "code"])
-    tqdm.tqdm.pandas()
+    if is_notebook():
+        tqdm.tqdm_notebook().pandas()
+    else:
+        tqdm.tqdm.pandas()
     df = df.groupby(["date"]).progress_apply(neutralize_factors)
     df = df.unstack()
     df.columns = [i[1] for i in list(df.columns)]
@@ -2289,7 +2306,10 @@ class pure_fall(object):
     def __sub__(self, selfa):
         """用主因子剔除其他相关因子、传统因子等
         selfa可以为多个因子对象组成的元组或列表，每个辅助因子只需要有月度因子文件路径即可"""
-        tqdm.tqdm.pandas()
+        if is_notebook():
+            tqdm.tqdm_notebook().pandas()
+        else:
+            tqdm.tqdm.pandas()
         if not isinstance(selfa, Iterable):
             if not STATES["NO_LOG"]:
                 logger.warning(f"{selfa} is changed into Iterable")
@@ -2538,7 +2558,10 @@ class pure_fallmount(pure_fall):
 
     def __sub__(self, selfa):
         """返回对象，如需表格，请调用对象"""
-        tqdm.tqdm.pandas()
+        if is_notebook():
+            tqdm.tqdm_notebook().pandas()
+        else:
+            tqdm.tqdm.pandas()
         if not isinstance(selfa, Iterable):
             if not STATES["NO_LOG"]:
                 logger.warning(f"{selfa} is changed into Iterable")
@@ -2846,7 +2869,10 @@ class pure_fall_frequent(object):
                     df.num = df.num.astype(int)
                     df.date = df.date.astype(int)
                     df = df.sort_values(["date", "num"])
-                tqdm.tqdm.pandas()
+                if is_notebook():
+                    tqdm.tqdm_notebook().pandas()
+                else:
+                    tqdm.tqdm.pandas()
                 df = df.groupby(["date", "code"]).progress_apply(the_func)
                 df = df.to_frame("fac").reset_index()
                 df.columns = ["date", "code", "fac"]
@@ -2856,54 +2882,55 @@ class pure_fall_frequent(object):
                 to_save = df.stack().reset_index()
                 to_save.columns = ["date", "code", "fac"]
                 self.factor_steps.write_via_csv(to_save, self.factor_file_pinyin)
-        elif tqdm_inside == -1:
-            # 开始计算因子值
-            for date1, date2 in tqdm.tqdm_notebook(cuts, desc="不知乘月几人归，落月摇情满江树。"):
-                if self.clickhouse == 1:
-                    sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{dates[date1] * 100} and date<={dates[date2] * 100} order by code,date,num"
-                else:
-                    sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{dates[date1]} and date<={dates[date2]} order by code,date,num"
-                if show_time:
-                    df = self.chc.get_data_show_time(sql_order)
-                else:
-                    df = self.chc.get_data(sql_order)
-                if self.clickhouse == 1:
-                    df = ((df.set_index("code")) / 100).reset_index()
-                df = df.groupby(["date", "code"]).apply(the_func)
-                df = df.to_frame("fac").reset_index()
-                df.columns = ["date", "code", "fac"]
-                df = df.pivot(columns="code", index="date", values="fac")
-                df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
-                factor_new.append(df)
-                to_save = df.stack().reset_index()
-                to_save.columns = ["date", "code", "fac"]
-                self.factor_steps.write_via_csv(to_save, self.factor_file_pinyin)
         else:
-            # 开始计算因子值
-            for date1, date2 in tqdm.tqdm(cuts, desc="不知乘月几人归，落月摇情满江树。"):
-                if self.clickhouse == 1:
-                    sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{dates[date1] * 100} and date<={dates[date2] * 100} order by code,date,num"
-                else:
-                    sql_order = f"select {fields} from minute_data_{self.kind} where cast(date as int)>{dates[date1]} and cast(date as int)<={dates[date2]}"
-                if show_time:
-                    df = self.chc.get_data_show_time(sql_order)
-                else:
-                    df = self.chc.get_data(sql_order)
-                if self.clickhouse == 1:
-                    df = ((df.set_index("code")) / 100).reset_index()
-                else:
-                    df.num = df.num.astype(int)
-                    df.date = df.date.astype(int)
-                    df = df.sort_values(["date", "num"])
-                df = df.groupby(["date", "code"]).apply(the_func)
-                df = df.to_frame("fac").reset_index()
-                df.columns = ["date", "code", "fac"]
-                df = df.pivot(columns="code", index="date", values="fac")
-                df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
-                factor_new.append(df)
-                to_save = df.stack().reset_index()
-                to_save.columns = ["date", "code", "fac"]
-                self.factor_steps.write_via_csv(to_save, self.factor_file_pinyin)
+            if is_notebook():
+                # 开始计算因子值
+                for date1, date2 in tqdm.tqdm_notebook(cuts, desc="不知乘月几人归，落月摇情满江树。"):
+                    if self.clickhouse == 1:
+                        sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{dates[date1] * 100} and date<={dates[date2] * 100} order by code,date,num"
+                    else:
+                        sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{dates[date1]} and date<={dates[date2]} order by code,date,num"
+                    if show_time:
+                        df = self.chc.get_data_show_time(sql_order)
+                    else:
+                        df = self.chc.get_data(sql_order)
+                    if self.clickhouse == 1:
+                        df = ((df.set_index("code")) / 100).reset_index()
+                    df = df.groupby(["date", "code"]).apply(the_func)
+                    df = df.to_frame("fac").reset_index()
+                    df.columns = ["date", "code", "fac"]
+                    df = df.pivot(columns="code", index="date", values="fac")
+                    df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
+                    factor_new.append(df)
+                    to_save = df.stack().reset_index()
+                    to_save.columns = ["date", "code", "fac"]
+                    self.factor_steps.write_via_csv(to_save, self.factor_file_pinyin)
+            else:
+                # 开始计算因子值
+                for date1, date2 in tqdm.tqdm(cuts, desc="不知乘月几人归，落月摇情满江树。"):
+                    if self.clickhouse == 1:
+                        sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{dates[date1] * 100} and date<={dates[date2] * 100} order by code,date,num"
+                    else:
+                        sql_order = f"select {fields} from minute_data_{self.kind} where cast(date as int)>{dates[date1]} and cast(date as int)<={dates[date2]}"
+                    if show_time:
+                        df = self.chc.get_data_show_time(sql_order)
+                    else:
+                        df = self.chc.get_data(sql_order)
+                    if self.clickhouse == 1:
+                        df = ((df.set_index("code")) / 100).reset_index()
+                    else:
+                        df.num = df.num.astype(int)
+                        df.date = df.date.astype(int)
+                        df = df.sort_values(["date", "num"])
+                    df = df.groupby(["date", "code"]).apply(the_func)
+                    df = df.to_frame("fac").reset_index()
+                    df.columns = ["date", "code", "fac"]
+                    df = df.pivot(columns="code", index="date", values="fac")
+                    df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
+                    factor_new.append(df)
+                    to_save = df.stack().reset_index()
+                    to_save.columns = ["date", "code", "fac"]
+                    self.factor_steps.write_via_csv(to_save, self.factor_file_pinyin)
         factor_new = pd.concat(factor_new)
         return factor_new
 
@@ -3135,7 +3162,10 @@ class pure_fall_flexible(object):
                         df = self.chc.get_data(sql_order)
                     if self.clickhouse == 1:
                         df = ((df.set_index("code")) / 100).reset_index()
-                    tqdm.tqdm.pandas()
+                    if is_notebook():
+                        tqdm.tqdm_notebook().pandas()
+                    else:
+                        tqdm.tqdm.pandas()
                     df = the_func(df)
                     if isinstance(df, pd.Series):
                         df = df.reset_index()
@@ -3673,7 +3703,10 @@ class pure_dawn(object):
 
     def get_monthly_factor(self, func):
         """运行自己写的函数，获得月度因子"""
-        tqdm.tqdm.pandas(desc="when the dawn comes, tonight will be a memory too.")
+        if is_notebook():
+            tqdm.tqdm_notebook().pandas()
+        else:
+            tqdm.tqdm.pandas(desc="when the dawn comes, tonight will be a memory too.")
         self.fac = self.fac.groupby(["code"]).progress_apply(
             lambda x: self.make_monthly_factors_single_code(x, func)
         )
@@ -4000,7 +4033,10 @@ class pure_fama(object):
             if factors_names is not None:
                 factors_names = ["市场"] + factors_names
         self.__data = self.make_df(self.rets, self.__factors_rets)
-        tqdm.tqdm.pandas()
+        if is_notebook():
+            tqdm.tqdm_notebook().pandas()
+        else:
+            tqdm.tqdm.pandas()
         self.__coefficients = (
             self.__data.groupby("code").progress_apply(self.ols_in).reset_index()
         )
@@ -4157,7 +4193,10 @@ class pure_rollingols(object):
         xs = xs.set_index("date")
         self.__data = xs
         self.haha = xs
-        tqdm.tqdm.pandas()
+        if is_notebook():
+            tqdm.tqdm_notebook().pandas()
+        else:
+            tqdm.tqdm.pandas()
         self.__coefficients = (
             self.__data.groupby("code").progress_apply(self.ols_in).reset_index()
         )

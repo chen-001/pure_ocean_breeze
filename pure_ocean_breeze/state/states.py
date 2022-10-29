@@ -2,7 +2,7 @@
 一些默认的参数
 """
 
-__updated__ = "2022-09-19 17:34:19"
+__updated__ = "2022-10-26 23:54:58"
 
 STATES = {
     "NO_LOG": False,
@@ -18,3 +18,15 @@ STATES = {
 
 COMMENTS_WRITER=None
 NET_VALUES_WRITER=None
+
+def is_notebook() -> bool:
+    try:
+        shell = get_ipython().__class__.__name__
+        if shell == 'ZMQInteractiveShell':
+            return True   # Jupyter notebook or qtconsole
+        elif shell == 'TerminalInteractiveShell':
+            return False  # Terminal running IPython
+        else:
+            return False  # Other type (?)
+    except NameError:
+        return False

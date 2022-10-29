@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2022-10-26 18:51:43"
+__updated__ = "2022-10-27 11:19:56"
 
 import os
 import h5py
@@ -24,6 +24,7 @@ try:
 except Exception:
     print("暂时未连接米筐")
 from pure_ocean_breeze.state.homeplace import HomePlace
+from pure_ocean_breeze.state.states import is_notebook
 
 
 def read_h5(path: str) -> dict:
@@ -518,7 +519,11 @@ def func_two_daily(
                 df2b = df2[df2.index > old.index.max()]
                 df2 = pd.concat([df2a, df2b])
                 twins = merge_many([df1, df2])
-                tqdm.tqdm.pandas()
+
+                if is_notebook():
+                    tqdm.tqdm_notebook().pandas()
+                else:
+                    tqdm.tqdm.pandas()
                 corrs = twins.groupby(["code"]).progress_apply(func_rolling)
                 cor = []
                 for i in range(len(corrs)):
@@ -543,7 +548,10 @@ def func_two_daily(
         else:
             logger.info("第一次计算，请耐心等待，计算完成后将存储")
             twins = merge_many([df1, df2])
-            tqdm.tqdm.pandas()
+            if is_notebook():
+                tqdm.tqdm_notebook().pandas()
+            else:
+                tqdm.tqdm.pandas()
             corrs = twins.groupby(["code"]).progress_apply(func_rolling)
             cor = []
             for i in range(len(corrs)):

@@ -1,5 +1,8 @@
 ## 更新日志🗓 — v3
 
+* v3.4.2 — 2022.10.29
+> 1. 新增了is_notebook函数，可以判断当前环境是否为notebook
+> 1. 将除write_data模块以外，其他模块的进度条，都改为可以自动识别环境为notebook，如果是notebook，则自动使用tqdm_notebook的进度条
 * v3.4.1 — 2022.10.26
 > 1. 给func_two_daily、corr_two_daily、cov_two_daily增加了history参数，用于将计算出的结果记录在本地
 > 1. 给show_corrs、show_corrs_with_old函数增加了method参数，可以修改求相关系数的方式
