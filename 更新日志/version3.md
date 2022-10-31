@@ -1,5 +1,8 @@
 ## 更新日志🗓 — v3
 
+* v3.4.4 — 2022.10.31
+> 1. 修复了test_on_index_four使用matplotlib画图不显示的bug
+> 1. 新增了择时回测框架pure_star
 * v3.4.3 — 2022.10.31
 > 1. 给read_index_three增加了国证2000指数的行情数据
 > 1. 给make_relative_comments增加了gz2000参数，用于计算相对国证2000指数的超额收益；增加了show_nets参数，用于同时返回多头超额评价指标和超额净值数据

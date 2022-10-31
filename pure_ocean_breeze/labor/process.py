@@ -1,4 +1,4 @@
-__updated__ = "2022-10-31 14:03:58"
+__updated__ = "2022-10-31 23:24:20"
 
 import warnings
 
@@ -4491,13 +4491,13 @@ def test_on_index_four(
     else:
         nets = pd.concat([net300, net500, net1000], axis=1)
         nets.columns = ["300超额", "500超额", "1000超额"]
-    figs = cf.figures(
-        nets,
-        [dict(kind="line", y=list(nets.columns))],
-        asList=True,
-    )
     coms = coms.reset_index()
     if iplot:
+        figs = cf.figures(
+            nets,
+            [dict(kind="line", y=list(nets.columns))],
+            asList=True,
+        )
         coms = coms.rename(columns={list(coms)[0]: "绩效指标"})
         table = FF.create_table(coms.iloc[::-1])
         table.update_yaxes(matches=None)
@@ -4580,9 +4580,168 @@ def test_on_index_four(
         sp["layout"].update(showlegend=True)
         cf.iplot(sp)
     else:
+        nets.plot()
+        plt.show()
         tb = Texttable()
         tb.set_cols_width([8] + [7] + [8] * 2 + [7] * 2 + [8])
         tb.set_cols_dtype(["f"] * 7)
         tb.header(list(coms.T.reset_index().columns))
         tb.add_rows(coms.T.reset_index().to_numpy(), header=True)
         print(tb.draw())
+
+
+class pure_star(object):
+    def __init__(
+        self,
+        fac: pd.Series,
+        code: str = None,
+        price_opens: pd.Series = None,
+        iplot: bool = 1,
+        comments_writer: pd.ExcelWriter = None,
+        net_values_writer: pd.ExcelWriter = None,
+        sheetname: str = None,
+    ):
+        """择时回测框架，输入仓位比例或信号值，依据信号买入对应的股票或指数，并考察绝对收益、超额收益和基准收益
+        回测方式为，t日收盘时获得信号，t+1日开盘时以开盘价买入，t+2开盘时以开盘价卖出
+
+        Parameters
+        ----------
+        fac : pd.Series
+            仓位比例序列，或信号序列，输入信号序列时即为0和1，输入仓位比例时，将每一期的收益按照对应比例缩小
+        code : str, optional
+            回测的资产代码，可以为股票代码或基金代码, by default None
+        price_opens : pd.Series, optional
+            资产的开盘价序列, by default None
+        iplot : bool, optional
+            使用cufflinks呈现回测绩效和走势图, by default 1
+        comments_writer : pd.ExcelWriter, optional
+            绩效评价的存储文件, by default None
+        net_values_writer : pd.ExcelWriter, optional
+            净值序列的存储文件, by default None
+        sheetname : str, optional
+            存储文件的工作表的名字, by default None
+        """        
+        if code is not None:
+            x1 = code.split(".")[0]
+            x2 = code.split(".")[1]
+            if (x1[0] == "0" or x1[:2] == "30") and x2 == "SZ":
+                kind = "stock"
+            elif x1[0] == "6" and x2 == "SH":
+                kind = "stock"
+            else:
+                kind = "index"
+            self.kind = kind
+            if kind == "index":
+                qdb = Questdb()
+                price_opens = qdb.get_data(
+                    f"select date,num,close from minute_data_{kind} where code='{code}'"
+                )
+                price_opens = price_opens[price_opens.num == "1"]
+                price_opens = price_opens.set_index("date").close
+                price_opens.index = pd.to_datetime(price_opens.index, format="%Y%m%d")
+            else:
+                price_opens = read_daily(open=1)[code]
+        price_opens = price_opens[price_opens.index >= fac.index.min()]
+        self.price_opens = price_opens
+        self.price_rets = price_opens.pct_change()
+        self.fac = fac
+        self.fac_rets = (self.fac.shift(2) * self.price_rets).dropna()
+        self.ab_rets = (self.fac_rets - self.price_rets).dropna()
+        self.price_rets = self.price_rets.dropna()
+        self.fac_nets = (1 + self.fac_rets).cumprod()
+        self.ab_nets = (1 + self.ab_rets).cumprod()
+        self.price_nets = (1 + self.price_rets).cumprod()
+        self.fac_nets = self.fac_nets / self.fac_nets.iloc[0]
+        self.ab_nets = self.ab_nets / self.ab_nets.iloc[0]
+        self.price_nets = self.price_nets / self.price_nets.iloc[0]
+        self.fac_comments = comments_on_twins(self.fac_nets, self.fac_rets)
+        self.ab_comments = comments_on_twins(self.ab_nets, self.ab_rets)
+        self.price_comments = comments_on_twins(self.price_nets, self.price_rets)
+        self.total_comments = pd.concat(
+            [self.fac_comments, self.ab_comments, self.price_comments], axis=1
+        )
+        self.total_nets = pd.concat(
+            [self.fac_nets, self.ab_nets, self.price_nets], axis=1
+        )
+        self.total_rets = pd.concat(
+            [self.fac_rets, self.ab_rets, self.price_rets], axis=1
+        )
+        self.total_comments.columns = (
+            self.total_nets.columns
+        ) = self.total_rets.columns = ["因子绝对", "因子超额", "买入持有"]
+        self.total_comments = np.around(self.total_comments, 3)
+        self.iplot = iplot
+        self.plot()
+        if comments_writer is None and sheetname is not None:
+            from pure_ocean_breeze.state.states import COMMENTS_WRITER
+
+            comments_writer = COMMENTS_WRITER
+            self.total_comments.to_excel(comments_writer, sheet_name=sheetname)
+        if net_values_writer is None and sheetname is not None:
+            from pure_ocean_breeze.state.states import NET_VALUES_WRITER
+
+            net_values_writer = NET_VALUES_WRITER
+            self.total_nets.to_excel(net_values_writer, sheet_name=sheetname)
+
+    def plot(self):
+        coms = self.total_comments.copy().reset_index()
+        if self.iplot:
+            figs = cf.figures(
+                self.total_nets,
+                [dict(kind="line", y=list(self.total_nets.columns))],
+                asList=True,
+            )
+            coms = coms.rename(columns={list(coms)[0]: "绩效指标"})
+            table = FF.create_table(coms.iloc[::-1])
+            table.update_yaxes(matches=None)
+            figs.append(table)
+            figs = [figs[-1]] + figs[:-1]
+            figs[1].update_layout(
+                legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
+            )
+            base_layout = cf.tools.get_base_layout(figs)
+            sp = cf.subplots(
+                figs,
+                shape=(2, 10),
+                base_layout=base_layout,
+                vertical_spacing=0.15,
+                horizontal_spacing=0.03,
+                shared_yaxes=False,
+                specs=[
+                    [
+                        None,
+                        {"rowspan": 2, "colspan": 3},
+                        None,
+                        None,
+                        {"rowspan": 2, "colspan": 6},
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                    ],
+                    [
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                    ],
+                ],
+            )
+            sp["layout"].update(showlegend=True)
+            cf.iplot(sp)
+        else:
+            self.total_nets.plot()
+            plt.show()
+            tb = Texttable()
+            tb.set_cols_width([8] + [7] + [8] * 2 + [7] * 2 + [8])
+            tb.set_cols_dtype(["f"] * 7)
+            tb.header(list(coms.T.reset_index().columns))
+            tb.add_rows(coms.T.reset_index().to_numpy(), header=True)
+            print(tb.draw())
