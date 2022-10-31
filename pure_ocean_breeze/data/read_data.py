@@ -1,4 +1,4 @@
-__updated__ = "2022-10-30 20:50:08"
+__updated__ = "2022-11-01 00:21:14"
 
 import os
 import numpy as np
@@ -215,8 +215,9 @@ def read_daily(
             df = df.set_index(list(df.columns)[0])
         elif low:
             lows = pd.read_feather(homeplace.daily_data_file + "lows.feather")
-            df = df.set_index(list(df.columns)[0])
             df = lows
+            df = df.set_index(list(df.columns)[0])
+            
         else:
             raise IOError("阁下总得读点什么吧？🤒")
     df = df[df.index >= pd.Timestamp(str(start))]

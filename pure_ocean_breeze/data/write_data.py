@@ -1,4 +1,4 @@
-__updated__ = "2022-10-07 19:02:49"
+__updated__ = "2022-11-01 00:20:59"
 
 try:
     import rqdatac
@@ -756,7 +756,6 @@ def database_update_daily_files() -> None:
     part4_0 = part4_0[part4_0.index.isin(list(part2_new.columns))]
     part4_0 = part4_0.T
     part4_0 = part4_0[closes.columns]
-    part4_0 = part4_0.drop_duplicates()
     part4_0 = drop_duplicates_index(part4_0)
     part4_0 = part4_0[sorted(list(part4_0.columns))]
     part4_0.reset_index().to_feather(homeplace.daily_data_file + "sts.feather")

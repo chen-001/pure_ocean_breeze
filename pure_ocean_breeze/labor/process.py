@@ -1,4 +1,4 @@
-__updated__ = "2022-10-31 23:24:20"
+__updated__ = "2022-11-01 01:04:04"
 
 import warnings
 
@@ -1339,7 +1339,8 @@ class pure_moon(object):
         """把日度的交易状态、st、上市天数，转化为月度的，并生成能否交易的判断
         读取本地已经算好的文件，并追加新的时间段部分，如果本地没有就直接全部重新算"""
         try:
-            month_df = pd.read_feather(path).set_index("index")
+            month_df = pd.read_feather(path)
+            month_df = month_df.set_index(list(month_df.columns)[0])
             month_df = cls.read_add(pridf, month_df, func)
             month_df.reset_index().to_feather(path)
         except Exception as e:
@@ -2906,7 +2907,6 @@ class pure_fall_frequent(object):
             func=func,
             fields=fields,
             show_time=show_time,
-            tqdm_inside=tqdm_inside,
         )
         factor_new.append(df_first)
         to_save = df_first.stack().reset_index()
@@ -3010,7 +3010,6 @@ class pure_fall_frequent(object):
                 func=func,
                 fields=fields,
                 show_time=show_time,
-                tqdm_inside=tqdm_inside,
             )
         else:
             res = self.select_many_calculate(
@@ -3320,6 +3319,7 @@ class pure_fall_flexible(object):
 
 class pure_coldwinter(object):
     # DONE: 可以自由添加其他要剔除的因子，或者替换某些要剔除的因子
+
     def __init__(
         self,
         facs_dict: dict = None,
@@ -3445,6 +3445,7 @@ class pure_coldwinter(object):
         df = df.resample("M").last()
         return df
 
+    
     def get_monthly_barras_industrys(self):
         """将barra因子和行业哑变量变成月度数据"""
         for key, value in self.barras.items():
@@ -4620,7 +4621,7 @@ class pure_star(object):
             净值序列的存储文件, by default None
         sheetname : str, optional
             存储文件的工作表的名字, by default None
-        """        
+        """
         if code is not None:
             x1 = code.split(".")[0]
             x2 = code.split(".")[1]
