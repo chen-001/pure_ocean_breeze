@@ -1,4 +1,4 @@
-__updated__ = "2022-10-01 11:23:30"
+__updated__ = "2022-10-30 20:50:08"
 
 import os
 import numpy as np
@@ -411,16 +411,18 @@ def read_index_three(day: int = None) -> tuple[pd.DataFrame]:
     if day is None:
         day = STATES["START"]
 
-    hs300, zz500, zz1000 = (
+    hs300, zz500, zz1000, zz2000 = (
         read_index_single("000300.SH").resample("M").last(),
         read_index_single("000905.SH").resample("M").last(),
         read_index_single("000852.SH").resample("M").last(),
+        read_index_single("399303.SZ").resample("M").last(),
     )
     hs300 = hs300[hs300.index >= pd.Timestamp(str(day))]
     zz500 = zz500[zz500.index >= pd.Timestamp(str(day))]
     zz1000 = zz1000[zz1000.index >= pd.Timestamp(str(day))]
+    zz2000 = zz2000[zz2000.index >= pd.Timestamp(str(day))]
 
-    return hs300, zz500, zz1000
+    return hs300, zz500, zz1000, zz2000
 
 
 def read_swindustry_prices(

@@ -1,4 +1,4 @@
-__updated__ = "2022-09-20 09:49:30"
+__updated__ = "2022-10-31 13:34:42"
 
 import numpy as np
 import pandas as pd
@@ -129,7 +129,9 @@ def make_relative_comments(
     hs300: bool = 0,
     zz500: bool = 0,
     zz1000: bool = 0,
+    gz2000: bool = 0,
     day: int = None,
+    show_nets: bool = 0,
 ) -> pd.Series:
     """对于一个给定的收益率序列，计算其相对于某个指数的超额表现
 
@@ -143,8 +145,12 @@ def make_relative_comments(
         为1则相对中证500指数行情, by default 0
     zz1000 : bool, optional
         为1则相对中证1000指数行情, by default 0
+    gz2000 : bool, optional
+        为1则相对国证2000指数行情, by default 0
     day : int, optional
         起始日期，形如20130101, by default None
+    show_nets : bool, optional
+        返回值中包括超额净值数据, by default 0
 
     Returns
     -------
@@ -162,6 +168,8 @@ def make_relative_comments(
         net_index = read_index_three(day=day)[1]
     elif zz1000:
         net_index = read_index_three(day=day)[2]
+    elif gz2000:
+        net_index = read_index_three(day=day)[3]
     else:
         raise IOError("你总得指定一个股票池吧？")
     ret_index = net_index.pct_change()
@@ -173,7 +181,10 @@ def make_relative_comments(
     net = pd.concat([ntop, net]).resample("M").last()
     ret = pd.concat([rtop, ret]).resample("M").last()
     com = comments_on_twins(net, ret)
-    return com
+    if show_nets:
+        return com, net
+    else:
+        return com
 
 
 def make_relative_comments_plot(
@@ -181,6 +192,7 @@ def make_relative_comments_plot(
     hs300: bool = 0,
     zz500: bool = 0,
     zz1000: bool = 0,
+    gz2000: bool = 0,
     day: int = None,
 ) -> pd.Series:
     """对于一个给定的收益率序列，计算其相对于某个指数的超额表现，然后绘图，并返回超额净值序列
@@ -195,6 +207,8 @@ def make_relative_comments_plot(
         为1则相对中证500指数行情, by default 0
     zz1000 : bool, optional
         为1则相对中证1000指数行情, by default 0
+    gz2000 : bool, optional
+        为1则相对国证2000指数行情, by default 0
     day : int, optional
         起始日期，形如20130101, by default None
 
@@ -214,6 +228,8 @@ def make_relative_comments_plot(
         net_index = read_index_three(day=day)[1]
     elif zz1000:
         net_index = read_index_three(day=day)[2]
+    elif gz2000:
+        net_index = read_index_three(day=day)[3]
     else:
         raise IOError("你总得指定一个股票池吧？")
     ret_index = net_index.pct_change()
@@ -228,9 +244,6 @@ def make_relative_comments_plot(
     net.plot(rot=60)
     plt.show()
     return net
-
-
-
 
 
 def other_periods_comments_nets(

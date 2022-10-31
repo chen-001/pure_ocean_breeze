@@ -1,4 +1,4 @@
-__updated__ = "2022-10-27 00:09:03"
+__updated__ = "2022-10-31 14:03:58"
 
 import warnings
 
@@ -46,7 +46,7 @@ from pure_ocean_breeze.data.read_data import (
 from pure_ocean_breeze.state.homeplace import HomePlace
 
 homeplace = HomePlace()
-from pure_ocean_breeze.state.states import STATES,is_notebook
+from pure_ocean_breeze.state.states import STATES, is_notebook
 from pure_ocean_breeze.data.database import *
 from pure_ocean_breeze.data.dicts import INDUS_DICT
 from pure_ocean_breeze.data.tools import (
@@ -979,7 +979,11 @@ def market_kind(
 
 
 def show_corr(
-    fac1: pd.DataFrame, fac2: pd.DataFrame, method: str = "spearman", plt_plot: bool = 1
+    fac1: pd.DataFrame,
+    fac2: pd.DataFrame,
+    method: str = "spearman",
+    plt_plot: bool = 1,
+    show_series: bool = 0,
 ) -> float:
     """展示两个因子的截面相关性
 
@@ -993,6 +997,8 @@ def show_corr(
         计算相关系数的方法, by default "spearman"
     plt_plot : bool, optional
         是否画出相关系数的时序变化图, by default 1
+    show_series : bool, optional
+        返回相关性的序列，而非均值
 
     Returns
     -------
@@ -1005,10 +1011,13 @@ def show_corr(
     befo1.columns = ["date", "code", "befo"]
     twins = pd.merge(both1, befo1, on=["date", "code"]).set_index(["date", "code"])
     corr = twins.groupby("date").apply(lambda x: x.corr(method=method).iloc[0, 1])
-    if plt_plot:
-        corr.plot(rot=60)
-        plt.show()
-    return corr.mean()
+    if show_series:
+        return corr
+    else:
+        if plt_plot:
+            corr.plot(rot=60)
+            plt.show()
+        return corr.mean()
 
 
 def show_corrs(
@@ -1016,7 +1025,7 @@ def show_corrs(
     factor_names: list[str] = None,
     print_bool: bool = True,
     show_percent: bool = True,
-    method: str='spearman',
+    method: str = "spearman",
 ) -> pd.DataFrame:
     """展示很多因子两两之间的截面相关性
 
@@ -1042,7 +1051,7 @@ def show_corrs(
     for i in range(len(factors)):
         main_i = factors[i]
         follows = factors[i + 1 :]
-        corr = [show_corr(main_i, i, plt_plot=False,method=method) for i in follows]
+        corr = [show_corr(main_i, i, plt_plot=False, method=method) for i in follows]
         corr = [np.nan] * (i + 1) + corr
         corrs.append(corr)
     if factor_names is None:
@@ -1082,7 +1091,9 @@ def de_cross(
     return (y - xs)()
 
 
-def show_corrs_with_old(df:pd.DataFrame=None,method:str='spearman')->pd.DataFrame:
+def show_corrs_with_old(
+    df: pd.DataFrame = None, method: str = "spearman"
+) -> pd.DataFrame:
     """计算新因子和已有因子的相关系数
 
     Parameters
@@ -1097,27 +1108,31 @@ def show_corrs_with_old(df:pd.DataFrame=None,method:str='spearman')->pd.DataFram
     pd.DataFrame
         相关系数矩阵
     """
-    if df is not None:    
-        df0=df.resample('M').last()
-        if df.shape[0]/df0.shape[0]>2:
-            daily=1
+    if df is not None:
+        df0 = df.resample("M").last()
+        if df.shape[0] / df0.shape[0] > 2:
+            daily = 1
         else:
-            daily=0
-    olds=[]
-    for i in range(1,100):
+            daily = 0
+    olds = []
+    for i in range(1, 100):
         try:
             if daily:
-                old=database_read_final_factors(order=i)[0]
+                old = database_read_final_factors(order=i)[0]
             else:
-                old=database_read_final_factors(order=i)[0].resample('M').last()
+                old = database_read_final_factors(order=i)[0].resample("M").last()
             olds.append(old)
         except Exception:
             break
     if df is not None:
-        olds=[df]+olds
-        corrs=show_corrs(olds,['new']+[f'old{i}' for i in range(1,len(olds))],method=method)
+        olds = [df] + olds
+        corrs = show_corrs(
+            olds, ["new"] + [f"old{i}" for i in range(1, len(olds))], method=method
+        )
     else:
-        corrs=show_corrs(olds,[f'old{i}' for i in range(1,len(olds))],method=method)
+        corrs = show_corrs(
+            olds, [f"old{i}" for i in range(1, len(olds))], method=method
+        )
     return corrs
 
 
@@ -1178,50 +1193,72 @@ class pure_moon(object):
         "factor_turnover_rate",
         "group_rets_std",
         "group_rets_stds",
-        "wind_out"
+        "wind_out",
+        "swindustry_dummy",
+        "zxindustry_dummy",
+        "closes2_monthly",
+        "rets_monthly_last",
     ]
 
     @classmethod
     @lru_cache(maxsize=None)
-    def __init__(cls, no_read_indu: bool = 0):
+    def __init__(
+        cls,
+        no_read_indu: bool = 0,
+        swindustry_dummy: pd.DataFrame = None,
+        zxindustry_dummy: pd.DataFrame = None,
+    ):
         cls.homeplace = HomePlace()
         # 已经算好的月度st状态文件
         cls.sts_monthly_file = homeplace.daily_data_file + "sts_monthly.feather"
         # 已经算好的月度交易状态文件
         cls.states_monthly_file = homeplace.daily_data_file + "states_monthly.feather"
 
-        if not no_read_indu:
-            cls.swindustry_dummy = (
-                pd.read_feather(cls.homeplace.daily_data_file + "申万行业2021版哑变量.feather")
-                .fillna(0)
-                .set_index("date")
-                .groupby("code")
-                .resample("M")
-                .last()
-            )
+        if swindustry_dummy is not None:
+            cls.swindustry_dummy = swindustry_dummy
+        if zxindustry_dummy is not None:
+            cls.zxindustry_dummy = zxindustry_dummy
 
-            cls.zxindustry_dummy = (
-                pd.read_feather(cls.homeplace.daily_data_file + "中信一级行业哑变量代码版.feather")
-                .fillna(0)
-                .set_index("date")
-                .groupby("code")
-                .resample("M")
-                .last()
-                .fillna(0)
-            )
+        if (swindustry_dummy is None) and (zxindustry_dummy is None):
 
-            def deal_dummy(industry_dummy):
-                industry_dummy = industry_dummy.drop(columns=["code"]).reset_index()
-                industry_ws = [f"w{i}" for i in range(1, industry_dummy.shape[1] - 1)]
-                col = ["code", "date"] + industry_ws
-                industry_dummy.columns = col
-                industry_dummy = industry_dummy[
-                    industry_dummy.date >= pd.Timestamp("20100101")
-                ]
-                return industry_dummy
+            if not no_read_indu:
+                cls.swindustry_dummy = (
+                    pd.read_feather(
+                        cls.homeplace.daily_data_file + "申万行业2021版哑变量.feather"
+                    )
+                    .fillna(0)
+                    .set_index("date")
+                    .groupby("code")
+                    .resample("M")
+                    .last()
+                )
 
-            cls.swindustry_dummy = deal_dummy(cls.swindustry_dummy)
-            cls.zxindustry_dummy = deal_dummy(cls.zxindustry_dummy)
+                cls.zxindustry_dummy = (
+                    pd.read_feather(
+                        cls.homeplace.daily_data_file + "中信一级行业哑变量代码版.feather"
+                    )
+                    .fillna(0)
+                    .set_index("date")
+                    .groupby("code")
+                    .resample("M")
+                    .last()
+                    .fillna(0)
+                )
+
+                def deal_dummy(industry_dummy):
+                    industry_dummy = industry_dummy.drop(columns=["code"]).reset_index()
+                    industry_ws = [
+                        f"w{i}" for i in range(1, industry_dummy.shape[1] - 1)
+                    ]
+                    col = ["code", "date"] + industry_ws
+                    industry_dummy.columns = col
+                    industry_dummy = industry_dummy[
+                        industry_dummy.date >= pd.Timestamp("20100101")
+                    ]
+                    return industry_dummy
+
+                cls.swindustry_dummy = deal_dummy(cls.swindustry_dummy)
+                cls.zxindustry_dummy = deal_dummy(cls.zxindustry_dummy)
 
     @property
     def factors_out(self):
@@ -1464,7 +1501,6 @@ class pure_moon(object):
         cls.limit_ups = cls.find_limit(cls.rets_monthly_begin, up=1)
         cls.limit_downs = cls.find_limit(cls.rets_monthly_last, up=-1)
 
-    @classmethod
     def get_ic_rankic(cls, df):
         """计算IC和RankIC"""
         df1 = df[["ret", "fac"]]
@@ -1473,7 +1509,6 @@ class pure_moon(object):
         df2 = pd.DataFrame({"ic": [ic], "rankic": [rankic]})
         return df2
 
-    @classmethod
     def get_icir_rankicir(cls, df):
         """计算ICIR和RankICIR"""
         ic = df.ic.mean()
@@ -1485,7 +1520,6 @@ class pure_moon(object):
             index=["评价指标"],
         )
 
-    @classmethod
     def get_ic_icir_and_rank(cls, df):
         """计算IC、ICIR、RankIC、RankICIR"""
         df1 = df.groupby("date").apply(cls.get_ic_rankic)
@@ -1552,7 +1586,7 @@ class pure_moon(object):
         self.data = self.data.groupby("date").apply(
             lambda x: self.get_groups(x, groups_num)
         )
-        self.wind_out=self.data.copy()
+        self.wind_out = self.data.copy()
         self.factor_turnover_rates = self.data.pivot(
             index="date", columns="code", values="group"
         )
@@ -2040,6 +2074,8 @@ class pure_moonnight(object):
         opens: pd.DataFrame = None,
         closes: pd.DataFrame = None,
         capitals: pd.DataFrame = None,
+        swindustry_dummy: pd.DataFrame = None,
+        zxindustry_dummy: pd.DataFrame = None,
         no_read_indu: bool = 0,
         only_cap: bool = 0,
         iplot: bool = 1,
@@ -2109,6 +2145,12 @@ class pure_moonnight(object):
             输入股票的复权收盘价数据，index是时间，columns是股票代码，values是价格, by default None
         capitals : pd.DataFrame, optional
             输入股票的每月月末流通市值数据，index是时间，columns是股票代码，values是流通市值, by default None
+        swindustry_dummy : pd.DataFrame, optioanl
+            熟人股票的每月月末的申万一级行业哑变量，表包含33列，第一列为股票代码，名为`code`，第二列为月末最后一天的日期，名为`date`
+            其余31列，为各个行业的哑变量，名为`w1`、`w2`、`w3`……`w31`, by default None
+        zxindustry_dummy : pd.DataFrame, optioanl
+            熟人股票的每月月末的中信一级行业哑变量，表包含32列，第一列为股票代码，名为`code`，第二列为月末最后一天的日期，名为`date`
+            其余30列，为各个行业的哑变量，名为`w1`、`w2`、`w3`……`w30`, by default None
         no_read_indu : bool, optional
             不读入行业数据, by default 0
         only_cap : bool, optional
@@ -2149,8 +2191,9 @@ class pure_moonnight(object):
         if iplot:
             print_comments = 0
         self.shen = pure_moon(
-            # startdate=start,
             no_read_indu=no_read_indu,
+            swindustry_dummy=swindustry_dummy,
+            zxindustry_dummy=zxindustry_dummy,
         )
         self.shen.set_basic_data(
             age=ages,
@@ -2654,6 +2697,8 @@ class pure_fall_frequent(object):
         kind: str = "stock",
         clickhouse: bool = 0,
         questdb: bool = 0,
+        ignore_history_in_questdb: bool = 0,
+        groupby_target: list = ["date", "code"],
     ) -> None:
         """基于clickhouse的分钟数据，计算因子值，每天的因子值只用到当日的数据
 
@@ -2671,9 +2716,15 @@ class pure_fall_frequent(object):
             使用clickhouse作为数据源，如果postgresql与本参数都为0，将依然从clickhouse中读取, by default 0
         questdb : bool, optional
             使用questdb作为数据源, by default 0
+        ignore_history_in_questdb : bool, optional
+            打断后重新从头计算，清除在questdb中的记录
+        groupby_target: list, optional
+            groupby计算时，分组的依据，使用此参数时，自定义函数的部分，如果指定按照['date']分组groupby计算，
+            则返回时，应当返回一个两列的dataframe，第一列为股票代码，第二列为为因子值, by default ['date','code']
         """
         homeplace = HomePlace()
         self.kind = kind
+        self.groupby_target = groupby_target
         if clickhouse == 0 and questdb == 0:
             clickhouse = 1
         self.clickhouse = clickhouse
@@ -2702,7 +2753,7 @@ class pure_fall_frequent(object):
             # 已经算好的日子
             dates_old = sorted(list(factor_old.index.strftime("%Y%m%d").astype(int)))
             self.dates_old = dates_old
-        elif self.factor_file_pinyin in list(
+        elif (not ignore_history_in_questdb) and self.factor_file_pinyin in list(
             self.factor_steps.get_data("show tables").table
         ):
             logger.info(
@@ -2731,7 +2782,18 @@ class pure_fall_frequent(object):
             # 已经算好的日子
             dates_old = sorted(list(factor_old.index.strftime("%Y%m%d").astype(int)))
             self.dates_old = dates_old
-
+        elif ignore_history_in_questdb and self.factor_file_pinyin in list(
+            self.factor_steps.get_data("show tables").table
+        ):
+            logger.info(
+                f"上次计算途中被打断，已经将数据备份在questdb数据库的表{self.factor_file_pinyin}中，但您选择重新计算，所以正在删除原来的数据，从头计算"
+            )
+            factor_old = self.factor_steps.do_order(
+                f"drop table {self.factor_file_pinyin}"
+            )
+            self.factor_old = None
+            self.dates_old = []
+            logger.info("删除完毕，正在重新计算")
         else:
             self.factor_old = None
             self.dates_old = []
@@ -2791,7 +2853,6 @@ class pure_fall_frequent(object):
         func: Callable,
         fields: str = "*",
         show_time: bool = 0,
-        tqdm_inside: bool = 0,
     ) -> None:
         the_func = partial(func)
         if not isinstance(date, int):
@@ -2813,7 +2874,7 @@ class pure_fall_frequent(object):
             df.num = df.num.astype(int)
             df.date = df.date.astype(int)
             df = df.sort_values(["date", "num"])
-        df = df.groupby(["date", "code"]).apply(the_func)
+        df = df.groupby(self.groupby_target).apply(the_func)
         df = df.to_frame("fac").reset_index()
         df.columns = ["date", "code", "fac"]
         df = df.pivot(columns="code", index="date", values="fac")
@@ -2873,7 +2934,7 @@ class pure_fall_frequent(object):
                     tqdm.tqdm_notebook().pandas()
                 else:
                     tqdm.tqdm.pandas()
-                df = df.groupby(["date", "code"]).progress_apply(the_func)
+                df = df.groupby(self.groupby_target).progress_apply(the_func)
                 df = df.to_frame("fac").reset_index()
                 df.columns = ["date", "code", "fac"]
                 df = df.pivot(columns="code", index="date", values="fac")
@@ -2896,7 +2957,7 @@ class pure_fall_frequent(object):
                         df = self.chc.get_data(sql_order)
                     if self.clickhouse == 1:
                         df = ((df.set_index("code")) / 100).reset_index()
-                    df = df.groupby(["date", "code"]).apply(the_func)
+                    df = df.groupby(self.groupby_target).apply(the_func)
                     df = df.to_frame("fac").reset_index()
                     df.columns = ["date", "code", "fac"]
                     df = df.pivot(columns="code", index="date", values="fac")
@@ -2922,7 +2983,7 @@ class pure_fall_frequent(object):
                         df.num = df.num.astype(int)
                         df.date = df.date.astype(int)
                         df = df.sort_values(["date", "num"])
-                    df = df.groupby(["date", "code"]).apply(the_func)
+                    df = df.groupby(self.groupby_target).apply(the_func)
                     df = df.to_frame("fac").reset_index()
                     df.columns = ["date", "code", "fac"]
                     df = df.pivot(columns="code", index="date", values="fac")
@@ -4173,7 +4234,7 @@ class pure_rollingols(object):
             滚动回归的时间窗口, by default 20
         factors_names : list[str], optional
             xs中，每个因子的名字, by default None
-        """        
+        """
         self.backsee = backsee
         self.y = y
         if not isinstance(xs, list):
@@ -4274,7 +4335,14 @@ class pure_rollingols(object):
             ...
 
 
-def test_on_300500(df:pd.DataFrame,hs300:bool=0,zz500:bool=0,zz1000:bool=0,iplot:bool=1)->pd.Series:
+def test_on_300500(
+    df: pd.DataFrame,
+    hs300: bool = 0,
+    zz500: bool = 0,
+    zz1000: bool = 0,
+    gz2000: bool = 0,
+    iplot: bool = 1,
+) -> pd.Series:
     """对因子在指数成分股内进行多空和多头测试
 
     Parameters
@@ -4287,6 +4355,8 @@ def test_on_300500(df:pd.DataFrame,hs300:bool=0,zz500:bool=0,zz1000:bool=0,iplot
         在中证500成分股内测试, by default 0
     zz1000 : bool, optional
         在中证1000成分股内测试, by default 0
+    gz1000 : bool, optional
+        在国证2000成分股内测试, by default 0
     iplot : bol,optional
         多空回测的时候，是否使用cufflinks绘画
 
@@ -4294,20 +4364,55 @@ def test_on_300500(df:pd.DataFrame,hs300:bool=0,zz500:bool=0,zz1000:bool=0,iplot
     -------
     pd.Series
         多头组在该指数上的超额收益序列
-    """    
-    fi300=daily_factor_on300500(df,hs300=hs300,zz500=zz500,zz1000=zz1000)
-    shen=pure_moonnight(fi300,iplot=iplot)
-    if shen.shen.group_net_values.group1.iloc[-1]>shen.shen.group_net_values.group10.iloc[-1]:
-        print(make_relative_comments(shen.shen.group_rets.group1,hs300=hs300,zz500=zz500,zz1000=zz1000))
-        abrets=make_relative_comments_plot(shen.shen.group_rets.group1,hs300=hs300,zz500=zz500,zz1000=zz1000)
+    """
+    fi300 = daily_factor_on300500(
+        df, hs300=hs300, zz500=zz500, zz1000=zz1000, gz2000=gz2000
+    )
+    shen = pure_moonnight(fi300, iplot=iplot)
+    if (
+        shen.shen.group_net_values.group1.iloc[-1]
+        > shen.shen.group_net_values.group10.iloc[-1]
+    ):
+        print(
+            make_relative_comments(
+                shen.shen.group_rets.group1,
+                hs300=hs300,
+                zz500=zz500,
+                zz1000=zz1000,
+                gz2000=gz2000,
+            )
+        )
+        abrets = make_relative_comments_plot(
+            shen.shen.group_rets.group1,
+            hs300=hs300,
+            zz500=zz500,
+            zz1000=zz1000,
+            gz2000=gz2000,
+        )
         return abrets
     else:
-        print(make_relative_comments(shen.shen.group_rets.group10,hs300=hs300,zz500=zz500,zz1000=zz1000))
-        abrets=make_relative_comments_plot(shen.shen.group_rets.group10,hs300=hs300,zz500=zz500,zz1000=zz1000)
+        print(
+            make_relative_comments(
+                shen.shen.group_rets.group10,
+                hs300=hs300,
+                zz500=zz500,
+                zz1000=zz1000,
+                gz2000=gz2000,
+            )
+        )
+        abrets = make_relative_comments_plot(
+            shen.shen.group_rets.group10,
+            hs300=hs300,
+            zz500=zz500,
+            zz1000=zz1000,
+            gz2000=gz2000,
+        )
         return abrets
-    
-    
-def test_on_index_four(df:pd.DataFrame,iplot:bool=1,gz2000:bool=0)->pd.DataFrame:
+
+
+def test_on_index_four(
+    df: pd.DataFrame, iplot: bool = 1, gz2000: bool = 0, boxcox: bool = 1
+) -> pd.DataFrame:
     """对因子同时在沪深300、中证500、中证1000、国证2000这4个指数成分股内进行多空和多头超额测试
 
     Parameters
@@ -4318,19 +4423,166 @@ def test_on_index_four(df:pd.DataFrame,iplot:bool=1,gz2000:bool=0)->pd.DataFrame
         多空回测的时候，是否使用cufflinks绘画
     gz2000 : bool, optional
         是否进行国证2000上的测试, by default 0
+    boxcox : bool, optional
+        是否进行行业市值中性化处理, by default 1
 
     Returns
     -------
     pd.DataFrame
         多头组在各个指数上的超额收益序列
-    """    
-    abrets300=test_on_300500(df,hs300=1,iplot=iplot).to_frame('沪深300')
-    abrets500=test_on_300500(df,zz500=1,iplot=iplot).to_frame('中证500')
-    abrets1000=test_on_300500(df,zz1000=1,iplot=iplot).to_frame('中证1000')
-    if gz2000:
-        abrets2000=test_on_300500(df,gz2000=1,iplot=iplot).to_frame('国证2000')
-        abrs=pd.concat([abrets300,abrets500,abrets1000,abrets2000],axis=1)
+    """
+    fi300 = daily_factor_on300500(df, hs300=1)
+    shen = pure_moonnight(fi300, iplot=iplot, boxcox=boxcox)
+    if (
+        shen.shen.group_net_values.group1.iloc[-1]
+        > shen.shen.group_net_values.group10.iloc[-1]
+    ):
+        com300, net300 = make_relative_comments(
+            shen.shen.group_rets.group1, hs300=1, show_nets=1
+        )
+        fi500 = daily_factor_on300500(df, zz500=1)
+        shen = pure_moonnight(fi500, iplot=iplot, boxcox=boxcox)
+        com500, net500 = make_relative_comments(
+            shen.shen.group_rets.group1, zz500=1, show_nets=1
+        )
+        fi1000 = daily_factor_on300500(df, zz1000=1)
+        shen = pure_moonnight(fi1000, iplot=iplot, boxcox=boxcox)
+        com1000, net1000 = make_relative_comments(
+            shen.shen.group_rets.group1, zz1000=1, show_nets=1
+        )
+        if gz2000:
+            fi2000 = daily_factor_on300500(df, gz2000=1)
+            shen = pure_moonnight(fi2000, iplot=iplot, boxcox=boxcox)
+            com2000, net2000 = make_relative_comments(
+                shen.shen.group_rets.group1, gz2000=1, show_nets=1
+            )
     else:
-        abrs=pd.concat([abrets300,abrets500,abrets1000],axis=1)
-    return abrs
-    
+        com300, net300 = make_relative_comments(
+            shen.shen.group_rets.group10, hs300=1, show_nets=1
+        )
+        fi500 = daily_factor_on300500(df, zz500=1)
+        shen = pure_moonnight(fi500, iplot=iplot, boxcox=boxcox)
+        com500, net500 = make_relative_comments(
+            shen.shen.group_rets.group10, zz500=1, show_nets=1
+        )
+        fi1000 = daily_factor_on300500(df, zz1000=1)
+        shen = pure_moonnight(fi1000, iplot=iplot, boxcox=boxcox)
+        com1000, net1000 = make_relative_comments(
+            shen.shen.group_rets.group10, zz1000=1, show_nets=1
+        )
+        if gz2000:
+            fi2000 = daily_factor_on300500(df, gz2000=1)
+            shen = pure_moonnight(fi2000, iplot=iplot, boxcox=boxcox)
+            com2000, net2000 = make_relative_comments(
+                shen.shen.group_rets.group10, gz2000=1, show_nets=1
+            )
+    com300 = com300.to_frame("300超额")
+    com500 = com500.to_frame("500超额")
+    com1000 = com1000.to_frame("1000超额")
+    if gz2000:
+        com2000 = com2000.to_frame("2000超额")
+        coms = pd.concat([com300, com500, com1000, com2000], axis=1)
+    else:
+        coms = pd.concat([com300, com500, com1000], axis=1)
+    coms = np.around(coms, 3)
+    if gz2000:
+        nets = pd.concat([net300, net500, net1000, net2000], axis=1)
+        nets.columns = ["300超额", "500超额", "1000超额", "2000超额"]
+    else:
+        nets = pd.concat([net300, net500, net1000], axis=1)
+        nets.columns = ["300超额", "500超额", "1000超额"]
+    figs = cf.figures(
+        nets,
+        [dict(kind="line", y=list(nets.columns))],
+        asList=True,
+    )
+    coms = coms.reset_index()
+    if iplot:
+        coms = coms.rename(columns={list(coms)[0]: "绩效指标"})
+        table = FF.create_table(coms.iloc[::-1])
+        table.update_yaxes(matches=None)
+        figs.append(table)
+        figs = [figs[-1]] + figs[:-1]
+        figs[1].update_layout(
+            legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
+        )
+        base_layout = cf.tools.get_base_layout(figs)
+        if gz2000:
+            sp = cf.subplots(
+                figs,
+                shape=(2, 10),
+                base_layout=base_layout,
+                vertical_spacing=0.15,
+                horizontal_spacing=0.03,
+                shared_yaxes=False,
+                specs=[
+                    [
+                        None,
+                        {"rowspan": 2, "colspan": 4},
+                        None,
+                        None,
+                        None,
+                        {"rowspan": 2, "colspan": 5},
+                        None,
+                        None,
+                        None,
+                        None,
+                    ],
+                    [
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                    ],
+                ],
+            )
+        else:
+            sp = cf.subplots(
+                figs,
+                shape=(2, 10),
+                base_layout=base_layout,
+                vertical_spacing=0.15,
+                horizontal_spacing=0.03,
+                shared_yaxes=False,
+                specs=[
+                    [
+                        None,
+                        {"rowspan": 2, "colspan": 3},
+                        None,
+                        None,
+                        {"rowspan": 2, "colspan": 6},
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                    ],
+                    [
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                    ],
+                ],
+            )
+        sp["layout"].update(showlegend=True)
+        cf.iplot(sp)
+    else:
+        tb = Texttable()
+        tb.set_cols_width([8] + [7] + [8] * 2 + [7] * 2 + [8])
+        tb.set_cols_dtype(["f"] * 7)
+        tb.header(list(coms.T.reset_index().columns))
+        tb.add_rows(coms.T.reset_index().to_numpy(), header=True)
+        print(tb.draw())

@@ -1,5 +1,15 @@
 ## 更新日志🗓 — v3
 
+* v3.4.3 — 2022.10.31
+> 1. 给read_index_three增加了国证2000指数的行情数据
+> 1. 给make_relative_comments增加了gz2000参数，用于计算相对国证2000指数的超额收益；增加了show_nets参数，用于同时返回多头超额评价指标和超额净值数据
+> 1. 给make_relative_comments_plot增加了gz2000参数，用于绘制相当于国证2000指数的超额净值走势图
+> 1. 给show_corr增加了show_series参数，将返回值从相关系数的均值改为了相关系数的序列，并取消绘图
+> 1. 给pure_moon和pure_moonnight增加了swindustry_dummy和zxindustry_dummy参数，用于自己输入申万一级行业哑变量数据和中信一级行业哑变量数据
+> 1. 修复了不同回测结果的IC序列相同的bug
+> 1. 给pure_fall_frequent增加了ignore_history_in_questdb的参数，用于被打断后，忽略在questdb中的暂存记录，重新计算；新增了groupby_target参数，用于指定groupby分组计算因子值时，分组的依据（即df.groupby().apply()中groupby里的参数），此改进使得可以进行截面上的构造和计算
+> 1. 给test_on_300500增加了gz2000参数，用于测试在国证2000成分股内的多空和多头超额效果
+> 1. 恢复了test_on_index_four中的gz2000参数，用于测试国证2000成分股内的效果；优化了多头超额的绩效展示，整合了超额净值曲线图与一张上，使用cufflinks进行显示（可以通过iplot参数关闭cufflinks显示）
 * v3.4.2 — 2022.10.29
 > 1. 新增了is_notebook函数，可以判断当前环境是否为notebook
 > 1. 将除write_data模块以外，其他模块的进度条，都改为可以自动识别环境为notebook，如果是notebook，则自动使用tqdm_notebook的进度条
