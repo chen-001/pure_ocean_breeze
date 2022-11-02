@@ -1,4 +1,4 @@
-__updated__ = "2022-11-01 01:04:04"
+__updated__ = "2022-11-02 11:17:32"
 
 import warnings
 
@@ -1005,12 +1005,7 @@ def show_corr(
     `float`
         平均截面相关系数
     """
-    both1 = fac1.stack().reset_index()
-    befo1 = fac2.stack().reset_index()
-    both1.columns = ["date", "code", "both"]
-    befo1.columns = ["date", "code", "befo"]
-    twins = pd.merge(both1, befo1, on=["date", "code"]).set_index(["date", "code"])
-    corr = twins.groupby("date").apply(lambda x: x.corr(method=method).iloc[0, 1])
+    corr = show_x_with_func(fac1, fac2, lambda x: x.corr(method=method).iloc[0, 1])
     if show_series:
         return corr
     else:
@@ -1052,6 +1047,120 @@ def show_corrs(
         main_i = factors[i]
         follows = factors[i + 1 :]
         corr = [show_corr(main_i, i, plt_plot=False, method=method) for i in follows]
+        corr = [np.nan] * (i + 1) + corr
+        corrs.append(corr)
+    if factor_names is None:
+        factor_names = [f"fac{i}" for i in list(range(1, len(factors) + 1))]
+    corrs = pd.DataFrame(corrs, columns=factor_names, index=factor_names)
+    np.fill_diagonal(corrs.to_numpy(), 1)
+    if show_percent:
+        pcorrs = corrs.applymap(to_percent)
+    else:
+        pcorrs = corrs.copy()
+    if print_bool:
+        print(pcorrs)
+    return corrs
+
+
+def show_cov(
+    fac1: pd.DataFrame,
+    fac2: pd.DataFrame,
+    plt_plot: bool = 1,
+    show_series: bool = 0,
+) -> float:
+    """展示两个因子的截面相关性
+
+    Parameters
+    ----------
+    fac1 : pd.DataFrame
+        因子1
+    fac2 : pd.DataFrame
+        因子2
+    method : str, optional
+        计算相关系数的方法, by default "spearman"
+    plt_plot : bool, optional
+        是否画出相关系数的时序变化图, by default 1
+    show_series : bool, optional
+        返回相关性的序列，而非均值
+
+    Returns
+    -------
+    `float`
+        平均截面相关系数
+    """
+    cov = show_x_with_func(fac1, fac2, lambda x: x.cov().iloc[0, 1])
+    if show_series:
+        return cov
+    else:
+        if plt_plot:
+            cov.plot(rot=60)
+            plt.show()
+        return cov.mean()
+
+
+def show_x_with_func(
+    fac1: pd.DataFrame,
+    fac2: pd.DataFrame,
+    func: Callable,
+) -> pd.Series:
+    """展示两个因子的某种截面关系
+
+    Parameters
+    ----------
+    fac1 : pd.DataFrame
+        因子1
+    fac2 : pd.DataFrame
+        因子2
+    func : Callable
+        要对两个因子在截面上的进行的操作
+
+    Returns
+    -------
+    `pd.Series`
+        截面关系
+    """
+    the_func = partial(func)
+    both1 = fac1.stack().reset_index()
+    befo1 = fac2.stack().reset_index()
+    both1.columns = ["date", "code", "both"]
+    befo1.columns = ["date", "code", "befo"]
+    twins = pd.merge(both1, befo1, on=["date", "code"]).set_index(["date", "code"])
+    corr = twins.groupby("date").apply(the_func)
+    return corr
+
+
+def show_covs(
+    factors: list[pd.DataFrame],
+    factor_names: list[str] = None,
+    print_bool: bool = True,
+    show_percent: bool = True,
+    method: str = "spearman",
+) -> pd.DataFrame:
+    """展示很多因子两两之间的截面相关性
+
+    Parameters
+    ----------
+    factors : list[pd.DataFrame]
+        所有因子构成的列表, by default None
+    factor_names : list[str], optional
+        上述因子依次的名字, by default None
+    print_bool : bool, optional
+        是否打印出两两之间相关系数的表格, by default True
+    show_percent : bool, optional
+        是否以百分数的形式展示, by default True
+    method : str, optional
+        计算相关系数的方法, by default "spearman"
+
+    Returns
+    -------
+    `pd.DataFrame`
+        两两之间相关系数的表格
+    """
+    corrs = []
+    for i in range(len(factors)):
+        main_i = factors[i]
+        follows = factors[i + 1 :]
+        corr = [show_cov(main_i, i, plt_plot=False) for i in follows]
         corr = [np.nan] * (i + 1) + corr
         corrs.append(corr)
     if factor_names is None:
@@ -1207,6 +1316,7 @@ class pure_moon(object):
         no_read_indu: bool = 0,
         swindustry_dummy: pd.DataFrame = None,
         zxindustry_dummy: pd.DataFrame = None,
+        read_in_swindustry_dummy: bool = 0,
     ):
         cls.homeplace = HomePlace()
         # 已经算好的月度st状态文件
@@ -1219,19 +1329,31 @@ class pure_moon(object):
         if zxindustry_dummy is not None:
             cls.zxindustry_dummy = zxindustry_dummy
 
+        def deal_dummy(industry_dummy):
+            industry_dummy = industry_dummy.drop(columns=["code"]).reset_index()
+            industry_ws = [f"w{i}" for i in range(1, industry_dummy.shape[1] - 1)]
+            col = ["code", "date"] + industry_ws
+            industry_dummy.columns = col
+            industry_dummy = industry_dummy[
+                industry_dummy.date >= pd.Timestamp("20100101")
+            ]
+            return industry_dummy
+
         if (swindustry_dummy is None) and (zxindustry_dummy is None):
 
             if not no_read_indu:
-                cls.swindustry_dummy = (
-                    pd.read_feather(
-                        cls.homeplace.daily_data_file + "申万行业2021版哑变量.feather"
+                if read_in_swindustry_dummy:
+                    cls.swindustry_dummy = (
+                        pd.read_feather(
+                            cls.homeplace.daily_data_file + "申万行业2021版哑变量.feather"
+                        )
+                        .fillna(0)
+                        .set_index("date")
+                        .groupby("code")
+                        .resample("M")
+                        .last()
                     )
-                    .fillna(0)
-                    .set_index("date")
-                    .groupby("code")
-                    .resample("M")
-                    .last()
-                )
+                    cls.swindustry_dummy = deal_dummy(cls.swindustry_dummy)
 
                 cls.zxindustry_dummy = (
                     pd.read_feather(
@@ -1245,19 +1367,6 @@ class pure_moon(object):
                     .fillna(0)
                 )
 
-                def deal_dummy(industry_dummy):
-                    industry_dummy = industry_dummy.drop(columns=["code"]).reset_index()
-                    industry_ws = [
-                        f"w{i}" for i in range(1, industry_dummy.shape[1] - 1)
-                    ]
-                    col = ["code", "date"] + industry_ws
-                    industry_dummy.columns = col
-                    industry_dummy = industry_dummy[
-                        industry_dummy.date >= pd.Timestamp("20100101")
-                    ]
-                    return industry_dummy
-
-                cls.swindustry_dummy = deal_dummy(cls.swindustry_dummy)
                 cls.zxindustry_dummy = deal_dummy(cls.zxindustry_dummy)
 
     @property
@@ -1757,15 +1866,15 @@ class pure_moon(object):
                 plt.savefig(filename_path)
         else:
             tris = pd.concat(
-                [self.group_net_values, self.rankics, self.factor_turnover_rates],
+                [self.group_net_values, self.factor_turnover_rates, self.rankics],
                 axis=1,
             ).rename(columns={0: "turnover_rate"})
             figs = cf.figures(
                 tris,
                 [
                     dict(kind="line", y=list(self.group_net_values.columns)),
-                    dict(kind="bar", y="rankic"),
                     dict(kind="line", y="turnover_rate"),
+                    dict(kind="bar", y="rankic"),
                 ],
                 asList=True,
             )
@@ -1826,7 +1935,7 @@ class pure_moon(object):
                         None,
                     ],
                 ],
-                subplot_titles=["净值曲线", "Rank IC时序图", "月换手率", "绩效指标"],
+                subplot_titles=["净值曲线", "月换手率", "Rank IC时序图", "绩效指标"],
             )
             sp["layout"].update(showlegend=ilegend)
             # los=sp['layout']['annotations']
@@ -2195,6 +2304,7 @@ class pure_moonnight(object):
             no_read_indu=no_read_indu,
             swindustry_dummy=swindustry_dummy,
             zxindustry_dummy=zxindustry_dummy,
+            read_in_swindustry_dummy=swindustry_dummies,
         )
         self.shen.set_basic_data(
             age=ages,
@@ -2876,8 +2986,11 @@ class pure_fall_frequent(object):
             df.date = df.date.astype(int)
             df = df.sort_values(["date", "num"])
         df = df.groupby(self.groupby_target).apply(the_func)
-        df = df.to_frame("fac").reset_index()
-        df.columns = ["date", "code", "fac"]
+        if self.groupby_target == ["date", "code"]:
+            df = df.to_frame("fac").reset_index()
+            df.columns = ["date", "code", "fac"]
+        else:
+            df = df.reset_index()
         df = df.pivot(columns="code", index="date", values="fac")
         df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
         return df
@@ -2958,8 +3071,11 @@ class pure_fall_frequent(object):
                     if self.clickhouse == 1:
                         df = ((df.set_index("code")) / 100).reset_index()
                     df = df.groupby(self.groupby_target).apply(the_func)
-                    df = df.to_frame("fac").reset_index()
-                    df.columns = ["date", "code", "fac"]
+                    if self.groupby_target == ["date", "code"]:
+                        df = df.to_frame("fac").reset_index()
+                        df.columns = ["date", "code", "fac"]
+                    else:
+                        df = df.reset_index()
                     df = df.pivot(columns="code", index="date", values="fac")
                     df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
                     factor_new.append(df)
@@ -2984,8 +3100,11 @@ class pure_fall_frequent(object):
                         df.date = df.date.astype(int)
                         df = df.sort_values(["date", "num"])
                     df = df.groupby(self.groupby_target).apply(the_func)
-                    df = df.to_frame("fac").reset_index()
-                    df.columns = ["date", "code", "fac"]
+                    if self.groupby_target == ["date", "code"]:
+                        df = df.to_frame("fac").reset_index()
+                        df.columns = ["date", "code", "fac"]
+                    else:
+                        df = df.reset_index()
                     df = df.pivot(columns="code", index="date", values="fac")
                     df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
                     factor_new.append(df)
@@ -3021,6 +3140,50 @@ class pure_fall_frequent(object):
                 tqdm_inside=tqdm_inside,
             )
         return res
+    
+    @staticmethod
+    def for_cross_via_str(func):
+        """返回值为两层的list，每一个里层的小list为单个股票在这一天的返回值
+        例如
+        ```
+        return [[0.11,0.24,0.55],[2.59,1.99,0.43],[1.32,8.88,7.77]……]
+        ```
+        上例中，每个股票一天返回三个因子值，里层的list按照股票代码顺序排列"""        
+        def full_run(df, *args, **kwargs):
+            codes = sorted(list(set(df.code)))
+            res = func(df, *args, **kwargs)
+            if isinstance(res[0], list):
+                kind = 1
+                res = [",".join(i) for i in res]
+            else:
+                kind = 0
+            df = pd.DataFrame({"code": codes, "fac": res})
+            if kind:
+                df.fac = df.fac.apply(lambda x: [float(i) for i in x.split(",")])
+            return df
+
+        return full_run
+
+    @staticmethod
+    def for_cross_via_zip(func):
+        """返回值为多个pd.Series，每个pd.Series的index为股票代码，values为单个因子值
+        例如
+        ```
+        return (
+                    pd.Series([1.54,8.77,9.99……],index=['000001.SZ','000002.SZ','000004.SZ'……]),
+                    pd.Series([3.54,6.98,9.01……],index=['000001.SZ','000002.SZ','000004.SZ'……]),
+                )
+        ```
+        上例中，每个股票一天返回两个因子值，每个pd.Series对应一个因子值
+        """        
+        def full_run(df, *args, **kwargs):
+            res = func(df, *args, **kwargs)
+            res = pd.Series(zip(*res))
+            res = res.reset_index()
+            res.columns = ["code", "fac"]
+            return res
+
+        return full_run
 
     @kk.desktop_sender(title="嘿，分钟数据处理完啦～🎈")
     def get_daily_factors(
@@ -3445,7 +3608,6 @@ class pure_coldwinter(object):
         df = df.resample("M").last()
         return df
 
-    
     def get_monthly_barras_industrys(self):
         """将barra因子和行业哑变量变成月度数据"""
         for key, value in self.barras.items():

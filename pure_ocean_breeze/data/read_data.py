@@ -1,4 +1,4 @@
-__updated__ = "2022-11-01 00:21:14"
+__updated__ = "2022-11-02 00:09:54"
 
 import os
 import numpy as np
@@ -217,7 +217,7 @@ def read_daily(
             lows = pd.read_feather(homeplace.daily_data_file + "lows.feather")
             df = lows
             df = df.set_index(list(df.columns)[0])
-            
+
         else:
             raise IOError("阁下总得读点什么吧？🤒")
     df = df[df.index >= pd.Timestamp(str(start))]
@@ -302,6 +302,7 @@ def read_money_flow(
     large: bool = 0,
     median: bool = 0,
     small: bool = 0,
+    whole: bool = 0,
 ) -> pd.DataFrame:
     """一键读入资金流向数据，包括超大单、大单、中单、小单的买入和卖出情况
 
@@ -319,6 +320,8 @@ def read_money_flow(
         中单，金额在4万到20万之间，为中户大单, by default 0
     small : bool, optional
         小单，金额在4万以下，为散户中单, by default 0
+    whole : bool, optional
+        读入当天的总交易额, by default 0
 
     Returns
     -------
@@ -332,33 +335,52 @@ def read_money_flow(
     IOError
         exlarge，large，median和small必须指定一个，否则会报错
     """
-    if buy:
-        if exlarge:
-            name = "buy_value_exlarge"
-        elif large:
-            name = "buy_value_large"
-        elif median:
-            name = "buy_value_med"
-        elif small:
-            name = "buy_value_small"
+    if not whole:
+        if buy:
+            if exlarge:
+                name = "buy_value_exlarge"
+            elif large:
+                name = "buy_value_large"
+            elif median:
+                name = "buy_value_med"
+            elif small:
+                name = "buy_value_small"
+            else:
+                raise IOError("您总得指定一种规模吧？🤒")
+        elif sell:
+            if exlarge:
+                name = "sell_value_exlarge"
+            elif large:
+                name = "sell_value_large"
+            elif median:
+                name = "sell_value_med"
+            elif small:
+                name = "sell_value_small"
+            else:
+                raise IOError("您总得指定一种规模吧？🤒")
         else:
-            raise IOError("您总得指定一种规模吧？🤒")
-    elif sell:
-        if exlarge:
-            name = "sell_value_exlarge"
-        elif large:
-            name = "sell_value_large"
-        elif median:
-            name = "sell_value_med"
-        elif small:
-            name = "sell_value_small"
-        else:
-            raise IOError("您总得指定一种规模吧？🤒")
+            raise IOError("您总得指定一下是买还是卖吧？🤒")
+        name = homeplace.daily_data_file + name + ".feather"
+        df = pd.read_feather(name).set_index("date")
+        return df
     else:
-        raise IOError("您总得指定一下是买还是卖吧？🤒")
-    name = homeplace.daily_data_file + name + ".feather"
-    df = pd.read_feather(name).set_index("date")
-    return df
+        dfs = [
+            pd.read_feather(homeplace.daily_data_file + name + ".feather").set_index(
+                "date"
+            )
+            for name in [
+                "buy_value_exlarge",
+                "buy_value_large",
+                "buy_value_med",
+                "buy_value_small",
+                "sell_value_exlarge",
+                "sell_value_large",
+                "sell_value_med",
+                "sell_value_small",
+            ]
+        ]
+        dfs = sum(dfs)
+        return dfs
 
 
 def read_index_single(code: str) -> pd.Series:

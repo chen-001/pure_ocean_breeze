@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2022-10-27 11:19:56"
+__updated__ = "2022-11-02 11:46:22"
 
 import os
 import h5py
@@ -952,3 +952,51 @@ def to_group(df: pd.DataFrame, group: int = 10) -> pd.DataFrame:
     """
     df = df.T.apply(lambda x: pd.qcut(x, group, labels=False, duplicates="drop")).T
     return df
+
+
+def same_columns(dfs: list[pd.DataFrame]) -> list[pd.DataFrame]:
+    """保留多个dataframe共同columns的部分
+
+    Parameters
+    ----------
+    dfs : list[pd.DataFrame]
+        多个dataframe
+
+    Returns
+    -------
+    list[pd.DataFrame]
+        保留共同部分后的结果
+    """
+    dfs = [i.T for i in dfs]
+    res = []
+    for i, df in enumerate(dfs):
+
+        others = dfs[:i] + dfs[i + 1 :]
+
+        for other in others:
+            df = df[df.index.isin(other.index)]
+        res.append(df.T)
+    return res
+
+def same_index(dfs: list[pd.DataFrame]) -> list[pd.DataFrame]:
+    """保留多个dataframe共同index的部分
+
+    Parameters
+    ----------
+    dfs : list[pd.DataFrame]
+        多个dataframe
+
+    Returns
+    -------
+    list[pd.DataFrame]
+        保留共同部分后的结果
+    """
+    res = []
+    for i, df in enumerate(dfs):
+
+        others = dfs[:i] + dfs[i + 1 :]
+
+        for other in others:
+            df = df[df.index.isin(other.index)]
+        res.append(df)
+    return res
