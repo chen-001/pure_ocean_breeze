@@ -1,4 +1,4 @@
-__updated__ = "2022-10-22 00:04:06"
+__updated__ = "2022-11-04 01:55:26"
 
 from setuptools import setup
 import setuptools
@@ -35,7 +35,6 @@ setup(
         "matplotlib",
         "feather",
         "loguru",
-        "h5py",
         "cachier",
         "knockknock",
         "dcube",
@@ -44,7 +43,6 @@ setup(
         "pickledb",
         "pymysql",
         "sqlalchemy",
-        "pretty_errors",
         "SciencePlots",
         "psycopg2",
         "requests",

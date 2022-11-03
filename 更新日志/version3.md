@@ -1,5 +1,10 @@
 ## 更新日志🗓 — v3
 
+* v3.4.7 — 2022.11.4
+> 1. 删去了h5py这一依赖项，改为只有在调用read_h5和read_h5_new函数时才会import，并从pure_ocean_breeze.withs.requires中剔除
+> 1. 修复了collections中Iterable加载在python3.11版本中的bug
+> 1. 修复了pure_fall_frequent.for_cross_via_zip装饰器的bug
+> 1. 剔除了对pretty_errors的依赖项
 * v3.4.6 — 2022.11.2
 > 1. 给read_money_flow增加了whole参数，用于读入当天各类型投资者买卖总量
 > 1. 新增了same_columns和same_index函数，取很多dataframe，都只保留共同的columns或index的部分

@@ -1,4 +1,4 @@
-__updated__ = "2022-11-02 11:17:32"
+__updated__ = "2022-11-04 02:12:49"
 
 import warnings
 
@@ -22,7 +22,7 @@ from functools import reduce, lru_cache, partial
 from dateutil.relativedelta import relativedelta
 from loguru import logger
 import datetime
-from collections import Iterable
+from collections.abc import Iterable
 import plotly.express as pe
 import plotly.io as pio
 from plotly.tools import FigureFactory as FF
@@ -3140,15 +3140,16 @@ class pure_fall_frequent(object):
                 tqdm_inside=tqdm_inside,
             )
         return res
-    
+
     @staticmethod
     def for_cross_via_str(func):
         """返回值为两层的list，每一个里层的小list为单个股票在这一天的返回值
         例如
-        ```
+        ```python
         return [[0.11,0.24,0.55],[2.59,1.99,0.43],[1.32,8.88,7.77]……]
         ```
-        上例中，每个股票一天返回三个因子值，里层的list按照股票代码顺序排列"""        
+        上例中，每个股票一天返回三个因子值，里层的list按照股票代码顺序排列"""
+
         def full_run(df, *args, **kwargs):
             codes = sorted(list(set(df.code)))
             res = func(df, *args, **kwargs)
@@ -3168,18 +3169,21 @@ class pure_fall_frequent(object):
     def for_cross_via_zip(func):
         """返回值为多个pd.Series，每个pd.Series的index为股票代码，values为单个因子值
         例如
-        ```
+        ```python
         return (
                     pd.Series([1.54,8.77,9.99……],index=['000001.SZ','000002.SZ','000004.SZ'……]),
                     pd.Series([3.54,6.98,9.01……],index=['000001.SZ','000002.SZ','000004.SZ'……]),
                 )
         ```
         上例中，每个股票一天返回两个因子值，每个pd.Series对应一个因子值
-        """        
+        """
+
         def full_run(df, *args, **kwargs):
             res = func(df, *args, **kwargs)
-            res = pd.Series(zip(*res))
-            res = res.reset_index()
+            res = pd.concat(res, axis=1)
+            res.columns = [f"fac{i}" for i in range(len(res.columns))]
+            res = res.assign(fac=list(zip(*[res[i] for i in list(res.columns)])))
+            res = res[["fac"]].reset_index()
             res.columns = ["code", "fac"]
             return res
 

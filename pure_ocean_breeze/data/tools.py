@@ -2,10 +2,9 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2022-11-02 11:46:22"
+__updated__ = "2022-11-04 01:19:44"
 
 import os
-import h5py
 import pandas as pd
 import tqdm
 import datetime
@@ -42,6 +41,7 @@ def read_h5(path: str) -> dict:
         A dictionary of pandas DataFrames.
     """
     res = {}
+    import h5py
     a = h5py.File(path)
     for k, v in tqdm.tqdm(list(a.items()), desc="数据加载中……"):
         value = list(v.values())[-1]
@@ -64,6 +64,7 @@ def read_h5_new(path: str) -> pd.DataFrame:
     `pd.DataFrame`
         读取字典的第一个value
     """
+    import h5py
     a = h5py.File(path)
     v = list(a.values())[0]
     v = a[v.name][:]
