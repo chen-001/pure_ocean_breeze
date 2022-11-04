@@ -1,4 +1,4 @@
-__updated__ = "2022-09-20 09:49:14"
+__updated__ = "2022-11-04 17:28:04"
 
 import numpy as np
 import pandas as pd
@@ -43,7 +43,21 @@ class pure_cloud(object):
         self.group = group
         self.boxcox = boxcox
         self.trade_cost = trade_cost
+        ages = read_daily(age=1)
+        sts = read_daily(st=1)
+        states = read_daily(state=1)
+        opens = read_daily(open=1)
+        closes = read_daily(close=1)
+        capitals = read_daily(flow_cap=1).resample("M").last()
         moon = pure_moon()
+        moon.set_basic_data(
+            age=ages,
+            st=sts,
+            state=states,
+            open=opens,
+            close=closes,
+            capital=capitals,
+        )
         moon.prerpare()
         ages = moon.ages.copy()
         ages = (ages >= 60) + 0

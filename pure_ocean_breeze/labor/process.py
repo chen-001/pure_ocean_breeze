@@ -1,4 +1,4 @@
-__updated__ = "2022-11-04 02:12:49"
+__updated__ = "2022-11-04 17:27:59"
 
 import warnings
 
@@ -1737,7 +1737,7 @@ class pure_moon(object):
     def get_group_rets_net_values(self, groups_num=10, value_weighted=False):
         """计算组内每一期的平均收益，生成每日收益率序列和净值序列"""
         if value_weighted:
-            cap_value = self.pricloses_copy * self.flowshares_copy
+            cap_value = self.capital.copy()
             cap_value = cap_value.resample("M").last().shift(1)
             cap_value = cap_value * self.tris_monthly
             # cap_value=np.log(cap_value)
@@ -2043,6 +2043,37 @@ class pure_moon(object):
         )
         self.get_long_short_comments(on_paper=on_paper)
         self.get_total_comments()
+        if on_paper:
+            group1_ttest = ss.ttest_1samp(self.group_rets.group1, 0).pvalue
+            group10_ttest = ss.ttest_1samp(
+                self.group_rets[f"group{groups_num}"], 0
+            ).pvalue
+            group_long_short_ttest = ss.ttest_1samp(self.long_short_rets, 0).pvalue
+            group1_ret = self.group_rets.group1.mean()
+            group10_ret = self.group_rets[f"group{groups_num}"].mean()
+            group_long_short_ret = self.long_short_rets.mean()
+            papers = pd.DataFrame(
+                {
+                    "评价指标": [
+                        group1_ttest,
+                        group10_ttest,
+                        group_long_short_ttest,
+                        group1_ret,
+                        group10_ret,
+                        group_long_short_ret,
+                    ]
+                },
+                index=[
+                    "分组1p值",
+                    f"分组{groups_num}p值",
+                    f"分组1-分组{groups_num}p值",
+                    "分组1收益率",
+                    f"分组{groups_num}收益率",
+                    f"分组1-分组{groups_num}收益率",
+                ],
+            )
+            self.total_comments = pd.concat([papers, self.total_comments])
+
         if plt_plot:
             if not STATES["NO_PLOT"]:
                 if filename:
@@ -2079,23 +2110,28 @@ class pure_moon(object):
                 print(tb.draw())
         if sheetname:
             if comments_writer:
-                total_comments = self.total_comments.copy()
-                tc = list(total_comments.评价指标)
-                tc[0] = str(round(tc[0] * 100, 2)) + "%"
-                tc[1] = str(round(tc[1], 2))
-                tc[2] = str(round(tc[2] * 100, 2)) + "%"
-                tc[3] = str(round(tc[3], 2))
-                tc[4] = str(round(tc[4], 2))
-                tc[5] = str(round(tc[5] * 100, 2)) + "%"
-                tc[6] = str(round(tc[6] * 100, 2)) + "%"
-                tc[7] = str(round(tc[7], 2))
-                tc[8] = str(round(tc[8] * 100, 2)) + "%"
-                tc[9] = str(round(tc[9] * 100, 2)) + "%"
-                tc[10] = str(round(tc[10] * 100, 2)) + "%"
-                new_total_comments = pd.DataFrame(
-                    {sheetname: tc}, index=total_comments.index
-                )
-                new_total_comments.T.to_excel(comments_writer, sheet_name=sheetname)
+                if not on_paper:
+                    total_comments = self.total_comments.copy()
+                    tc = list(total_comments.评价指标)
+                    tc[0] = str(round(tc[0] * 100, 2)) + "%"
+                    tc[1] = str(round(tc[1], 2))
+                    tc[2] = str(round(tc[2] * 100, 2)) + "%"
+                    tc[3] = str(round(tc[3], 2))
+                    tc[4] = str(round(tc[4], 2))
+                    tc[5] = str(round(tc[5] * 100, 2)) + "%"
+                    tc[6] = str(round(tc[6] * 100, 2)) + "%"
+                    tc[7] = str(round(tc[7], 2))
+                    tc[8] = str(round(tc[8] * 100, 2)) + "%"
+                    tc[9] = str(round(tc[9] * 100, 2)) + "%"
+                    tc[10] = str(round(tc[10] * 100, 2)) + "%"
+                    new_total_comments = pd.DataFrame(
+                        {sheetname: tc}, index=total_comments.index
+                    )
+                    new_total_comments.T.to_excel(comments_writer, sheet_name=sheetname)
+                else:
+                    self.total_comments.rename(columns={"评价指标": sheetname}).to_excel(
+                        comments_writer, sheet_name=sheetname
+                    )
             if net_values_writer:
                 groups_net_values = self.group_net_values.copy()
                 groups_net_values.index = groups_net_values.index.strftime("%Y/%m/%d")
@@ -2271,7 +2307,7 @@ class pure_moonnight(object):
             使用cufflinks绘图时，是否显示图例, by default 1
         """
 
-        if isinstance(factors, pure_fallmount):
+        if not isinstance(factors, pd.DataFrame):
             factors = factors()
         start = datetime.datetime.strftime(factors.index.min(), "%Y%m%d")
         if ages is None:
@@ -2294,6 +2330,18 @@ class pure_moonnight(object):
             from pure_ocean_breeze.state.states import NET_VALUES_WRITER
 
             net_values_writer = NET_VALUES_WRITER
+        if not on_paper:
+            from pure_ocean_breeze.state.states import ON_PAPER
+
+            on_paper = ON_PAPER
+        from pure_ocean_breeze.state.states import MOON_START
+
+        if MOON_START is not None:
+            factors = factors[factors.index >= pd.Timestamp(str(MOON_START))]
+        from pure_ocean_breeze.state.states import MOON_END
+
+        if MOON_END is not None:
+            factors = factors[factors.index <= pd.Timestamp(str(MOON_END))]
         if boxcox + neutralize == 0:
             no_read_indu = 1
         if only_cap + no_read_indu > 0:

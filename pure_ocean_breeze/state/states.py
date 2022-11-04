@@ -2,7 +2,7 @@
 一些默认的参数
 """
 
-__updated__ = "2022-10-26 23:54:58"
+__updated__ = "2022-11-04 14:41:09"
 
 STATES = {
     "NO_LOG": False,
@@ -18,6 +18,9 @@ STATES = {
 
 COMMENTS_WRITER=None
 NET_VALUES_WRITER=None
+ON_PAPER=False
+MOON_START=None
+MOON_END=None
 
 def is_notebook() -> bool:
     try:

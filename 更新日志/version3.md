@@ -1,5 +1,17 @@
 ## 更新日志🗓 — v3
 
+* v3.4.8 — 2022.11.4
+> 1. 修复了pure_moon市值加权回测的bug
+> 1. 优化了pure_moon的on_paper参数下，学术化评价指标的内容
+> 1. 给pure_moonnight增加了
+> > * 识别pure_ocean_breeze.state.states中的ON_PAPER参数，用来对环境中所有的回测展示学术化的评价指标
+> > * 识别pure_ocean_breeze.state.states中的MOON_START参数，用来对环境中所有的回测的因子规定起点
+> > * 识别pure_ocean_breeze.state.states中的MOON_END参数，用来对环境中所有的回测的因子规定终点
+> 4. 给pure_ocean_breeze.state.states中增加了ON_PAPER、MOON_START、MOON_END全局参数
+> 4. 新增了feather_to_parquet文件，可以将某一文件夹下的所有feather文件转化为parquet文件
+> 4. 修复了pure_cloud中的bug
+> 4. 修复了pure_ocean_breeze.future_version.in_thoughts模块的导入错误
+> 4. 扩展了pure_moonnight的输入因子的类型范围，当前pure_fallmount、pure_snowtrain和dataframe都可以直接输入
 * v3.4.7 — 2022.11.4
 > 1. 删去了h5py这一依赖项，改为只有在调用read_h5和read_h5_new函数时才会import，并从pure_ocean_breeze.withs.requires中剔除
 > 1. 修复了collections中Iterable加载在python3.11版本中的bug
