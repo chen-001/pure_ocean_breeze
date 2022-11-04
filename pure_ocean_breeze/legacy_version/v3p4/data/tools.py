@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2022-11-05 00:25:18"
+__updated__ = "2022-11-05 00:13:16"
 
 import os
 import pandas as pd
@@ -22,8 +22,8 @@ try:
     rqdatac.init()
 except Exception:
     print("暂时未连接米筐")
-from pure_ocean_breeze.state.homeplace import HomePlace
-from pure_ocean_breeze.state.states import is_notebook
+from pure_ocean_breeze.legacy_version.v3p4.state.homeplace import HomePlace
+from pure_ocean_breeze.legacy_version.v3p4.state.states import is_notebook
 
 
 def read_h5(path: str) -> dict:
@@ -509,7 +509,8 @@ def func_two_daily(
     homeplace = HomePlace()
     if history is not None:
         if os.path.exists(homeplace.update_data_file + history):
-            old = pd.read_parquet(homeplace.update_data_file + history)
+            old = pd.read_feather(homeplace.update_data_file + history)
+            old = old.set_index(list(old.columns)[0])
             new_end = min(df1.index.max(), df2.index.max())
             if new_end > old.index.max():
                 old_end = datetime.datetime.strftime(old.index.max(), "%Y%m%d")
@@ -540,7 +541,7 @@ def func_two_daily(
                     if os.path.exists(homeplace.update_data_file + history):
                         cors = pd.concat([old, cors])
                     cors = drop_duplicates_index(cors)
-                    cors.to_parquet(homeplace.update_data_file + history)
+                    cors.reset_index().to_feather(homeplace.update_data_file + history)
                     new_end = datetime.datetime.strftime(cors.index.max(), "%Y%m%d")
                     logger.info(f"已经更新至{new_end}")
                 return cors
@@ -566,7 +567,7 @@ def func_two_daily(
                 if os.path.exists(homeplace.update_data_file + history):
                     cors = pd.concat([old, cors])
                 cors = drop_duplicates_index(cors)
-                cors.to_parquet(homeplace.update_data_file + history)
+                cors.reset_index().to_feather(homeplace.update_data_file + history)
                 new_end = datetime.datetime.strftime(cors.index.max(), "%Y%m%d")
                 logger.info(f"已经更新至{new_end}")
             return cors
@@ -1026,15 +1027,3 @@ def feather_to_parquet(folder: str):
                 df.to_parquet(file.split(".")[0]+'.parquet')
             except Exception:
                 logger.warning(f"{file}不是parquet文件")
-
-
-def feather_to_parquet_all():
-    """将数据库中所有的feather文件都转化为parquet文件
-    """    
-    homeplace=HomePlace()
-    feather_to_parquet(homeplace.daily_data_file)
-    feather_to_parquet(homeplace.barra_data_file)
-    feather_to_parquet(homeplace.final_factor_file)
-    feather_to_parquet(homeplace.update_data_file)
-    feather_to_parquet(homeplace.factor_data_file)
-    logger.success('数据库中的feather文件全部被转化为了parquet文件，您可以手动删除所有的feather文件了')

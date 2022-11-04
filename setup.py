@@ -1,4 +1,4 @@
-__updated__ = "2022-11-04 01:55:26"
+__updated__ = "2022-11-05 00:06:43"
 
 from setuptools import setup
 import setuptools
@@ -33,7 +33,7 @@ setup(
         "statsmodels",
         "plotly",
         "matplotlib",
-        "feather",
+        "pyarrow",
         "loguru",
         "cachier",
         "knockknock",
@@ -53,6 +53,7 @@ setup(
         "numpy_ext",
         "xpinyin",
         "cufflinks",
+        "clickhouse_sqlalchemy",
     ],
     python_requires=">=3",
     license="MIT",

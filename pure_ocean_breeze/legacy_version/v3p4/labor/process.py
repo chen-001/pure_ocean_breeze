@@ -1,4 +1,4 @@
-__updated__ = "2022-11-04 22:21:54"
+__updated__ = "2022-11-05 00:16:56"
 
 import warnings
 
@@ -35,7 +35,7 @@ import cufflinks as cf
 
 cf.set_config_file(offline=True)
 from typing import Callable, Union
-from pure_ocean_breeze.data.read_data import (
+from pure_ocean_breeze.legacy_version.v3p4.data.read_data import (
     read_daily,
     read_market,
     get_industry_dummies,
@@ -43,19 +43,19 @@ from pure_ocean_breeze.data.read_data import (
     read_zxindustry_prices,
     database_read_final_factors,
 )
-from pure_ocean_breeze.state.homeplace import HomePlace
+from pure_ocean_breeze.legacy_version.v3p4.state.homeplace import HomePlace
 
 homeplace = HomePlace()
-from pure_ocean_breeze.state.states import STATES, is_notebook
-from pure_ocean_breeze.data.database import *
-from pure_ocean_breeze.data.dicts import INDUS_DICT
-from pure_ocean_breeze.data.tools import (
+from pure_ocean_breeze.legacy_version.v3p4.state.states import STATES, is_notebook
+from pure_ocean_breeze.legacy_version.v3p4.data.database import *
+from pure_ocean_breeze.legacy_version.v3p4.data.dicts import INDUS_DICT
+from pure_ocean_breeze.legacy_version.v3p4.data.tools import (
     indus_name,
     drop_duplicates_index,
     to_percent,
     to_group,
 )
-from pure_ocean_breeze.labor.comment import (
+from pure_ocean_breeze.legacy_version.v3p4.labor.comment import (
     comments_on_twins,
     make_relative_comments,
     make_relative_comments_plot,
@@ -105,48 +105,57 @@ def daily_factor_on300500(
     homeplace = HomePlace()
     if fac.shape[0] / last.shape[0] > 2:
         if hs300:
-            df = pd.read_parquet(
-                homeplace.daily_data_file + "沪深300日成分股.parquet"
+            df = pd.read_feather(
+                homeplace.daily_data_file + "沪深300日成分股.feather"
             ).replace(0, np.nan)
+            df = df.set_index(list(df.columns)[0])
             df = df * fac
             df = df.dropna(how="all")
         elif zz500:
-            df = pd.read_parquet(
-                homeplace.daily_data_file + "中证500日成分股.parquet"
+            df = pd.read_feather(
+                homeplace.daily_data_file + "中证500日成分股.feather"
             ).replace(0, np.nan)
+            df = df.set_index(list(df.columns)[0])
             df = df * fac
             df = df.dropna(how="all")
         elif zz800:
-            df1 = pd.read_parquet(homeplace.daily_data_file + "沪深300日成分股.parquet")
-            df2 = pd.read_parquet(homeplace.daily_data_file + "中证500日成分股.parquet")
+            df1 = pd.read_feather(homeplace.daily_data_file + "沪深300日成分股.feather")
+            df1 = df1.set_index(list(df1.columns)[0])
+            df2 = pd.read_feather(homeplace.daily_data_file + "中证500日成分股.feather")
+            df2 = df2.set_index(list(df2.columns)[0])
             df = df1 + df2
             df = df.replace(0, np.nan)
             df = df * fac
             df = df.dropna(how="all")
         elif zz1000:
-            df = pd.read_parquet(
-                homeplace.daily_data_file + "中证1000日成分股.parquet"
+            df = pd.read_feather(
+                homeplace.daily_data_file + "中证1000日成分股.feather"
             ).replace(0, np.nan)
+            df = df.set_index(list(df.columns)[0])
             df = df * fac
             df = df.dropna(how="all")
         elif gz2000:
-            df = pd.read_parquet(
-                homeplace.daily_data_file + "国证2000日成分股.parquet"
+            df = pd.read_feather(
+                homeplace.daily_data_file + "国证2000日成分股.feather"
             ).replace(0, np.nan)
+            df = df.set_index(list(df.columns)[0])
             df = df * fac
             df = df.dropna(how="all")
         elif other:
             tr = read_daily(tr=1).fillna(0).replace(0, 1)
             tr = np.sign(tr)
             df1 = (
-                tr * pd.read_parquet(homeplace.daily_data_file + "沪深300日成分股.parquet")
+                tr * pd.read_feather(homeplace.daily_data_file + "沪深300日成分股.feather")
             ).fillna(0)
+            df1 = df1.set_index(list(df1.columns)[0])
             df2 = (
-                tr * pd.read_parquet(homeplace.daily_data_file + "中证500日成分股.parquet")
+                tr * pd.read_feather(homeplace.daily_data_file + "中证500日成分股.feather")
             ).fillna(0)
+            df2 = df2.set_index(list(df2.columns)[0])
             df3 = (
-                tr * pd.read_parquet(homeplace.daily_data_file + "中证1000日成分股.parquet")
+                tr * pd.read_feather(homeplace.daily_data_file + "中证1000日成分股.feather")
             ).fillna(0)
+            df3 = df3.set_index(list(df3.columns)[0])
             df = (1 - df1) * (1 - df2) * (1 - df3) * tr
             df = df.replace(0, np.nan) * fac
             df = df.dropna(how="all")
@@ -154,39 +163,45 @@ def daily_factor_on300500(
             raise ValueError("总得指定一下是哪个成分股吧🤒")
     else:
         if hs300:
-            df = pd.read_parquet(
-                homeplace.daily_data_file + "沪深300日成分股.parquet"
+            df = pd.read_feather(
+                homeplace.daily_data_file + "沪深300日成分股.feather"
             ).replace(0, np.nan)
+            df = df.set_index(list(df.columns)[0])
             df = df.resample("M").last()
             df = df * fac
             df = df.dropna(how="all")
         elif zz500:
-            df = pd.read_parquet(
-                homeplace.daily_data_file + "中证500日成分股.parquet"
+            df = pd.read_feather(
+                homeplace.daily_data_file + "中证500日成分股.feather"
             ).replace(0, np.nan)
+            df = df.set_index(list(df.columns)[0])
             df = df.resample("M").last()
             df = df * fac
             df = df.dropna(how="all")
         elif zz800:
-            df1 = pd.read_parquet(homeplace.daily_data_file + "沪深300日成分股.parquet")
+            df1 = pd.read_feather(homeplace.daily_data_file + "沪深300日成分股.feather")
+            df1 = df1.set_index(list(df1.columns)[0])
             df1 = df1.resample("M").last()
-            df2 = pd.read_parquet(homeplace.daily_data_file + "中证500日成分股.parquet")
+            df2 = pd.read_feather(homeplace.daily_data_file + "中证500日成分股.feather")
+            df2 = df2.set_index(list(df2.columns)[0])
             df2 = df2.resample("M").last()
             df = df1 + df2
             df = df.replace(0, np.nan)
             df = df * fac
             df = df.dropna(how="all")
         elif zz1000:
-            df = pd.read_parquet(
-                homeplace.daily_data_file + "中证1000日成分股.parquet"
+            df = pd.read_feather(
+                homeplace.daily_data_file + "中证1000日成分股.feather"
             ).replace(0, np.nan)
+            df = df.set_index(list(df.columns)[0])
             df = df.resample("M").last()
             df = df * fac
             df = df.dropna(how="all")
         elif gz2000:
-            df = pd.read_parquet(
-                homeplace.daily_data_file + "国证2000日成分股.parquet"
+            df = pd.read_feather(
+                homeplace.daily_data_file + "国证2000日成分股.feather"
             ).replace(0, np.nan)
+            df = df.set_index(list(df.columns)[0])
             df = df.resample("M").last()
             df = df * fac
             df = df.dropna(how="all")
@@ -194,16 +209,19 @@ def daily_factor_on300500(
             tr = read_daily(tr=1).fillna(0).replace(0, 1).resample("M").last()
             tr = np.sign(tr)
             df1 = (
-                tr * pd.read_parquet(homeplace.daily_data_file + "沪深300日成分股.parquet")
+                tr * pd.read_feather(homeplace.daily_data_file + "沪深300日成分股.feather")
             ).fillna(0)
+            df1 = df1.set_index(list(df1.columns)[0])
             df1 = df1.resample("M").last()
             df2 = (
-                tr * pd.read_parquet(homeplace.daily_data_file + "中证500日成分股.parquet")
+                tr * pd.read_feather(homeplace.daily_data_file + "中证500日成分股.feather")
             ).fillna(0)
+            df2 = df2.set_index(list(df2.columns)[0])
             df2 = df2.resample("M").last()
             df3 = (
-                tr * pd.read_parquet(homeplace.daily_data_file + "中证1000日成分股.parquet")
+                tr * pd.read_feather(homeplace.daily_data_file + "中证1000日成分股.feather")
             ).fillna(0)
+            df3 = df3.set_index(list(df3.columns)[0])
             df3 = df3.resample("M").last()
             df = (1 - df1) * (1 - df2) * (1 - df3)
             df = df.replace(0, np.nan) * fac
@@ -387,13 +405,13 @@ def long_test_on_industry(
     fac = decap_industry(df, monthly=True)
 
     if swindustry:
-        industry_dummy = pd.read_parquet(
-            homeplace.daily_data_file + "申万行业2021版哑变量.parquet"
+        industry_dummy = pd.read_feather(
+            homeplace.daily_data_file + "申万行业2021版哑变量.feather"
         ).fillna(0)
         indus = read_swindustry_prices()
     else:
-        industry_dummy = pd.read_parquet(
-            homeplace.daily_data_file + "中信一级行业哑变量名称版.parquet"
+        industry_dummy = pd.read_feather(
+            homeplace.daily_data_file + "中信一级行业哑变量名称版.feather"
         ).fillna(0)
         indus = read_zxindustry_prices()
     inds = list(industry_dummy.columns)
@@ -772,13 +790,13 @@ def decap_industry(
         return df
 
     if swindustry:
-        file_name = "申万行业2021版哑变量.parquet"
+        file_name = "申万行业2021版哑变量.feather"
     else:
-        file_name = "中信一级行业哑变量代码版.parquet"
+        file_name = "中信一级行业哑变量代码版.feather"
 
     if monthly:
         industry_dummy = (
-            pd.read_parquet(homeplace.daily_data_file + file_name)
+            pd.read_feather(homeplace.daily_data_file + file_name)
             .fillna(0)
             .set_index("date")
             .groupby("code")
@@ -789,7 +807,7 @@ def decap_industry(
         industry_ws = [f"w{i}" for i in range(1, industry_dummy.shape[1] - 1)]
         col = ["code", "date"] + industry_ws
     elif daily:
-        industry_dummy = pd.read_parquet(homeplace.daily_data_file + file_name).fillna(
+        industry_dummy = pd.read_feather(homeplace.daily_data_file + file_name).fillna(
             0
         )
         industry_ws = [f"w{i}" for i in range(1, industry_dummy.shape[1] - 1)]
@@ -1302,9 +1320,9 @@ class pure_moon(object):
     ):
         cls.homeplace = HomePlace()
         # 已经算好的月度st状态文件
-        cls.sts_monthly_file = homeplace.daily_data_file + "sts_monthly.parquet"
+        cls.sts_monthly_file = homeplace.daily_data_file + "sts_monthly.feather"
         # 已经算好的月度交易状态文件
-        cls.states_monthly_file = homeplace.daily_data_file + "states_monthly.parquet"
+        cls.states_monthly_file = homeplace.daily_data_file + "states_monthly.feather"
 
         if swindustry_dummy is not None:
             cls.swindustry_dummy = swindustry_dummy
@@ -1326,8 +1344,8 @@ class pure_moon(object):
             if not no_read_indu:
                 if read_in_swindustry_dummy:
                     cls.swindustry_dummy = (
-                        pd.read_parquet(
-                            cls.homeplace.daily_data_file + "申万行业2021版哑变量.parquet"
+                        pd.read_feather(
+                            cls.homeplace.daily_data_file + "申万行业2021版哑变量.feather"
                         )
                         .fillna(0)
                         .set_index("date")
@@ -1338,8 +1356,8 @@ class pure_moon(object):
                     cls.swindustry_dummy = deal_dummy(cls.swindustry_dummy)
 
                 cls.zxindustry_dummy = (
-                    pd.read_parquet(
-                        cls.homeplace.daily_data_file + "中信一级行业哑变量代码版.parquet"
+                    pd.read_feather(
+                        cls.homeplace.daily_data_file + "中信一级行业哑变量代码版.feather"
                     )
                     .fillna(0)
                     .set_index("date")
@@ -1387,7 +1405,12 @@ class pure_moon(object):
 
     def set_factor_df_date_as_index(self, df):
         """设置因子数据的dataframe，因子表列名应为股票代码，索引应为时间"""
-        self.factors = df.resample('M').last()
+        df = df.reset_index()
+        df.columns = ["date"] + list(df.columns)[1:]
+        self.factors = df
+        self.factors = self.factors.set_index("date")
+        self.factors = self.factors.resample("M").last()
+        self.factors = self.factors.reset_index()
 
     @classmethod
     def judge_month_st(cls, df):
@@ -1425,16 +1448,17 @@ class pure_moon(object):
         """把日度的交易状态、st、上市天数，转化为月度的，并生成能否交易的判断
         读取本地已经算好的文件，并追加新的时间段部分，如果本地没有就直接全部重新算"""
         try:
-            month_df = pd.read_parquet(path)
+            month_df = pd.read_feather(path)
+            month_df = month_df.set_index(list(month_df.columns)[0])
             month_df = cls.read_add(pridf, month_df, func)
-            month_df.to_parquet(path)
+            month_df.reset_index().to_feather(path)
         except Exception as e:
             if not STATES["NO_LOG"]:
                 logger.error("error occurs when read state files")
                 logger.error(e)
             print("state file rewriting……")
             month_df = pridf.resample("M").apply(func)
-            month_df.to_parquet(path)
+            month_df.reset_index().to_feather(path)
         return month_df
 
     @classmethod
@@ -1507,6 +1531,7 @@ class pure_moon(object):
         self, zxindustry_dummies=0, swindustry_dummies=0, only_cap=0
     ):
         """对因子进行行业市值中性化"""
+        self.factors = self.factors.set_index("date")
         self.factors.index = self.factors.index + pd.DateOffset(months=1)
         self.factors = self.factors.resample("M").last()
         last_date = self.tris_monthly.index.max() + pd.DateOffset(months=1)
@@ -1536,6 +1561,7 @@ class pure_moon(object):
 
     def deal_with_factors(self):
         """删除不符合交易条件的因子数据"""
+        self.factors = self.factors.set_index("date")
         self.__factors_out = self.factors.copy()
         self.__factors_out.columns = [i[1] for i in list(self.__factors_out.columns)]
         self.factors.index = self.factors.index + pd.DateOffset(months=1)
@@ -2297,22 +2323,22 @@ class pure_moonnight(object):
         if capitals is None:
             capitals = read_daily(flow_cap=1, start=start).resample("M").last()
         if comments_writer is None and sheetname is not None:
-            from pure_ocean_breeze.state.states import COMMENTS_WRITER
+            from pure_ocean_breeze.legacy_version.v3p4.state.states import COMMENTS_WRITER
 
             comments_writer = COMMENTS_WRITER
         if net_values_writer is None and sheetname is not None:
-            from pure_ocean_breeze.state.states import NET_VALUES_WRITER
+            from pure_ocean_breeze.legacy_version.v3p4.state.states import NET_VALUES_WRITER
 
             net_values_writer = NET_VALUES_WRITER
         if not on_paper:
-            from pure_ocean_breeze.state.states import ON_PAPER
+            from pure_ocean_breeze.legacy_version.v3p4.state.states import ON_PAPER
 
             on_paper = ON_PAPER
-        from pure_ocean_breeze.state.states import MOON_START
+        from pure_ocean_breeze.legacy_version.v3p4.state.states import MOON_START
 
         if MOON_START is not None:
             factors = factors[factors.index >= pd.Timestamp(str(MOON_START))]
-        from pure_ocean_breeze.state.states import MOON_END
+        from pure_ocean_breeze.legacy_version.v3p4.state.states import MOON_END
 
         if MOON_END is not None:
             factors = factors[factors.index <= pd.Timestamp(str(MOON_END))]
@@ -2404,7 +2430,7 @@ class pure_fall(object):
         Parameters
         ----------
         daily_path : str
-            日频因子值存储文件的名字，请以'.parquet'结尾
+            日频因子值存储文件的名字，请以'.feather'结尾
         """
         self.homeplace = HomePlace()
         # 将分钟数据拼成一张日频因子表
@@ -2623,13 +2649,20 @@ class pure_fall(object):
         """通过minute_data_stock_alter数据库一天一天计算因子值"""
         try:
             try:
-                self.daily_factors = pd.read_parquet(self.daily_factors_path)
+                self.daily_factors = pd.read_feather(self.daily_factors_path)
             except Exception:
                 self.daily_factors_path = self.daily_factors_path.split("日频_")
                 self.daily_factors_path = (
                     self.daily_factors_path[0] + self.daily_factors_path[1]
                 )
-                self.daily_factors = drop_duplicates_index(pd.read_parquet(self.daily_factors_path))
+                self.daily_factors = pd.read_feather(self.daily_factors_path)
+            self.daily_factors = self.daily_factors.rename(
+                columns={list(self.daily_factors.columns)[0]: "date"}
+            )
+            self.daily_factors = self.daily_factors.drop_duplicates(
+                subset=["date"], keep="last"
+            )
+            self.daily_factors = self.daily_factors.set_index("date")
             sql = sqlConfig("minute_data_stock_alter")
             now_minute_datas = sql.show_tables(full=False)
             now_minute_data = now_minute_datas[-1]
@@ -2654,7 +2687,15 @@ class pure_fall(object):
                 self.daily_factors = self.daily_factors[
                     self.daily_factors.index >= pd.Timestamp(str(STATES["START"]))
                 ]
-            drop_duplicates_index(self.daily_factors).to_parquet(self.daily_factors_path)
+            self.daily_factors = self.daily_factors.reset_index()
+            self.daily_factors = self.daily_factors.rename(
+                columns={list(self.daily_factors.columns)[0]: "date"}
+            )
+            self.daily_factors = self.daily_factors.drop_duplicates(
+                subset=["date"], keep="first"
+            )
+            self.daily_factors = self.daily_factors.set_index("date")
+            self.daily_factors.reset_index().to_feather(self.daily_factors_path)
             if not STATES["NO_LOG"]:
                 logger.success("更新已完成")
 
@@ -2823,7 +2864,7 @@ class pure_fall_frequent(object):
         Parameters
         ----------
         factor_file : str
-            用于保存因子值的文件名，需为parquet文件，以'.parquet'结尾
+            用于保存因子值的文件名，需为feather文件，以'.feather'结尾
         startdate : int, optional
             起始时间，形如20121231，为开区间, by default None
         enddate : int, optional
@@ -2855,7 +2896,7 @@ class pure_fall_frequent(object):
         # 将计算到一半的因子，存入questdb中，避免中途被打断后重新计算，表名即为因子文件名的汉语拼音
         pinyin = Pinyin()
         self.factor_file_pinyin = pinyin.get_pinyin(
-            factor_file.replace(".parquet", ""), ""
+            factor_file.replace(".feather", ""), ""
         )
         self.factor_steps = Questdb()
         # 完整的因子文件路径
@@ -2863,7 +2904,10 @@ class pure_fall_frequent(object):
         self.factor_file = factor_file
         # 读入之前的因子
         if os.path.exists(factor_file):
-            factor_old = drop_duplicates_index(pd.read_parquet(self.factor_file))
+            factor_old = pd.read_feather(self.factor_file)
+            factor_old.columns = ["date"] + list(factor_old.columns)[1:]
+            factor_old = factor_old.drop_duplicates(subset=["date"])
+            factor_old = factor_old.set_index("date")
             self.factor_old = factor_old
             # 已经算好的日子
             dates_old = sorted(list(factor_old.index.strftime("%Y%m%d").astype(int)))
@@ -3233,19 +3277,31 @@ class pure_fall_frequent(object):
             self.factor_new = pd.concat(self.factor_new)
             # 拼接新的和旧的
             self.factor = pd.concat([self.factor_old, self.factor_new]).sort_index()
-            self.factor = drop_duplicates_index(self.factor.dropna(how="all"))
+            self.factor = self.factor.dropna(how="all")
+            self.factor = self.factor.reset_index()
+            self.factor = self.factor.rename(
+                columns={list(self.factor.columns)[0]: "date"}
+            )
+            self.factor = self.factor.drop_duplicates(subset=["date"], keep="first")
+            self.factor = self.factor.set_index("date")
             new_end_date = datetime.datetime.strftime(self.factor.index.max(), "%Y%m%d")
             # 存入本地
-            self.factor.to_parquet(self.factor_file)
+            self.factor.reset_index().to_feather(self.factor_file)
             logger.info(f"截止到{new_end_date}的因子值计算完了")
             # 删除存储在questdb的中途备份数据
             self.factor_steps.do_order(f"drop table {self.factor_file_pinyin}")
             logger.info("备份在questdb的表格已删除")
 
         else:
-            self.factor = drop_duplicates_index(self.factor_old)
+            self.factor = self.factor_old
+            self.factor = self.factor.reset_index()
+            self.factor = self.factor.rename(
+                columns={list(self.factor.columns)[0]: "date"}
+            )
+            self.factor = self.factor.drop_duplicates(subset=["date"], keep="first")
+            self.factor = self.factor.set_index("date")
             # 存入本地
-            self.factor.to_parquet(self.factor_file)
+            self.factor.reset_index().to_feather(self.factor_file)
             new_end_date = datetime.datetime.strftime(self.factor.index.max(), "%Y%m%d")
             logger.info(f"当前截止到{new_end_date}的因子值已经是最新的了")
 
@@ -3268,7 +3324,7 @@ class pure_fall_flexible(object):
         Parameters
         ----------
         factor_file : str
-            用于存储因子的文件名称，请以'.parquet'结尾
+            用于存储因子的文件名称，请以'.feather'结尾
         startdate : int, optional
             计算因子的起始日期，形如20220816, by default None
         enddate : int, optional
@@ -3296,7 +3352,10 @@ class pure_fall_flexible(object):
         self.factor_file = factor_file
         # 读入之前的因子
         if os.path.exists(factor_file):
-            factor_old = drop_duplicates_index(pd.read_parquet(self.factor_file))
+            factor_old = pd.read_feather(self.factor_file)
+            factor_old.columns = ["date"] + list(factor_old.columns)[1:]
+            factor_old = factor_old.drop_duplicates(subset=["date"])
+            factor_old = factor_old.set_index("date")
             self.factor_old = factor_old
             # 已经算好的日子
             dates_old = sorted(list(factor_old.index.strftime("%Y%m%d").astype(int)))
@@ -3414,7 +3473,7 @@ class pure_fall_flexible(object):
             self.factor = pd.concat([self.factor_old, self.factor_new]).sort_index()
             new_end_date = datetime.datetime.strftime(self.factor.index.max(), "%Y%m%d")
             # 存入本地
-            self.factor.to_parquet(self.factor_file)
+            self.factor.reset_index().to_feather(self.factor_file)
             logger.info(f"截止到{new_end_date}的因子值计算完了")
         elif dates_new_len == 1:
             print("共1天")
@@ -3465,7 +3524,7 @@ class pure_fall_flexible(object):
             )
             new_end_date = datetime.datetime.strftime(self.factor.index.max(), "%Y%m%d")
             # 存入本地
-            self.factor.to_parquet(self.factor_file)
+            self.factor.reset_index().to_feather(self.factor_file)
             logger.info(f"补充{self.dates_new[0]}截止到{new_end_date}的因子值计算完了")
         else:
             self.factor = self.factor_old
@@ -3520,11 +3579,13 @@ class pure_coldwinter(object):
         self.homeplace = HomePlace()
         # barra因子数据
         styles = os.listdir(self.homeplace.barra_data_file)
-        styles = [i for i in styles if i.endswith(".parquet")]
+        styles = [i for i in styles if i.endswith(".feather")]
         barras = {}
         for s in styles:
             k = s.split(".")[0]
-            v = pd.read_parquet(self.homeplace.barra_data_file + s)
+            v = pd.read_feather(self.homeplace.barra_data_file + s)
+            v.columns = ["date"] + list(v.columns)[1:]
+            v = v.set_index("date")
             barras[k] = v
         rename_dict = {
             "fac": "因子自身",
@@ -3987,11 +4048,11 @@ def follow_tests(
         如果未指定因子正负方向，将报错
     """
     if comments_writer is None:
-        from pure_ocean_breeze.state.states import COMMENTS_WRITER
+        from pure_ocean_breeze.legacy_version.v3p4.state.states import COMMENTS_WRITER
 
         comments_writer = COMMENTS_WRITER
     if net_values_writer is None:
-        from pure_ocean_breeze.state.states import NET_VALUES_WRITER
+        from pure_ocean_breeze.legacy_version.v3p4.state.states import NET_VALUES_WRITER
 
         net_values_writer = NET_VALUES_WRITER
 
@@ -4827,12 +4888,12 @@ class pure_star(object):
         self.iplot = iplot
         self.plot()
         if comments_writer is None and sheetname is not None:
-            from pure_ocean_breeze.state.states import COMMENTS_WRITER
+            from pure_ocean_breeze.legacy_version.v3p4.state.states import COMMENTS_WRITER
 
             comments_writer = COMMENTS_WRITER
             self.total_comments.to_excel(comments_writer, sheet_name=sheetname)
         if net_values_writer is None and sheetname is not None:
-            from pure_ocean_breeze.state.states import NET_VALUES_WRITER
+            from pure_ocean_breeze.legacy_version.v3p4.state.states import NET_VALUES_WRITER
 
             net_values_writer = NET_VALUES_WRITER
             self.total_nets.to_excel(net_values_writer, sheet_name=sheetname)

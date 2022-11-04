@@ -1,4 +1,4 @@
-__updated__ = "2022-11-04 21:49:19"
+__updated__ = "2022-11-05 00:13:27"
 
 try:
     import rqdatac
@@ -19,7 +19,7 @@ import pickledb
 import tqdm
 from functools import reduce
 import dcube as dc
-from pure_ocean_breeze.state.homeplace import HomePlace
+from pure_ocean_breeze.legacy_version.v3p4.state.homeplace import HomePlace
 
 homeplace = HomePlace()
 try:
@@ -32,10 +32,10 @@ from pure_ocean_breeze.data.database import (
     PostgreSQL,
     Questdb,
 )
-from pure_ocean_breeze.data.read_data import read_daily, read_money_flow
-from pure_ocean_breeze.data.dicts import INDUS_DICT, INDEX_DICT, ZXINDUS_DICT
-from pure_ocean_breeze.data.tools import 生成每日分类表, add_suffix, convert_code,drop_duplicates_index
-from pure_ocean_breeze.labor.process import pure_fama
+from pure_ocean_breeze.legacy_version.v3p4.data.read_data import read_daily, read_money_flow
+from pure_ocean_breeze.legacy_version.v3p4.data.dicts import INDUS_DICT, INDEX_DICT, ZXINDUS_DICT
+from pure_ocean_breeze.legacy_version.v3p4.data.tools import 生成每日分类表, add_suffix, convert_code,drop_duplicates_index
+from pure_ocean_breeze.legacy_version.v3p4.labor.process import pure_fama
 
 
 def database_update_minute_data_to_clickhouse_and_questdb(kind: str) -> None:
@@ -560,7 +560,8 @@ def database_update_daily_files() -> None:
     homeplace = HomePlace()
 
     def single_file(name):
-        df = pd.read_parquet(homeplace.daily_data_file + name + ".parquet")
+        df = pd.read_feather(homeplace.daily_data_file + name + ".feather")
+        df = df.set_index(list(df.columns)[0])
         startdate = df.index.max() + pd.Timedelta(days=1)
         return startdate
 
@@ -624,11 +625,13 @@ def database_update_daily_files() -> None:
 
     def to_mat(df, row, name, ind="date", col="code"):
         df = df[[ind, col, row]].pivot(index=ind, columns=col, values=row)
-        old = pd.read_parquet(homeplace.daily_data_file + name + ".parquet")
+        old = pd.read_feather(homeplace.daily_data_file + name + ".feather").set_index(
+            "date"
+        )
         new = pd.concat([old, df]).drop_duplicates()
         new = drop_duplicates_index(new)
         new = new[sorted(list(new.columns))]
-        new.to_parquet(homeplace.daily_data_file + name + ".parquet")
+        new.reset_index().to_feather(homeplace.daily_data_file + name + ".feather")
         logger.success(name + "已更新")
         return new
 
@@ -660,13 +663,15 @@ def database_update_daily_files() -> None:
         index="date", columns="code", values="turnover_rate_f"
     )
     part2 = part2 / 100
-    part2_old = pd.read_parquet(homeplace.daily_data_file + "trs.parquet")
+    part2_old = pd.read_feather(homeplace.daily_data_file + "trs.feather").set_index(
+        "date"
+    )
     part2_new = pd.concat([part2_old, part2])
     part2_new = part2_new.drop_duplicates()
     part2_new = part2_new[closes.columns]
     part2_new = part2_new[sorted(list(part2_new.columns))]
     part2_new = drop_duplicates_index(part2_new)
-    part2_new.to_parquet(homeplace.daily_data_file + "trs.parquet")
+    part2_new.reset_index().to_feather(homeplace.daily_data_file + "trs.feather")
     logger.success("换手率更新完成")
 
     # 流通股数
@@ -675,40 +680,44 @@ def database_update_daily_files() -> None:
         columns="code", index="date", values="float_share"
     )
     part3 = part3 * 10000
-    part3_old = pd.read_parquet(
-        homeplace.daily_data_file + "sharenums.parquet"
-    )
+    part3_old = pd.read_feather(
+        homeplace.daily_data_file + "sharenums.feather"
+    ).set_index("date")
     part3_new = pd.concat([part3_old, part3]).drop_duplicates()
     part3_new = part3_new[closes.columns]
     part3_new = drop_duplicates_index(part3_new)
     part3_new = part3_new[sorted(list(part3_new.columns))]
-    part3_new.to_parquet(homeplace.daily_data_file + "sharenums.parquet")
+    part3_new.reset_index().to_feather(homeplace.daily_data_file + "sharenums.feather")
     logger.success("流通股数更新完成")
 
     # pb
     partpb = df2s[["date", "code", "pb"]].pivot(
         index="date", columns="code", values="pb"
     )
-    partpb_old = pd.read_parquet(homeplace.daily_data_file + "pb.parquet")
+    partpb_old = pd.read_feather(homeplace.daily_data_file + "pb.feather").set_index(
+        "date"
+    )
     partpb_new = pd.concat([partpb_old, partpb])
     partpb_new = partpb_new.drop_duplicates()
     partpb_new = partpb_new[closes.columns]
     partpb_new = partpb_new[sorted(list(partpb_new.columns))]
     partpb_new = drop_duplicates_index(partpb_new)
-    partpb_new.to_parquet(homeplace.daily_data_file + "pb.parquet")
+    partpb_new.reset_index().to_feather(homeplace.daily_data_file + "pb.feather")
     logger.success("市净率更新完成")
 
     # pe
     partpe = df2s[["date", "code", "pe"]].pivot(
         index="date", columns="code", values="pe"
     )
-    partpe_old = pd.read_parquet(homeplace.daily_data_file + "pe.parquet")
+    partpe_old = pd.read_feather(homeplace.daily_data_file + "pe.feather").set_index(
+        "date"
+    )
     partpe_new = pd.concat([partpe_old, partpe])
     partpe_new = partpe_new.drop_duplicates()
     partpe_new = partpe_new[closes.columns]
     partpe_new = partpe_new[sorted(list(partpe_new.columns))]
     partpe_new = drop_duplicates_index(partpe_new)
-    partpe_new.to_parquet(homeplace.daily_data_file + "pe.parquet")
+    partpe_new.reset_index().to_feather(homeplace.daily_data_file + "pe.feather")
     logger.success("市盈率更新完成")
 
     # st
@@ -749,13 +758,13 @@ def database_update_daily_files() -> None:
     part4_0 = part4_0[closes.columns]
     part4_0 = drop_duplicates_index(part4_0)
     part4_0 = part4_0[sorted(list(part4_0.columns))]
-    part4_0.to_parquet(homeplace.daily_data_file + "sts.parquet")
+    part4_0.reset_index().to_feather(homeplace.daily_data_file + "sts.feather")
     logger.success("st更新完了")
 
     # 上市天数
-    part5_close = pd.read_parquet(
-        homeplace.update_data_file + "BasicFactor_Close.parquet"
-    )
+    part5_close = pd.read_feather(
+        homeplace.update_data_file + "BasicFactor_Close.txt"
+    ).set_index("index")
     part5_close = part5_close[part5_close.index < 20040101]
     part5_close.index = pd.to_datetime(part5_close.index, format="%Y%m%d")
     part5_close = pd.concat([part5_close, closes]).drop_duplicates()
@@ -767,7 +776,7 @@ def database_update_daily_files() -> None:
     part5 = part5[closes.columns]
     part5 = drop_duplicates_index(part5)
     part5 = part5[sorted(list(part5.columns))]
-    part5.to_parquet(homeplace.daily_data_file + "ages.parquet")
+    part5.reset_index().to_feather(homeplace.daily_data_file + "ages.feather")
     logger.success("上市天数更新完了")
 
 
@@ -793,7 +802,9 @@ def download_single_day_style(day):
 
 def database_update_barra_files():
     fs = os.listdir(homeplace.barra_data_file)[0]
-    fs = pd.read_parquet(homeplace.barra_data_file + fs)
+    fs = pd.read_feather(homeplace.barra_data_file + fs)
+    fs.columns = ["date"] + list(fs.columns)[1:]
+    fs = fs.set_index("date")
     last_date = fs.index.max()
     last_date = datetime.datetime.strftime(last_date, "%Y%m%d")
     now = datetime.datetime.now()
@@ -836,10 +847,12 @@ def database_update_barra_files():
         for s in sts:
             ds[s].append(style.pivot(columns="code", index="date", values=s))
     for k, v in ds.items():
-        old = pd.read_parquet(homeplace.barra_data_file + k + ".parquet")
+        old = pd.read_feather(homeplace.barra_data_file + k + ".feather")
+        old.columns = ["date"] + list(old.columns)[1:]
+        old = old.set_index("date")
         new = pd.concat(v)
         new = pd.concat([old, new])
-        new.to_parquet(homeplace.barra_data_file + k + ".parquet")
+        new.reset_index().to_feather(homeplace.barra_data_file + k + ".feather")
     logger.success(f"风格暴露数据已经更新到{now}")
 
 
@@ -891,7 +904,7 @@ def database_update_index_three():
     zz1000 = download_single_index("000852.SH")
     res = pd.concat([hs300, zz500, zz1000], axis=1)
     new_date = datetime.datetime.strftime(res.index.max(), "%Y%m%d")
-    res.to_parquet(homeplace.daily_data_file + "3510行情.parquet")
+    res.reset_index().to_feather(homeplace.daily_data_file + "3510行情.feather")
     logger.success(f"3510行情数据已经更新至{new_date}")
 
 
@@ -928,7 +941,7 @@ def database_update_swindustry_prices():
     indus = indus.dropna()
     indus.index = pd.to_datetime(indus.index, format="%Y%m%d")
     indus = indus.sort_index()
-    indus.to_parquet(homeplace.daily_data_file + "申万各行业行情数据.parquet")
+    indus.reset_index().to_feather(homeplace.daily_data_file + "申万各行业行情数据.feather")
     new_date = datetime.datetime.strftime(indus.index.max(), "%Y%m%d")
     logger.success(f"申万一级行业的行情数据已经更新至{new_date}")
 
@@ -948,8 +961,8 @@ def database_update_zxindustry_prices():
         )
         zxprices.append(ind)
     zxprice = reduce(lambda x, y: pd.merge(x, y, on=["date"], how="outer"), zxprices)
-    zxprice.set_index(['date']).to_parquet(
-        homeplace.daily_data_file + "中信各行业行情数据.parquet"
+    zxprice.reset_index(drop=True).to_feather(
+        homeplace.daily_data_file + "中信各行业行情数据.feather"
     )
     new_date = datetime.datetime.strftime(zxprice.date.max(), "%Y%m%d")
     logger.success(f"中信一级行业的行情数据已经更新至{new_date}")
@@ -988,8 +1001,8 @@ def database_update_swindustry_member():
     dfs = dfs.sort_values(["date", "code"])
     dfs = dfs[["date", "code"] + list(dfs.columns)[2:]]
     dfs = dfs.fillna(0)
-    dfs.reset_index(drop=True).to_parquet(
-        homeplace.daily_data_file + "申万行业2021版哑变量.parquet"
+    dfs.reset_index(drop=True).to_feather(
+        homeplace.daily_data_file + "申万行业2021版哑变量.feather"
     )
     new_date = dfs.date.max()
     new_date = datetime.datetime.strftime(new_date, "%Y%m%d")
@@ -998,8 +1011,8 @@ def database_update_swindustry_member():
 
 @retry
 def download_single_index_member_monthly(code):
-    file = homeplace.daily_data_file + INDEX_DICT[code] + "月成分股.parquet"
-    old = pd.read_parquet(file)
+    file = homeplace.daily_data_file + INDEX_DICT[code] + "月成分股.feather"
+    old = pd.read_feather(file).set_index("index")
     old_date = old.index.max()
     start_date = old_date + pd.Timedelta(days=1)
     end_date = datetime.datetime.now()
@@ -1034,7 +1047,7 @@ def download_single_index_member_monthly(code):
                     .pivot(columns="code", index="date", values="num")
                 )
                 a = pd.concat([old, a]).fillna(0)
-                a.to_parquet(file)
+                a.reset_index().to_feather(file)
                 logger.success(f"已将{INDEX_DICT[code]}月成分股更新至{end_date}")
         except Exception:
             time.sleep(60)
@@ -1061,7 +1074,7 @@ def download_single_index_member_monthly(code):
                     .pivot(columns="code", index="date", values="num")
                 )
                 a = pd.concat([old, a]).fillna(0)
-                a.to_parquet(file)
+                a.reset_index().to_feather(file)
                 logger.success(f"已将{INDEX_DICT[code]}月成分股更新至{end_date}")
 
 
@@ -1071,7 +1084,7 @@ def database_update_index_members_monthly():
 
 
 def download_single_index_member(code):
-    file = homeplace.daily_data_file + INDEX_DICT[code] + "日成分股.parquet"
+    file = homeplace.daily_data_file + INDEX_DICT[code] + "日成分股.feather"
     if code.endswith(".SH"):
         code = code[:6] + ".XSHG"
     elif code.endswith(".SZ"):
@@ -1089,7 +1102,7 @@ def download_single_index_member(code):
     tr = np.sign(read_daily(tr=1, start=20100101))
     tr = np.sign(tr + ress)
     now_str = datetime.datetime.strftime(now, "%Y%m%d")
-    tr.to_parquet(file)
+    tr.reset_index().to_feather(file)
     logger.success(f"已将{INDEX_DICT[convert_code(code)[0]]}日成分股更新至{now_str}")
 
 
@@ -1111,9 +1124,9 @@ def database_save_final_factors(df: pd.DataFrame, name: str, order: int) -> None
         因子的序号
     """
     homeplace = HomePlace()
-    path = homeplace.final_factor_file + name + "_" + "多因子" + str(order) + ".parquet"
+    path = homeplace.final_factor_file + name + "_" + "多因子" + str(order) + ".feather"
     df = df.drop_duplicates().dropna(how="all")
-    df.to_parquet(path)
+    df.reset_index().to_feather(path)
     final_date = df.index.max()
     final_date = datetime.datetime.strftime(final_date, "%Y%m%d")
     logger.success(f"今日计算的因子值保存，最新一天为{final_date}")
@@ -1172,20 +1185,20 @@ def database_update_money_flow():
     dfs.date = pd.to_datetime(dfs.date, format="%Y%m%d")
     ws = [i for i in list(dfs.columns) if i not in ["date", "code"]]
     for w in ws:
-        old = pd.read_parquet(
-            homeplace.daily_data_file + w[:-6] + ".parquet"
-        )
+        old = pd.read_feather(
+            homeplace.daily_data_file + w[:-6] + ".feather"
+        ).set_index("date")
         new = dfs.pivot(index="date", columns="code", values=w)
         new = pd.concat([old, new])
         new = new[sorted(list(new.columns))]
-        new.to_parquet(homeplace.daily_data_file + w[:-6] + ".parquet")
+        new.reset_index().to_feather(homeplace.daily_data_file + w[:-6] + ".feather")
     logger.success(f"已经将资金流数据更新到{now_str}")
 
 
 def database_update_zxindustry_member():
     """更新中信一级行业的成分股"""
-    old_codes = pd.read_parquet(homeplace.daily_data_file + "中信一级行业哑变量代码版.parquet")
-    old_names = pd.read_parquet(homeplace.daily_data_file + "中信一级行业哑变量名称版.parquet")
+    old_codes = pd.read_feather(homeplace.daily_data_file + "中信一级行业哑变量代码版.feather")
+    old_names = pd.read_feather(homeplace.daily_data_file + "中信一级行业哑变量名称版.feather")
     old_enddate = old_codes.date.max()
     old_enddate_str = datetime.datetime.strftime(old_enddate, "%Y%m%d")
     now = datetime.datetime.now()
@@ -1234,11 +1247,11 @@ def database_update_zxindustry_member():
         df.code = df.code.apply(lambda x: convert_code(x)[0])
         df = pd.concat([old, df], ignore_index=True)
         df = df[df.date.isin(list(a.index))]
-        df.reset_index(drop=True).to_parquet(homeplace.daily_data_file + file)
+        df.reset_index(drop=True).to_feather(homeplace.daily_data_file + file)
         return df
 
-    dfs_codes = save(dfs_codes, old_codes, "中信一级行业哑变量代码版.parquet")
-    dfs_names = save(dfs_names, old_names, "中信一级行业哑变量名称版.parquet")
+    dfs_codes = save(dfs_codes, old_codes, "中信一级行业哑变量代码版.feather")
+    dfs_names = save(dfs_names, old_names, "中信一级行业哑变量名称版.feather")
     logger.success(f"中信一级行业数据已经更新至{now_str}了")
 
 
@@ -1246,5 +1259,5 @@ def database_update_idiosyncratic_ret():
     pb = read_daily(pb=1, start=20100101)
     cap = read_daily(flow_cap=1, start=20100101).dropna(how='all')
     fama = pure_fama([cap, pb])
-    fama().to_parquet(homeplace.daily_data_file+"idiosyncratic_ret.parquet")
+    fama().reset_index().to_feather(homeplace.daily_data_file+"idiosyncratic_ret.feather")
     logger.success("特质收益率已经更新完成")

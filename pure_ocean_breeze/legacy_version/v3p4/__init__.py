@@ -2,8 +2,9 @@
 一个量化多因子研究的框架，包含数据、回测、因子加工等方面的功能
 """
 
-__updated__ = "2022-11-04 22:28:00"
-__version__ = "3.5.0"
+__updated__ = "2022-11-05 00:11:53"
+__version__ = "3.4.8"
+__publish_day__ = '2022-11-05'
 __author__ = "chenzongwei"
 __author_email__ = "winterwinter999@163.com"
 __url__ = "https://github.com/chen-001/pure_ocean_breeze"
@@ -13,7 +14,6 @@ __all__ = [
     "state",
     "mail",
     "initialize",
-    "legacy_version",
     "future_version",
     "withs"
 ]
@@ -188,33 +188,33 @@ def show_use_times():
     print(con)
 
 
-from pure_ocean_breeze import state
-from pure_ocean_breeze import data
-from pure_ocean_breeze import labor
-from pure_ocean_breeze import mail
-from pure_ocean_breeze import initialize
+from pure_ocean_breeze.legacy_version.v3p4 import state
+from pure_ocean_breeze.legacy_version.v3p4 import data
+from pure_ocean_breeze.legacy_version.v3p4 import labor
+from pure_ocean_breeze.legacy_version.v3p4 import mail
+from pure_ocean_breeze.legacy_version.v3p4 import initialize
 
 # from pure_ocean_breeze import future_version
 # from pure_ocean_breeze import legacy_version
 
-from pure_ocean_breeze.state import *
-from pure_ocean_breeze.data import *
-from pure_ocean_breeze.labor import *
-from pure_ocean_breeze.mail import *
-from pure_ocean_breeze.initialize import *
+from pure_ocean_breeze.legacy_version.v3p4.state import *
+from pure_ocean_breeze.legacy_version.v3p4.data import *
+from pure_ocean_breeze.legacy_version.v3p4.labor import *
+from pure_ocean_breeze.legacy_version.v3p4.mail import *
+from pure_ocean_breeze.legacy_version.v3p4.initialize import *
 
-from pure_ocean_breeze.state.homeplace import *
-from pure_ocean_breeze.state.decorators import *
+from pure_ocean_breeze.legacy_version.v3p4.state.homeplace import *
+from pure_ocean_breeze.legacy_version.v3p4.state.decorators import *
 
-from pure_ocean_breeze.data.database import *
-from pure_ocean_breeze.data.dicts import *
-from pure_ocean_breeze.data.read_data import *
-from pure_ocean_breeze.data.tools import *
-from pure_ocean_breeze.data.write_data import *
+from pure_ocean_breeze.legacy_version.v3p4.data.database import *
+from pure_ocean_breeze.legacy_version.v3p4.data.dicts import *
+from pure_ocean_breeze.legacy_version.v3p4.data.read_data import *
+from pure_ocean_breeze.legacy_version.v3p4.data.tools import *
+from pure_ocean_breeze.legacy_version.v3p4.data.write_data import *
 
-from pure_ocean_breeze.labor.process import *
-from pure_ocean_breeze.labor.comment import *
+from pure_ocean_breeze.legacy_version.v3p4.labor.process import *
+from pure_ocean_breeze.legacy_version.v3p4.labor.comment import *
 
-from pure_ocean_breeze.mail.email import *
+from pure_ocean_breeze.legacy_version.v3p4.mail.email import *
 
-from pure_ocean_breeze.initialize.initialize import *
+from pure_ocean_breeze.legacy_version.v3p4.initialize.initialize import *

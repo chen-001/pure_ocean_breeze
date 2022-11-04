@@ -1,4 +1,4 @@
-__updated__ = "2022-11-04 21:51:36"
+__updated__ = "2022-11-05 00:13:34"
 
 import numpy as np
 import pandas as pd
@@ -10,9 +10,9 @@ plt.rcParams["axes.unicode_minus"] = False
 import plotly.express as pe
 import plotly.io as pio
 from functools import reduce
-from pure_ocean_breeze.labor.process import pure_moon, decap_industry
-from pure_ocean_breeze.data.read_data import read_daily
-from pure_ocean_breeze.state.homeplace import HomePlace
+from pure_ocean_breeze.legacy_version.v3p4.labor.process import pure_moon, decap_industry
+from pure_ocean_breeze.legacy_version.v3p4.data.read_data import read_daily
+from pure_ocean_breeze.legacy_version.v3p4.state.homeplace import HomePlace
 
 
 class pure_cloud(object):
@@ -184,7 +184,8 @@ class pure_moonson(object):
     def __init__(self, fac, group_num=5):
         homeplace = HomePlace()
         pindu = (
-            pd.read_parquet(homeplace.daily_data_file + "各行业行情数据.parquet")
+            pd.read_feather(homeplace.daily_data_file + "各行业行情数据.feather")
+            .set_index("date")
             .resample("M")
             .last()
         )

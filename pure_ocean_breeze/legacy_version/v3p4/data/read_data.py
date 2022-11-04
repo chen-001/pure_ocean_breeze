@@ -1,4 +1,4 @@
-__updated__ = "2022-11-04 21:36:59"
+__updated__ = "2022-11-05 00:13:07"
 
 import os
 import numpy as np
@@ -7,10 +7,10 @@ import datetime
 from typing import Union
 from loguru import logger
 
-from pure_ocean_breeze.state.states import STATES
-from pure_ocean_breeze.state.homeplace import HomePlace
-from pure_ocean_breeze.state.decorators import *
-from pure_ocean_breeze.data.database import ClickHouseClient, Questdb
+from pure_ocean_breeze.legacy_version.v3p4.state.states import STATES
+from pure_ocean_breeze.legacy_version.v3p4.state.homeplace import HomePlace
+from pure_ocean_breeze.legacy_version.v3p4.state.decorators import *
+from pure_ocean_breeze.legacy_version.v3p4.data.database import ClickHouseClient, Questdb
 
 homeplace = HomePlace()
 
@@ -112,42 +112,54 @@ def read_daily(
 
     if not unadjust:
         if path:
-            return pd.read_parquet(homeplace.daily_data_file + path)
+            return pd.read_feather(homeplace.daily_data_file + path).set_index("date")
         elif open:
-            opens = pd.read_parquet(homeplace.daily_data_file + "opens.parquet")
+            opens = pd.read_feather(homeplace.daily_data_file + "opens.feather")
             df = opens
+            df = df.set_index(list(df.columns)[0])
         elif close:
-            closes = pd.read_parquet(homeplace.daily_data_file + "closes.parquet")
+            closes = pd.read_feather(homeplace.daily_data_file + "closes.feather")
             df = closes
+            df = df.set_index(list(df.columns)[0])
         elif high:
-            highs = pd.read_parquet(homeplace.daily_data_file + "highs.parquet")
+            highs = pd.read_feather(homeplace.daily_data_file + "highs.feather")
             df = highs
+            df = df.set_index(list(df.columns)[0])
         elif low:
-            lows = pd.read_parquet(homeplace.daily_data_file + "lows.parquet")
+            lows = pd.read_feather(homeplace.daily_data_file + "lows.feather")
             df = lows
+            df = df.set_index(list(df.columns)[0])
         elif tr:
-            trs = pd.read_parquet(homeplace.daily_data_file + "trs.parquet")
+            trs = pd.read_feather(homeplace.daily_data_file + "trs.feather")
             df = trs
+            df = df.set_index(list(df.columns)[0])
         elif sharenum:
-            sharenums = pd.read_parquet(homeplace.daily_data_file + "sharenums.parquet")
+            sharenums = pd.read_feather(homeplace.daily_data_file + "sharenums.feather")
             df = sharenums
+            df = df.set_index(list(df.columns)[0])
         elif volume:
-            volumes = pd.read_parquet(homeplace.daily_data_file + "volumes.parquet")
+            volumes = pd.read_feather(homeplace.daily_data_file + "volumes.feather")
             df = volumes
+            df = df.set_index(list(df.columns)[0])
         elif age:
-            age = pd.read_parquet(homeplace.daily_data_file + "ages.parquet")
+            age = pd.read_feather(homeplace.daily_data_file + "ages.feather")
             df = age
+            df = df.set_index(list(df.columns)[0])
         elif flow_cap:
-            closes = pd.read_parquet(homeplace.daily_data_file + "closes_unadj.parquet")
-            sharenums = pd.read_parquet(homeplace.daily_data_file + "sharenums.parquet")
+            closes = pd.read_feather(homeplace.daily_data_file + "closes_unadj.feather")
+            sharenums = pd.read_feather(homeplace.daily_data_file + "sharenums.feather")
+            closes = closes.set_index(list(closes.columns)[0])
+            sharenums = sharenums.set_index(list(sharenums.columns)[0])
             flow_cap = closes * sharenums
             df = flow_cap
         elif st:
-            st = pd.read_parquet(homeplace.daily_data_file + "sts.parquet")
+            st = pd.read_feather(homeplace.daily_data_file + "sts.feather")
             df = st
+            df = df.set_index(list(df.columns)[0])
         elif state:
-            state = pd.read_parquet(homeplace.daily_data_file + "states.parquet")
+            state = pd.read_feather(homeplace.daily_data_file + "states.feather")
             df = state
+            df = df.set_index(list(df.columns)[0])
         elif ret:
             df = read_daily(close=1, start=start)
             df = df / df.shift(1) - 1
@@ -173,13 +185,16 @@ def read_daily(
                 read_daily(high=1, start=start) - read_daily(low=1, start=start)
             ) / read_daily(close=1, start=start)
         elif pb:
-            df = pd.read_parquet(homeplace.daily_data_file + "pb.parquet")
+            df = pd.read_feather(homeplace.daily_data_file + "pb.feather")
+            df = df.set_index(list(df.columns)[0])
         elif pe:
-            df = pd.read_parquet(homeplace.daily_data_file + "pe.parquet")
+            df = pd.read_feather(homeplace.daily_data_file + "pe.feather")
+            df = df.set_index(list(df.columns)[0])
         elif iret:
-            df = pd.read_parquet(
-                homeplace.daily_data_file + "idiosyncratic_ret.parquet"
+            df = pd.read_feather(
+                homeplace.daily_data_file + "idiosyncratic_ret.feather"
             )
+            df = df.set_index(list(df.columns)[0])
         elif ivol:
             df = read_daily(iret=1, start=start)
             df = df.rolling(20, min_periods=10).std()
@@ -187,17 +202,21 @@ def read_daily(
             raise IOError("阁下总得读点什么吧？🤒")
     else:
         if open:
-            opens = pd.read_parquet(homeplace.daily_data_file + "opens.parquet")
+            opens = pd.read_feather(homeplace.daily_data_file + "opens.feather")
             df = opens
+            df = df.set_index(list(df.columns)[0])
         elif close:
-            closes = pd.read_parquet(homeplace.daily_data_file + "closes.parquet")
+            closes = pd.read_feather(homeplace.daily_data_file + "closes.feather")
             df = closes
+            df = df.set_index(list(df.columns)[0])
         elif high:
-            highs = pd.read_parquet(homeplace.daily_data_file + "highs.parquet")
+            highs = pd.read_feather(homeplace.daily_data_file + "highs.feather")
             df = highs
+            df = df.set_index(list(df.columns)[0])
         elif low:
-            lows = pd.read_parquet(homeplace.daily_data_file + "lows.parquet")
+            lows = pd.read_feather(homeplace.daily_data_file + "lows.feather")
             df = lows
+            df = df.set_index(list(df.columns)[0])
 
         else:
             raise IOError("阁下总得读点什么吧？🤒")
@@ -341,12 +360,14 @@ def read_money_flow(
                 raise IOError("您总得指定一种规模吧？🤒")
         else:
             raise IOError("您总得指定一下是买还是卖吧？🤒")
-        name = homeplace.daily_data_file + name + ".parquet"
-        df = pd.read_parquet(name)
+        name = homeplace.daily_data_file + name + ".feather"
+        df = pd.read_feather(name).set_index("date")
         return df
     else:
         dfs = [
-            pd.read_parquet(homeplace.daily_data_file + name + ".parquet")
+            pd.read_feather(homeplace.daily_data_file + name + ".feather").set_index(
+                "date"
+            )
             for name in [
                 "buy_value_exlarge",
                 "buy_value_large",
@@ -446,7 +467,9 @@ def read_swindustry_prices(
     """
     if day is None:
         day = STATES["START"]
-    df = pd.read_parquet(homeplace.daily_data_file + "申万各行业行情数据.parquet")
+    df = pd.read_feather(homeplace.daily_data_file + "申万各行业行情数据.feather").set_index(
+        "date"
+    )
     df = df[df.index >= pd.Timestamp(str(start))]
     if monthly:
         df = df.resample("M").last()
@@ -472,7 +495,9 @@ def read_zxindustry_prices(
     """
     if day is None:
         day = STATES["START"]
-    df = pd.read_parquet(homeplace.daily_data_file + "中信各行业行情数据.parquet")
+    df = pd.read_feather(homeplace.daily_data_file + "中信各行业行情数据.feather").set_index(
+        "date"
+    )
     df = df[df.index >= pd.Timestamp(str(start))]
     if monthly:
         df = df.resample("M").last()
@@ -513,11 +538,11 @@ def get_industry_dummies(
     """
     homeplace = HomePlace()
     if swindustry:
-        name = "申万行业2021版哑变量.parquet"
+        name = "申万行业2021版哑变量.feather"
     else:
-        name = "中信一级行业哑变量名称版.parquet"
+        name = "中信一级行业哑变量名称版.feather"
     if monthly:
-        industry_dummy = pd.read_parquet(homeplace.daily_data_file + name)
+        industry_dummy = pd.read_feather(homeplace.daily_data_file + name)
         industry_dummy = (
             industry_dummy.set_index("date")
             .groupby("code")
@@ -528,7 +553,7 @@ def get_industry_dummies(
             .reset_index()
         )
     elif daily:
-        industry_dummy = pd.read_parquet(homeplace.daily_data_file + name).fillna(0)
+        industry_dummy = pd.read_feather(homeplace.daily_data_file + name).fillna(0)
     else:
         raise ValueError("您总得指定一个频率吧？🤒")
     industry_dummy = industry_dummy[industry_dummy.date >= pd.Timestamp(str(start))]
@@ -592,7 +617,9 @@ def database_read_final_factors(
         else:
             ans = ans1
     path = homeplace.final_factor_file + ans
-    df = pd.read_parquet(path)
+    df = pd.read_feather(path)
+    df.columns = ["date"] + list(df.columns)[1:]
+    df = df.set_index(["date"])
     df = df[sorted(list(df.columns))]
     final_date = df.index.max()
     final_date = datetime.datetime.strftime(final_date, "%Y%m%d")
@@ -660,7 +687,9 @@ def database_read_primary_factors(name: str = None) -> pd.DataFrame:
         初级因子的因子值
     """
     homeplace = HomePlace()
-    name = name + "_初级.parquet"
-    df = pd.read_parquet(homeplace.factor_data_file + name)
+    name = name + "_初级.feather"
+    df = pd.read_feather(homeplace.factor_data_file + name)
+    df = df.rename(columns={list(df.columns)[0]: "date"})
+    df = df.set_index("date")
     df = df[sorted(list(df.columns))]
     return df

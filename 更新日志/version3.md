@@ -1,5 +1,11 @@
 ## 更新日志🗓 — v3
 
+* v3.5.0 — 2022.11.5
+> 1. 替换了所有的feather文件读写和存储，改为parquet格式，优化了索引相关的操作
+> 1. 优化了pure_moon中关于因子处理的步骤
+> 1. legacy_version中收录了v3p4，即3.4.8版本，为最后一个通过feather文件读写的版本
+> 1. 新增了feather_to_parquet_all函数，一键将数据库中的所有feather文件都转化为parquet文件
+> 1. 删去了依赖包feather，新增了依赖包pyarrow和clickhouse_sqlalchemy
 * v3.4.8 — 2022.11.4
 > 1. 修复了pure_moon市值加权回测的bug
 > 1. 优化了pure_moon的on_paper参数下，学术化评价指标的内容
