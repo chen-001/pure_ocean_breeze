@@ -1,4 +1,4 @@
-__updated__ = "2022-11-04 21:49:19"
+__updated__ = "2022-11-05 02:36:56"
 
 try:
     import rqdatac
@@ -86,7 +86,6 @@ def database_update_minute_data_to_clickhouse_and_questdb(kind: str) -> None:
         skip_suspended=False,
         market="cn",
         expect_df=True,
-        time_slice=None,
     )
     # 调整数据格式
     ts = ts.reset_index()

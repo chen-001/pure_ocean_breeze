@@ -26,7 +26,6 @@ except Exception:
 import knockknock as kk
 import matplotlib.pyplot as plt
 
-plt.style.use(["science", "no-latex", "notebook"])
 plt.rcParams["axes.unicode_minus"] = False
 import copy
 import pickle
@@ -42,7 +41,7 @@ import statsmodels.formula.api as smf
 
 import smtplib
 import warnings
-from collections import Iterable
+from collections.abc import Iterable
 from email.header import Header
 from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart

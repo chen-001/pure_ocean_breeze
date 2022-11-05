@@ -1,5 +1,9 @@
 ## 更新日志🗓 — v3
 
+* v3.5.1 — 2022.11.5
+> 1. 修复了database_update_minute_data_to_clickhouse_and_questdb中的get_price接口变化导致的bug
+> 1. 删去了plt.style的设定代码
+> 1. 修复了pure_ocean_breeze.withs.requires中导入Iterable的bug
 * v3.5.0 — 2022.11.5
 > 1. 替换了所有的feather文件读写和存储，改为parquet格式，优化了索引相关的操作
 > 1. 优化了pure_moon中关于因子处理的步骤

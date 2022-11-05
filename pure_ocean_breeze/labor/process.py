@@ -1,4 +1,4 @@
-__updated__ = "2022-11-04 22:21:54"
+__updated__ = "2022-11-05 21:35:13"
 
 import warnings
 
@@ -15,7 +15,6 @@ import matplotlib as mpl
 mpl.rcParams.update(mpl.rcParamsDefault)
 import matplotlib.pyplot as plt
 
-plt.style.use(["science", "no-latex", "notebook"])
 plt.rcParams["axes.unicode_minus"] = False
 
 from functools import reduce, lru_cache, partial

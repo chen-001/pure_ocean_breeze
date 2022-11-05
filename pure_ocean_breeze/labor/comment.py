@@ -1,4 +1,4 @@
-__updated__ = "2022-10-31 13:34:42"
+__updated__ = "2022-11-05 21:35:19"
 
 import numpy as np
 import pandas as pd
@@ -7,7 +7,6 @@ import matplotlib as mpl
 mpl.rcParams.update(mpl.rcParamsDefault)
 import matplotlib.pyplot as plt
 
-plt.style.use(["science", "no-latex", "notebook"])
 plt.rcParams["axes.unicode_minus"] = False
 from pure_ocean_breeze.data.read_data import read_index_three, read_daily
 
