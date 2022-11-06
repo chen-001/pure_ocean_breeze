@@ -1,5 +1,12 @@
 ## 更新日志🗓 — v3
 
+* v3.5.3 — 2022.11.6
+> 1. 将所有通过is_notebook判断使用何种进度条的函数都改为了通过tqdm.auto模块自动判断
+> 1. 将重复更新日频数据database_update_daily_files函数设置为不再报错
+> 1. 修复了pure_fall_frequent只更新一天数据时不写入questdb的bug
+> 1. 修复了使用pure_fall_frequent进行截面操作时，使用for_cross_via_zip装饰器，只返回一个Series时的bug
+> 1. 将pure_ocean_breeze.withs.requires中导入的进度条模块改为tqdm.auto
+> 1. 向依赖库中新增了tradetime，删去了SciencePlots、alphalens和cachier
 * v3.5.2 — 2022.11.6
 > 1. pure_moon和pure_moonnight新增freq参数，可以选择'M'，或'W'，进行月频测试或周频测试
 > 1. 新增frequency_controller类，对回测中不同频率的操作和参数进行控制

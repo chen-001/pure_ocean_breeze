@@ -10,8 +10,7 @@ import psycopg2.extras as extras
 import pymysql
 import requests
 import scipy.io as scio
-import tqdm
-from cachier import cachier
+import tqdm.auto
 from loguru import logger
 from psycopg2.extensions import AsIs, register_adapter
 from sqlalchemy import BIGINT, FLOAT, INT, VARCHAR, create_engine

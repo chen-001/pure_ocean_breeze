@@ -2,11 +2,11 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2022-11-05 00:25:18"
+__updated__ = "2022-11-06 22:04:42"
 
 import os
 import pandas as pd
-import tqdm
+import tqdm.auto
 import datetime
 import scipy.io as scio
 import numpy as np
@@ -522,10 +522,7 @@ def func_two_daily(
                 df2 = pd.concat([df2a, df2b])
                 twins = merge_many([df1, df2])
 
-                if is_notebook():
-                    tqdm.tqdm_notebook().pandas()
-                else:
-                    tqdm.tqdm.pandas()
+                tqdm.auto.tqdm.pandas()
                 corrs = twins.groupby(["code"]).progress_apply(func_rolling)
                 cor = []
                 for i in range(len(corrs)):
@@ -550,10 +547,7 @@ def func_two_daily(
         else:
             logger.info("第一次计算，请耐心等待，计算完成后将存储")
             twins = merge_many([df1, df2])
-            if is_notebook():
-                tqdm.tqdm_notebook().pandas()
-            else:
-                tqdm.tqdm.pandas()
+            tqdm.auto.tqdm.pandas()
             corrs = twins.groupby(["code"]).progress_apply(func_rolling)
             cor = []
             for i in range(len(corrs)):
@@ -1015,17 +1009,16 @@ def feather_to_parquet(folder: str):
     """
     files = os.listdir(folder)
     files = [folder + i for i in files]
-    if is_notebook():
-        for file in tqdm.tqdm_notebook(files):
-            try:
-                df = pd.read_feather(file)
-                if (
-                    ("date" in list(df.columns)) and ("code" not in list(df.columns))
-                ) or ("index" in list(df.columns)):
-                    df = df.set_index(list(df.columns)[0])
-                df.to_parquet(file.split(".")[0]+'.parquet')
-            except Exception:
-                logger.warning(f"{file}不是parquet文件")
+    for file in tqdm.auto.tqdm(files):
+        try:
+            df = pd.read_feather(file)
+            if (
+                ("date" in list(df.columns)) and ("code" not in list(df.columns))
+            ) or ("index" in list(df.columns)):
+                df = df.set_index(list(df.columns)[0])
+            df.to_parquet(file.split(".")[0]+'.parquet')
+        except Exception:
+            logger.warning(f"{file}不是parquet文件")
 
 
 def feather_to_parquet_all():

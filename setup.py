@@ -1,4 +1,4 @@
-__updated__ = "2022-11-05 00:06:43"
+__updated__ = "2022-11-06 22:23:42"
 
 from setuptools import setup
 import setuptools
@@ -18,7 +18,7 @@ def get_version(package):
 setup(
     name="pure_ocean_breeze",
     version=get_version("pure_ocean_breeze"),
-    description="众人的回测框架",
+    description="stock factor test",
     # long_description="详见homepage\nhttps://github.com/chen-001/pure_ocean_breeze.git",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -35,15 +35,12 @@ setup(
         "matplotlib",
         "pyarrow",
         "loguru",
-        "cachier",
         "knockknock",
         "dcube",
         "tenacity",
-        "alphalens",
         "pickledb",
         "pymysql",
         "sqlalchemy",
-        "SciencePlots",
         "psycopg2",
         "requests",
         "bs4",
@@ -54,6 +51,7 @@ setup(
         "xpinyin",
         "cufflinks",
         "clickhouse_sqlalchemy",
+        "tradetime",
     ],
     python_requires=">=3",
     license="MIT",

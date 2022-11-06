@@ -1,4 +1,4 @@
-__updated__ = "2022-11-05 02:36:56"
+__updated__ = "2022-11-06 22:11:14"
 
 try:
     import rqdatac
@@ -16,7 +16,7 @@ import scipy.io as scio
 from sqlalchemy import FLOAT, INT, VARCHAR, BIGINT
 from tenacity import retry
 import pickledb
-import tqdm
+import tqdm.auto
 from functools import reduce
 import dcube as dc
 from pure_ocean_breeze.state.homeplace import HomePlace
@@ -593,11 +593,12 @@ def database_update_daily_files() -> None:
     # 交易日历
     df0 = download_calendar(startdate, now)
     tradedates = sorted(list(set(df0.trade_date)))
+    finish=1
     if len(tradedates) > 1:
         # 存储每天数据
         df1s = []
         df2s = []
-        for day in tqdm.tqdm(tradedates, desc="正在下载日频数据"):
+        for day in tqdm.auto.tqdm(tradedates, desc="正在下载日频数据"):
             df1, df2 = download_single_daily(day)
             df1s.append(df1)
             df2s.append(df2)
@@ -608,166 +609,168 @@ def database_update_daily_files() -> None:
     elif len(tradedates) == 1:
         df1s, df2s = download_single_daily(tradedates[0])
     else:
-        raise ValueError("从上次更新到这次更新，还没有经过交易日。放假就好好休息吧，别跑代码了🤒")
-    df1s.tradestatus = (df1s.tradestatus == "交易") + 0
-    df2s = df2s.rename(columns={"ts_code": "code"})
-    df1s.trade_date = pd.to_datetime(df1s.trade_date, format="%Y%m%d")
-    df2s.trade_date = pd.to_datetime(df2s.trade_date, format="%Y%m%d")
-    df1s = df1s.rename(columns={"trade_date": "date"})
-    df2s = df2s.rename(columns={"trade_date": "date"})
-    both_codes = list(set(df1s.code) & set(df2s.code))
-    df1s = df1s[df1s.code.isin(both_codes)]
-    df2s = df2s[df2s.code.isin(both_codes)]
-    # st股
-    df3 = pro.ashare_st()
+        finish=0
+        logger.info("从上次更新到这次更新，还没有经过交易日。放假就好好休息吧，别跑代码了🤒")
+    if finish:
+        df1s.tradestatus = (df1s.tradestatus == "交易") + 0
+        df2s = df2s.rename(columns={"ts_code": "code"})
+        df1s.trade_date = pd.to_datetime(df1s.trade_date, format="%Y%m%d")
+        df2s.trade_date = pd.to_datetime(df2s.trade_date, format="%Y%m%d")
+        df1s = df1s.rename(columns={"trade_date": "date"})
+        df2s = df2s.rename(columns={"trade_date": "date"})
+        both_codes = list(set(df1s.code) & set(df2s.code))
+        df1s = df1s[df1s.code.isin(both_codes)]
+        df2s = df2s[df2s.code.isin(both_codes)]
+        # st股
+        df3 = pro.ashare_st()
 
-    def to_mat(df, row, name, ind="date", col="code"):
-        df = df[[ind, col, row]].pivot(index=ind, columns=col, values=row)
-        old = pd.read_parquet(homeplace.daily_data_file + name + ".parquet")
-        new = pd.concat([old, df]).drop_duplicates()
-        new = drop_duplicates_index(new)
-        new = new[sorted(list(new.columns))]
-        new.to_parquet(homeplace.daily_data_file + name + ".parquet")
-        logger.success(name + "已更新")
-        return new
+        def to_mat(df, row, name, ind="date", col="code"):
+            df = df[[ind, col, row]].pivot(index=ind, columns=col, values=row)
+            old = pd.read_parquet(homeplace.daily_data_file + name + ".parquet")
+            new = pd.concat([old, df]).drop_duplicates()
+            new = drop_duplicates_index(new)
+            new = new[sorted(list(new.columns))]
+            new.to_parquet(homeplace.daily_data_file + name + ".parquet")
+            logger.success(name + "已更新")
+            return new
 
-    # 股票日行情（未复权高开低收，复权高开低收，交易状态，成交量）
-    part1 = df1s.copy()
-    # 未复权开盘价
-    opens = to_mat(part1, "open", "opens_unadj")
-    # 未复权最高价
-    highs = to_mat(part1, "high", "highs_unadj")
-    # 未复权最低价
-    lows = to_mat(part1, "low", "lows_unadj")
-    # 未复权收盘价
-    closes = to_mat(part1, "close", "closes_unadj")
-    # 成交量
-    volumes = to_mat(part1, "volume", "volumes")
-    # 复权开盘价
-    diopens = to_mat(part1, "adjopen", "opens")
-    # 复权最高价
-    dihighs = to_mat(part1, "adjhigh", "highs")
-    # 复权最低价
-    dilows = to_mat(part1, "adjlow", "lows")
-    # 复权收盘价
-    dicloses = to_mat(part1, "adjclose", "closes")
-    # 交易状态
-    status = to_mat(part1, "tradestatus", "states")
+        # 股票日行情（未复权高开低收，复权高开低收，交易状态，成交量）
+        part1 = df1s.copy()
+        # 未复权开盘价
+        opens = to_mat(part1, "open", "opens_unadj")
+        # 未复权最高价
+        highs = to_mat(part1, "high", "highs_unadj")
+        # 未复权最低价
+        lows = to_mat(part1, "low", "lows_unadj")
+        # 未复权收盘价
+        closes = to_mat(part1, "close", "closes_unadj")
+        # 成交量
+        volumes = to_mat(part1, "volume", "volumes")
+        # 复权开盘价
+        diopens = to_mat(part1, "adjopen", "opens")
+        # 复权最高价
+        dihighs = to_mat(part1, "adjhigh", "highs")
+        # 复权最低价
+        dilows = to_mat(part1, "adjlow", "lows")
+        # 复权收盘价
+        dicloses = to_mat(part1, "adjclose", "closes")
+        # 交易状态
+        status = to_mat(part1, "tradestatus", "states")
 
-    # 换手率
-    part2 = df2s[["date", "code", "turnover_rate_f"]].pivot(
-        index="date", columns="code", values="turnover_rate_f"
-    )
-    part2 = part2 / 100
-    part2_old = pd.read_parquet(homeplace.daily_data_file + "trs.parquet")
-    part2_new = pd.concat([part2_old, part2])
-    part2_new = part2_new.drop_duplicates()
-    part2_new = part2_new[closes.columns]
-    part2_new = part2_new[sorted(list(part2_new.columns))]
-    part2_new = drop_duplicates_index(part2_new)
-    part2_new.to_parquet(homeplace.daily_data_file + "trs.parquet")
-    logger.success("换手率更新完成")
+        # 换手率
+        part2 = df2s[["date", "code", "turnover_rate_f"]].pivot(
+            index="date", columns="code", values="turnover_rate_f"
+        )
+        part2 = part2 / 100
+        part2_old = pd.read_parquet(homeplace.daily_data_file + "trs.parquet")
+        part2_new = pd.concat([part2_old, part2])
+        part2_new = part2_new.drop_duplicates()
+        part2_new = part2_new[closes.columns]
+        part2_new = part2_new[sorted(list(part2_new.columns))]
+        part2_new = drop_duplicates_index(part2_new)
+        part2_new.to_parquet(homeplace.daily_data_file + "trs.parquet")
+        logger.success("换手率更新完成")
 
-    # 流通股数
-    # 读取新的流通股变动数
-    part3 = df2s[["date", "code", "float_share"]].pivot(
-        columns="code", index="date", values="float_share"
-    )
-    part3 = part3 * 10000
-    part3_old = pd.read_parquet(
-        homeplace.daily_data_file + "sharenums.parquet"
-    )
-    part3_new = pd.concat([part3_old, part3]).drop_duplicates()
-    part3_new = part3_new[closes.columns]
-    part3_new = drop_duplicates_index(part3_new)
-    part3_new = part3_new[sorted(list(part3_new.columns))]
-    part3_new.to_parquet(homeplace.daily_data_file + "sharenums.parquet")
-    logger.success("流通股数更新完成")
+        # 流通股数
+        # 读取新的流通股变动数
+        part3 = df2s[["date", "code", "float_share"]].pivot(
+            columns="code", index="date", values="float_share"
+        )
+        part3 = part3 * 10000
+        part3_old = pd.read_parquet(
+            homeplace.daily_data_file + "sharenums.parquet"
+        )
+        part3_new = pd.concat([part3_old, part3]).drop_duplicates()
+        part3_new = part3_new[closes.columns]
+        part3_new = drop_duplicates_index(part3_new)
+        part3_new = part3_new[sorted(list(part3_new.columns))]
+        part3_new.to_parquet(homeplace.daily_data_file + "sharenums.parquet")
+        logger.success("流通股数更新完成")
 
-    # pb
-    partpb = df2s[["date", "code", "pb"]].pivot(
-        index="date", columns="code", values="pb"
-    )
-    partpb_old = pd.read_parquet(homeplace.daily_data_file + "pb.parquet")
-    partpb_new = pd.concat([partpb_old, partpb])
-    partpb_new = partpb_new.drop_duplicates()
-    partpb_new = partpb_new[closes.columns]
-    partpb_new = partpb_new[sorted(list(partpb_new.columns))]
-    partpb_new = drop_duplicates_index(partpb_new)
-    partpb_new.to_parquet(homeplace.daily_data_file + "pb.parquet")
-    logger.success("市净率更新完成")
+        # pb
+        partpb = df2s[["date", "code", "pb"]].pivot(
+            index="date", columns="code", values="pb"
+        )
+        partpb_old = pd.read_parquet(homeplace.daily_data_file + "pb.parquet")
+        partpb_new = pd.concat([partpb_old, partpb])
+        partpb_new = partpb_new.drop_duplicates()
+        partpb_new = partpb_new[closes.columns]
+        partpb_new = partpb_new[sorted(list(partpb_new.columns))]
+        partpb_new = drop_duplicates_index(partpb_new)
+        partpb_new.to_parquet(homeplace.daily_data_file + "pb.parquet")
+        logger.success("市净率更新完成")
 
-    # pe
-    partpe = df2s[["date", "code", "pe"]].pivot(
-        index="date", columns="code", values="pe"
-    )
-    partpe_old = pd.read_parquet(homeplace.daily_data_file + "pe.parquet")
-    partpe_new = pd.concat([partpe_old, partpe])
-    partpe_new = partpe_new.drop_duplicates()
-    partpe_new = partpe_new[closes.columns]
-    partpe_new = partpe_new[sorted(list(partpe_new.columns))]
-    partpe_new = drop_duplicates_index(partpe_new)
-    partpe_new.to_parquet(homeplace.daily_data_file + "pe.parquet")
-    logger.success("市盈率更新完成")
+        # pe
+        partpe = df2s[["date", "code", "pe"]].pivot(
+            index="date", columns="code", values="pe"
+        )
+        partpe_old = pd.read_parquet(homeplace.daily_data_file + "pe.parquet")
+        partpe_new = pd.concat([partpe_old, partpe])
+        partpe_new = partpe_new.drop_duplicates()
+        partpe_new = partpe_new[closes.columns]
+        partpe_new = partpe_new[sorted(list(partpe_new.columns))]
+        partpe_new = drop_duplicates_index(partpe_new)
+        partpe_new.to_parquet(homeplace.daily_data_file + "pe.parquet")
+        logger.success("市盈率更新完成")
 
-    # st
-    part4 = df3[["s_info_windcode", "entry_dt", "remove_dt"]]
-    part4 = part4.sort_values("s_info_windcode")
-    part4.remove_dt = part4.remove_dt.fillna(now).astype(int)
-    part4 = part4.set_index("s_info_windcode").stack()
-    part4 = part4.reset_index().assign(
-        he=sorted(list(range(int(part4.shape[0] / 2))) * 2)
-    )
-    part4 = part4.drop(columns=["level_1"])
-    part4.columns = ["code", "date", "he"]
-    part4.date = pd.to_datetime(part4.date, format="%Y%m%d")
+        # st
+        part4 = df3[["s_info_windcode", "entry_dt", "remove_dt"]]
+        part4 = part4.sort_values("s_info_windcode")
+        part4.remove_dt = part4.remove_dt.fillna(now).astype(int)
+        part4 = part4.set_index("s_info_windcode").stack()
+        part4 = part4.reset_index().assign(
+            he=sorted(list(range(int(part4.shape[0] / 2))) * 2)
+        )
+        part4 = part4.drop(columns=["level_1"])
+        part4.columns = ["code", "date", "he"]
+        part4.date = pd.to_datetime(part4.date, format="%Y%m%d")
 
-    def single(df):
-        full = pd.DataFrame({"date": pd.date_range(df.date.min(), df.date.max())})
-        df = pd.merge(full, df, on=["date"], how="left")
-        df = df.fillna(method="ffill")
-        return df
+        def single(df):
+            full = pd.DataFrame({"date": pd.date_range(df.date.min(), df.date.max())})
+            df = pd.merge(full, df, on=["date"], how="left")
+            df = df.fillna(method="ffill")
+            return df
 
-    tqdm.tqdm.pandas()
-    part4 = part4.groupby(["code", "he"]).progress_apply(single)
-    part4 = part4[part4.date.isin(list(part2_new.index))]
-    part4 = part4.reset_index(drop=True)
-    part4 = part4.assign(st=1)
+        tqdm.auto.tqdm.pandas()
+        part4 = part4.groupby(["code", "he"]).progress_apply(single)
+        part4 = part4[part4.date.isin(list(part2_new.index))]
+        part4 = part4.reset_index(drop=True)
+        part4 = part4.assign(st=1)
 
-    part4 = part4.drop_duplicates(subset=["date", "code"]).pivot(
-        index="date", columns="code", values="st"
-    )
+        part4 = part4.drop_duplicates(subset=["date", "code"]).pivot(
+            index="date", columns="code", values="st"
+        )
 
-    part4_0 = pd.DataFrame(0, columns=part2_new.columns, index=part2_new.index)
-    part4_0 = part4_0 + part4
-    part4_0 = part4_0.replace(np.nan, 0)
-    part4_0 = part4_0[part4_0.index.isin(list(part2_new.index))]
-    part4_0 = part4_0.T
-    part4_0 = part4_0[part4_0.index.isin(list(part2_new.columns))]
-    part4_0 = part4_0.T
-    part4_0 = part4_0[closes.columns]
-    part4_0 = drop_duplicates_index(part4_0)
-    part4_0 = part4_0[sorted(list(part4_0.columns))]
-    part4_0.to_parquet(homeplace.daily_data_file + "sts.parquet")
-    logger.success("st更新完了")
+        part4_0 = pd.DataFrame(0, columns=part2_new.columns, index=part2_new.index)
+        part4_0 = part4_0 + part4
+        part4_0 = part4_0.replace(np.nan, 0)
+        part4_0 = part4_0[part4_0.index.isin(list(part2_new.index))]
+        part4_0 = part4_0.T
+        part4_0 = part4_0[part4_0.index.isin(list(part2_new.columns))]
+        part4_0 = part4_0.T
+        part4_0 = part4_0[closes.columns]
+        part4_0 = drop_duplicates_index(part4_0)
+        part4_0 = part4_0[sorted(list(part4_0.columns))]
+        part4_0.to_parquet(homeplace.daily_data_file + "sts.parquet")
+        logger.success("st更新完了")
 
-    # 上市天数
-    part5_close = pd.read_parquet(
-        homeplace.update_data_file + "BasicFactor_Close.parquet"
-    )
-    part5_close = part5_close[part5_close.index < 20040101]
-    part5_close.index = pd.to_datetime(part5_close.index, format="%Y%m%d")
-    part5_close = pd.concat([part5_close, closes]).drop_duplicates()
-    part5 = np.sign(part5_close).fillna(method="ffill").cumsum()
-    part5 = part5[part5.index.isin(list(part2_new.index))]
-    part5 = part5.T
-    part5 = part5[part5.index.isin(list(part2_new.columns))]
-    part5 = part5.T
-    part5 = part5[closes.columns]
-    part5 = drop_duplicates_index(part5)
-    part5 = part5[sorted(list(part5.columns))]
-    part5.to_parquet(homeplace.daily_data_file + "ages.parquet")
-    logger.success("上市天数更新完了")
+        # 上市天数
+        part5_close = pd.read_parquet(
+            homeplace.update_data_file + "BasicFactor_Close.parquet"
+        )
+        part5_close = part5_close[part5_close.index < 20040101]
+        part5_close.index = pd.to_datetime(part5_close.index, format="%Y%m%d")
+        part5_close = pd.concat([part5_close, closes]).drop_duplicates()
+        part5 = np.sign(part5_close).fillna(method="ffill").cumsum()
+        part5 = part5[part5.index.isin(list(part2_new.index))]
+        part5 = part5.T
+        part5 = part5[part5.index.isin(list(part2_new.columns))]
+        part5 = part5.T
+        part5 = part5[closes.columns]
+        part5 = drop_duplicates_index(part5)
+        part5 = part5[sorted(list(part5.columns))]
+        part5.to_parquet(homeplace.daily_data_file + "ages.parquet")
+        logger.success("上市天数更新完了")
 
 
 @retry
@@ -815,7 +818,7 @@ def database_update_barra_files():
         "nonlinearsize",
     ]
     ds = {k: [] for k in style_names}
-    for t in tqdm.tqdm(tradedates):
+    for t in tqdm.auto.tqdm(tradedates):
         style = download_single_day_style(t)
         style.columns = style.columns.str.lower()
         style = style.rename(
@@ -972,7 +975,7 @@ def download_single_swindustry_member(ind):
 
 def database_update_swindustry_member():
     dfs = []
-    for ind in tqdm.tqdm(INDUS_DICT.keys()):
+    for ind in tqdm.auto.tqdm(INDUS_DICT.keys()):
         ff = download_single_swindustry_member(ind)
         ff = 生成每日分类表(ff, "con_code", "in_date", "out_date", "index_code")
         khere = ff.index_code.iloc[0]
@@ -1161,7 +1164,7 @@ def database_update_money_flow():
     now_str = datetime.datetime.strftime(now, "%Y%m%d")
     logger.info(f"上次资金流数据更新到{old_enddate_str}，本次将从{start_date_str}更新到{now_str}")
     dfs = []
-    for code in tqdm.tqdm(codes):
+    for code in tqdm.auto.tqdm(codes):
         df = download_single_day_money_flow(
             code=code, start_date=start_date_str, end_date=now_str
         )
@@ -1199,7 +1202,7 @@ def database_update_zxindustry_member():
     dates = list(trs.index)
     dfs_codes = []
     dfs_names = []
-    for date in tqdm.tqdm_notebook(dates):
+    for date in tqdm.auto.tqdm(dates):
         df = rqdatac.get_instrument_industry(
             codes, source="citics_2019", date=date, level=1
         )
@@ -1213,7 +1216,7 @@ def database_update_zxindustry_member():
 
     def new_get_dummies(df):
         dums = []
-        for col in tqdm.tqdm(list(df.columns)):
+        for col in tqdm.auto.tqdm(list(df.columns)):
             series = df[col]
             dum = pd.get_dummies(series)
             dum = dum.reset_index()
