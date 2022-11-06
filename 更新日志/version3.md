@@ -1,5 +1,11 @@
 ## 更新日志🗓 — v3
 
+* v3.5.2 — 2022.11.6
+> 1. pure_moon和pure_moonnight新增freq参数，可以选择'M'，或'W'，进行月频测试或周频测试
+> 1. 新增frequency_controller类，对回测中不同频率的操作和参数进行控制
+> 1. 修复了预存储月度交易状态和st状态的错误
+> 1. 优化了pure_moon中部分算法
+> 1. pure_ocean_breeze.withs.requires中新增了`import tradetime as tt`用于进行交易日历上的相关操作
 * v3.5.1 — 2022.11.5
 > 1. 修复了database_update_minute_data_to_clickhouse_and_questdb中的get_price接口变化导致的bug
 > 1. 删去了plt.style的设定代码

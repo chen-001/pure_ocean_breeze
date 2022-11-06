@@ -1,4 +1,4 @@
-__updated__ = "2022-11-05 21:35:13"
+__updated__ = "2022-11-06 13:28:49"
 
 import warnings
 
@@ -30,6 +30,7 @@ import plotly.tools as plyoo
 import pyfinance.ols as po
 from texttable import Texttable
 from xpinyin import Pinyin
+import tradetime as tt
 import cufflinks as cf
 
 cf.set_config_file(offline=True)
@@ -1226,6 +1227,40 @@ def show_corrs_with_old(
     return corrs
 
 
+class frequency_controller(object):
+    def __init__(self, freq: str):
+        self.homeplace = HomePlace()
+        self.freq = freq
+
+        if freq == "M":
+            self.counts_one_year = 12
+            self.time_shift = pd.DateOffset(months=1)
+            self.states_files = (
+                self.homeplace.daily_data_file + "states_monthly.parquet"
+            )
+            self.sts_files = self.homeplace.daily_data_file + "sts_monthly.parquet"
+            self.comment_name = "月"
+            self.days_in = 20
+        elif freq == "W":
+            self.counts_one_year = 52
+            self.time_shift = pd.DateOffset(weeks=1)
+            self.states_files = self.homeplace.daily_data_file + "states_weekly.parquet"
+            self.sts_files = self.homeplace.daily_data_file + "sts_weekly.parquet"
+            self.comment_name = "周"
+            self.days_in = 5
+        else:
+            raise ValueError("'暂时不支持此频率哈🤒，目前仅支持月频'M'，和周频'W'")
+
+    def next_end(self, x):
+        """找到下个周期的最后一天"""
+        if self.freq == "M":
+            return x + pd.DateOffset(months=1) + pd.tseries.offsets.MonthEnd()
+        elif self.freq == "W":
+            return x + pd.DateOffset(weeks=1)
+        else:
+            raise ValueError("'暂时不支持此频率哈🤒，目前仅支持月频'M'，和周频'W'")
+
+
 class pure_moon(object):
     __slots__ = [
         "homeplace",
@@ -1288,22 +1323,29 @@ class pure_moon(object):
         "zxindustry_dummy",
         "closes2_monthly",
         "rets_monthly_last",
+        "freq_ctrl",
+        "freq",
     ]
 
     @classmethod
     @lru_cache(maxsize=None)
     def __init__(
         cls,
+        freq: str = "M",
         no_read_indu: bool = 0,
         swindustry_dummy: pd.DataFrame = None,
         zxindustry_dummy: pd.DataFrame = None,
         read_in_swindustry_dummy: bool = 0,
     ):
         cls.homeplace = HomePlace()
+        cls.freq = freq
+        cls.freq_ctrl = frequency_controller(freq)
         # 已经算好的月度st状态文件
-        cls.sts_monthly_file = homeplace.daily_data_file + "sts_monthly.parquet"
+        # week_here
+        cls.sts_monthly_file = cls.freq_ctrl.sts_files
         # 已经算好的月度交易状态文件
-        cls.states_monthly_file = homeplace.daily_data_file + "states_monthly.parquet"
+        # week_here
+        cls.states_monthly_file = cls.freq_ctrl.states_files
 
         if swindustry_dummy is not None:
             cls.swindustry_dummy = swindustry_dummy
@@ -1324,6 +1366,7 @@ class pure_moon(object):
 
             if not no_read_indu:
                 if read_in_swindustry_dummy:
+                    # week_here
                     cls.swindustry_dummy = (
                         pd.read_parquet(
                             cls.homeplace.daily_data_file + "申万行业2021版哑变量.parquet"
@@ -1331,11 +1374,11 @@ class pure_moon(object):
                         .fillna(0)
                         .set_index("date")
                         .groupby("code")
-                        .resample("M")
+                        .resample(freq)
                         .last()
                     )
                     cls.swindustry_dummy = deal_dummy(cls.swindustry_dummy)
-
+                # week_here
                 cls.zxindustry_dummy = (
                     pd.read_parquet(
                         cls.homeplace.daily_data_file + "中信一级行业哑变量代码版.parquet"
@@ -1343,7 +1386,7 @@ class pure_moon(object):
                     .fillna(0)
                     .set_index("date")
                     .groupby("code")
-                    .resample("M")
+                    .resample(freq)
                     .last()
                     .fillna(0)
                 )
@@ -1386,7 +1429,8 @@ class pure_moon(object):
 
     def set_factor_df_date_as_index(self, df):
         """设置因子数据的dataframe，因子表列名应为股票代码，索引应为时间"""
-        self.factors = df.resample('M').last()
+        # week_here
+        self.factors = df.resample(self.freq).last()
 
     @classmethod
     def judge_month_st(cls, df):
@@ -1413,9 +1457,28 @@ class pure_moon(object):
         """由于数据更新，过去计算的月度状态可能需要追加"""
         if pridf.index.max() > df.index.max():
             df_add = pridf[pridf.index > df.index.max()]
-            df_add = df_add.resample("M").apply(func)
-            df = pd.concat([df, df_add])
-            return df
+            if df_add.shape[0] > int(cls.freq_ctrl.days_in / 2):
+                df_1 = df_add.index.max()
+                year = df_1.year
+                month = df_1.month
+                last = tt.date.get_close(year=year, m=month).pd_date()
+                if (last == df_1)[0]:
+                    # week_here
+                    df_add = df_add.resample(cls.freq).apply(func)
+                    df = pd.concat([df, df_add])
+                    return df
+                else:
+                    df_add = df_add[
+                        df_add.index < pd.Timestamp(year=year, month=month, day=1)
+                    ]
+                    if df_add.shape[0] > 0:
+                        df_add = df_add.resample(cls.freq).apply(func)
+                        df = pd.concat([df, df_add])
+                        return df
+                    else:
+                        return df
+            else:
+                return df
         else:
             return df
 
@@ -1432,7 +1495,14 @@ class pure_moon(object):
                 logger.error("error occurs when read state files")
                 logger.error(e)
             print("state file rewriting……")
-            month_df = pridf.resample("M").apply(func)
+            # week_here
+            df_1 = pridf.index.max()
+            year = df_1.year
+            month = df_1.month
+            last = tt.date.get_close(year=year, m=month).pd_date()
+            if not (last == df_1)[0]:
+                pridf = pridf[pridf.index < pd.Timestamp(year=year, month=month, day=1)]
+            month_df = pridf.resample(cls.freq).apply(func)
             month_df.to_parquet(path)
         return month_df
 
@@ -1440,26 +1510,35 @@ class pure_moon(object):
     @lru_cache(maxsize=None)
     def judge_month(cls):
         """生成一个月综合判断的表格"""
-
-        cls.sts_monthly = cls.daily_to_monthly(
-            cls.sts, cls.sts_monthly_file, cls.judge_month_st
-        )
-        cls.states_monthly = cls.daily_to_monthly(
-            cls.states, cls.states_monthly_file, cls.judge_month_state
-        )
-        cls.ages_monthly = cls.ages.resample("M").last()
-        cls.ages_monthly = np.sign(cls.ages_monthly.applymap(lambda x: x - 60)).replace(
-            -1, 0
-        )
-        cls.tris_monthly = cls.sts_monthly * cls.states_monthly * cls.ages_monthly
-        cls.tris_monthly = cls.tris_monthly.replace(0, np.nan)
+        if cls.freq == "M":
+            cls.sts_monthly = cls.daily_to_monthly(
+                cls.sts, cls.sts_monthly_file, cls.judge_month_st
+            )
+            cls.states_monthly = cls.daily_to_monthly(
+                cls.states, cls.states_monthly_file, cls.judge_month_state
+            )
+            # week_here
+            cls.ages_monthly = (cls.ages.resample(cls.freq).last() > 60) + 0
+            cls.tris_monthly = cls.sts_monthly * cls.states_monthly * cls.ages_monthly
+            cls.tris_monthly = cls.tris_monthly.replace(0, np.nan)
+        else:
+            now1=datetime.datetime.now()
+            cls.tris_monthly = (
+                (1 - cls.sts).resample(cls.freq).last().ffill(limit=2)
+                * cls.states.resample(cls.freq).last().ffill(limit=2)
+                * ((cls.ages.resample(cls.freq).last() > 60) + 0)
+            ).replace(0, np.nan)
+            now2=datetime.datetime.now()
+            print(now2-now1)
 
     @classmethod
     @lru_cache(maxsize=None)
     def get_rets_month(cls):
         """计算每月的收益率，并根据每月做出交易状态，做出删减"""
-        cls.opens_monthly = cls.opens.resample("M").first()
-        cls.closes_monthly = cls.closes.resample("M").last()
+        # week_here
+        cls.opens_monthly = cls.opens.resample(cls.freq).first().ffill(limit=2)
+        # week_here
+        cls.closes_monthly = cls.closes.resample(cls.freq).last().ffill(limit=2)
         cls.rets_monthly = (cls.closes_monthly - cls.opens_monthly) / cls.opens_monthly
         cls.rets_monthly = cls.rets_monthly * cls.tris_monthly
         cls.rets_monthly = cls.rets_monthly.stack().reset_index()
@@ -1506,15 +1585,19 @@ class pure_moon(object):
         self, zxindustry_dummies=0, swindustry_dummies=0, only_cap=0
     ):
         """对因子进行行业市值中性化"""
-        self.factors.index = self.factors.index + pd.DateOffset(months=1)
-        self.factors = self.factors.resample("M").last()
-        last_date = self.tris_monthly.index.max() + pd.DateOffset(months=1)
-        last_date = last_date + pd.tseries.offsets.MonthEnd()
+        # week_here
+        self.factors.index = self.factors.index + self.freq_ctrl.time_shift
+        # week_here
+        self.factors = self.factors.resample(self.freq).last()
+        # week_here
+        last_date = self.freq_ctrl.next_end(self.tris_monthly.index.max())
         add_tail = pd.DataFrame(1, index=[last_date], columns=self.tris_monthly.columns)
         tris_monthly = pd.concat([self.tris_monthly, add_tail])
         self.factors = self.factors * tris_monthly
-        self.factors.index = self.factors.index - pd.DateOffset(months=1)
-        self.factors = self.factors.resample("M").last()
+        # week_here
+        self.factors.index = self.factors.index - self.freq_ctrl.time_shift
+        # week_here
+        self.factors = self.factors.resample(self.freq).last()
         self.factors = self.factors.stack().reset_index()
         self.factors.columns = ["date", "code", "fac"]
         self.factors = pd.merge(
@@ -1537,8 +1620,10 @@ class pure_moon(object):
         """删除不符合交易条件的因子数据"""
         self.__factors_out = self.factors.copy()
         self.__factors_out.columns = [i[1] for i in list(self.__factors_out.columns)]
-        self.factors.index = self.factors.index + pd.DateOffset(months=1)
-        self.factors = self.factors.resample("M").last()
+        # week_here
+        self.factors.index = self.factors.index + self.freq_ctrl.time_shift
+        # week_here
+        self.factors = self.factors.resample(self.freq).last()
         self.factors = self.factors * self.tris_monthly
         self.factors = self.factors.stack().reset_index()
         self.factors.columns = ["date", "code", "fac"]
@@ -1549,8 +1634,10 @@ class pure_moon(object):
         self.factors = self.factors.unstack()
         self.__factors_out = self.factors.copy()
         self.__factors_out.columns = [i[1] for i in list(self.__factors_out.columns)]
-        self.factors.index = self.factors.index + pd.DateOffset(months=1)
-        self.factors = self.factors.resample("M").last()
+        # week_here
+        self.factors.index = self.factors.index + self.freq_ctrl.time_shift
+        # week_here
+        self.factors = self.factors.resample(self.freq).last()
         self.factors.columns = list(map(lambda x: x[1], list(self.factors.columns)))
         self.factors = self.factors.stack().reset_index()
         self.factors.columns = ["date", "code", "fac"]
@@ -1577,7 +1664,8 @@ class pure_moon(object):
         cls.rets_monthly_begin = (
             cls.opens_monthly_shift - cls.closes_monthly
         ) / cls.closes_monthly
-        cls.closes2_monthly = cls.closes.shift(1).resample("M").last()
+        # week_here
+        cls.closes2_monthly = cls.closes.shift(1).resample(cls.freq).last()
         cls.rets_monthly_last = (
             cls.closes_monthly - cls.closes2_monthly
         ) / cls.closes2_monthly
@@ -1596,8 +1684,10 @@ class pure_moon(object):
         """计算ICIR和RankICIR"""
         ic = df.ic.mean()
         rankic = df.rankic.mean()
-        icir = ic / np.std(df.ic) * (12 ** (0.5))
-        rankicir = rankic / np.std(df.rankic) * (12 ** (0.5))
+        # week_here
+        icir = ic / np.std(df.ic) * (cls.freq_ctrl.counts_one_year ** (0.5))
+        # week_here
+        rankicir = rankic / np.std(df.rankic) * (cls.freq_ctrl.counts_one_year ** (0.5))
         return pd.DataFrame(
             {"IC": [ic], "ICIR": [icir], "RankIC": [rankic], "RankICIR": [rankicir]},
             index=["评价指标"],
@@ -1640,14 +1730,6 @@ class pure_moon(object):
         return df
 
     @classmethod
-    def next_month_end(cls, x):
-        """找到下个月最后一天"""
-        x1 = x = x + relativedelta(months=1)
-        while x1.month == x.month:
-            x1 = x1 + relativedelta(days=1)
-        return x1 - relativedelta(days=1)
-
-    @classmethod
     def limit_old_to_new(cls, limit, data):
         """获取跌停股在旧月的组号，然后将日期调整到新月里
         涨停股则获得新月里涨停股的代码和时间，然后直接删去"""
@@ -1657,7 +1739,8 @@ class pure_moon(object):
         old = pd.merge(limit, data1, how="inner", on=["date", "code"])
         old = old.set_index("data_index")
         old = old[["group", "date", "code"]]
-        old.date = list(map(cls.next_month_end, list(old.date)))
+        # week_here
+        old.date = list(map(cls.freq_ctrl.next_end, list(old.date)))
         return old
 
     def get_data(self, groups_num):
@@ -1704,14 +1787,16 @@ class pure_moon(object):
 
     def to_group_ret(self, l):
         """每一组的年化收益率"""
-        ret = l[-1] ** (12 / len(l)) - 1
+        # week_here
+        ret = l[-1] ** (self.freq_ctrl.counts_one_year / len(l)) - 1
         return ret
 
     def get_group_rets_net_values(self, groups_num=10, value_weighted=False):
         """计算组内每一期的平均收益，生成每日收益率序列和净值序列"""
         if value_weighted:
             cap_value = self.capital.copy()
-            cap_value = cap_value.resample("M").last().shift(1)
+            # week_here
+            cap_value = cap_value.resample(self.freq).last().shift(1)
             cap_value = cap_value * self.tris_monthly
             # cap_value=np.log(cap_value)
             cap_value = cap_value.stack().reset_index()
@@ -1771,10 +1856,16 @@ class pure_moon(object):
     def get_long_short_comments(self, on_paper=False):
         """计算多空对冲的相关评价指标
         包括年化收益率、年化波动率、信息比率、月度胜率、最大回撤率"""
+        # week_here
         self.long_short_ret_yearly = (
-            self.long_short_net_values[-1] ** (12 / len(self.long_short_net_values)) - 1
+            self.long_short_net_values[-1]
+            ** (self.freq_ctrl.counts_one_year / len(self.long_short_net_values))
+            - 1
         )
-        self.long_short_vol_yearly = np.std(self.long_short_rets) * (12**0.5)
+        # week_here
+        self.long_short_vol_yearly = np.std(self.long_short_rets) * (
+            self.freq_ctrl.counts_one_year**0.5
+        )
         self.long_short_info_ratio = (
             self.long_short_ret_yearly / self.long_short_vol_yearly
         )
@@ -1797,7 +1888,14 @@ class pure_moon(object):
                         self.max_retreat,
                     ]
                 },
-                index=["年化收益率", "年化波动率", "收益波动比", "月度胜率", "最大回撤率"],
+                # week_here
+                index=[
+                    "年化收益率",
+                    "年化波动率",
+                    "收益波动比",
+                    f"{self.freq_ctrl.comment_name}度胜率",
+                    "最大回撤率",
+                ],
             )
         else:
             self.long_short_comments = pd.DataFrame(
@@ -1810,16 +1908,27 @@ class pure_moon(object):
                         self.max_retreat,
                     ]
                 },
-                index=["年化收益率", "年化波动率", "信息比率", "月度胜率", "最大回撤率"],
+                # week_here
+                index=[
+                    "年化收益率",
+                    "年化波动率",
+                    "信息比率",
+                    f"{self.freq_ctrl.comment_name}度胜率",
+                    "最大回撤率",
+                ],
             )
 
     def get_total_comments(self):
-        """综合IC、ICIR、RankIC、RankICIR,年化收益率、年化波动率、信息比率、月度胜率、最大回撤率"""
+        """综合IC、ICIR、RankIC、RankICIR,年化收益率、年化波动率、信息比率、胜率、最大回撤率"""
         self.total_comments = pd.concat(
             [
                 self.ic_icir_and_rank,
                 self.long_short_comments,
-                pd.DataFrame({"评价指标": [self.factor_turnover_rate]}, index=["月均换手率"]),
+                # week_here
+                pd.DataFrame(
+                    {"评价指标": [self.factor_turnover_rate]},
+                    index=[f"{self.freq_ctrl.comment_name}均换手率"],
+                ),
             ]
         )
 
@@ -2167,6 +2276,7 @@ class pure_moonnight(object):
         self,
         factors: pd.DataFrame,
         groups_num: int = 10,
+        freq: str = "M",
         neutralize: bool = 0,
         boxcox: bool = 1,
         value_weighted: bool = 0,
@@ -2212,6 +2322,8 @@ class pure_moonnight(object):
             要用于检测的因子值，index是时间，columns是股票代码
         groups_num : int, optional
             分组数量, by default 10
+        freq : str, optional
+            回测频率, by default 'M'
         neutralize : bool, optional
             对流通市值取自然对数，以完成行业市值中性化, by default 0
         boxcox : bool, optional
@@ -2294,7 +2406,7 @@ class pure_moonnight(object):
         if closes is None:
             closes = read_daily(close=1, start=start)
         if capitals is None:
-            capitals = read_daily(flow_cap=1, start=start).resample("M").last()
+            capitals = read_daily(flow_cap=1, start=start).resample(freq).last()
         if comments_writer is None and sheetname is not None:
             from pure_ocean_breeze.state.states import COMMENTS_WRITER
 
@@ -2322,6 +2434,7 @@ class pure_moonnight(object):
         if iplot:
             print_comments = 0
         self.shen = pure_moon(
+            freq=freq,
             no_read_indu=no_read_indu,
             swindustry_dummy=swindustry_dummy,
             zxindustry_dummy=zxindustry_dummy,
@@ -2628,7 +2741,9 @@ class pure_fall(object):
                 self.daily_factors_path = (
                     self.daily_factors_path[0] + self.daily_factors_path[1]
                 )
-                self.daily_factors = drop_duplicates_index(pd.read_parquet(self.daily_factors_path))
+                self.daily_factors = drop_duplicates_index(
+                    pd.read_parquet(self.daily_factors_path)
+                )
             sql = sqlConfig("minute_data_stock_alter")
             now_minute_datas = sql.show_tables(full=False)
             now_minute_data = now_minute_datas[-1]
@@ -2653,7 +2768,9 @@ class pure_fall(object):
                 self.daily_factors = self.daily_factors[
                     self.daily_factors.index >= pd.Timestamp(str(STATES["START"]))
                 ]
-            drop_duplicates_index(self.daily_factors).to_parquet(self.daily_factors_path)
+            drop_duplicates_index(self.daily_factors).to_parquet(
+                self.daily_factors_path
+            )
             if not STATES["NO_LOG"]:
                 logger.success("更新已完成")
 
