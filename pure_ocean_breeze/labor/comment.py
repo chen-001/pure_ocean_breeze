@@ -1,4 +1,4 @@
-__updated__ = "2022-11-05 21:35:19"
+__updated__ = "2022-11-10 23:16:18"
 
 import numpy as np
 import pandas as pd
@@ -12,7 +12,7 @@ from pure_ocean_breeze.data.read_data import read_index_three, read_daily
 
 
 def comment_on_rets_and_nets(
-    rets: pd.Series, nets: pd.Series, name: str = "绩效"
+    rets: pd.Series, nets: pd.Series, name: str = "绩效", counts_one_year: int = 12
 ) -> pd.DataFrame:
     """输入月频的收益率序列和净值序列，输出年化收益、年化波动、信息比率、月度胜率和最大回撤率
     输入2个pd.Series，时间是索引
@@ -25,6 +25,8 @@ def comment_on_rets_and_nets(
         净值序列，index为时间
     name : str, optional
         绩效指标列名字, by default '绩效'
+    counts_one_year : int
+        一年内有多少次交易, by default 12           
 
     Returns
     -------
@@ -35,15 +37,19 @@ def comment_on_rets_and_nets(
     year_nets = duration_nets / 365
     ret_yearly = (nets.iloc[-1] / nets.iloc[0]) ** (1 / year_nets) - 1
     max_draw = ((nets.cummax() - nets) / nets.cummax()).max()
-    vol = np.std(rets) * (12**0.5)
+    vol = np.std(rets) * (counts_one_year**0.5)
     info_rate = ret_yearly / vol
     win_rate = len(rets[rets > 0]) / len(rets)
+    if counts_one_year==12:
+        names='月度胜率'
+    else:
+        names='胜率'
     comments = pd.DataFrame(
         {
             "年化收益率": ret_yearly,
             "年化波动率": vol,
             "信息比率": info_rate,
-            "月度胜率": win_rate,
+            names: win_rate,
             "最大回撤率": max_draw,
         },
         index=[name],
@@ -51,7 +57,7 @@ def comment_on_rets_and_nets(
     return comments
 
 
-def comments_on_twins(nets: pd.Series, rets: pd.Series) -> pd.Series:
+def comments_on_twins(nets: pd.Series, rets: pd.Series, counts_one_year: int = 12) -> pd.Series:
     """输入月频的收益率序列和净值序列，给出评价
     评价指标包括年化收益率、总收益率、年化波动率、年化夏普比率、最大回撤率、胜率
     输入2个pd.Series，时间是索引
@@ -62,6 +68,8 @@ def comments_on_twins(nets: pd.Series, rets: pd.Series) -> pd.Series:
         净值序列，index为时间
     rets : pd.Series
         收益率序列，index为时间
+    counts_one_year : int
+        一年内有多少次交易, by default 12 
 
     Returns
     -------
@@ -75,7 +83,7 @@ def comments_on_twins(nets: pd.Series, rets: pd.Series) -> pd.Series:
     year = duration / 365
     ret_yearly = (series.iloc[-1] / series.iloc[0]) ** (1 / year) - 1
     max_draw = -(series / series.expanding(1).max() - 1).min()
-    vol = np.std(series1) * (12**0.5)
+    vol = np.std(series1) * (counts_one_year**0.5)
     sharpe = ret_yearly / vol
     wins = series1[series1 > 0]
     win_rate = len(wins) / len(series1)

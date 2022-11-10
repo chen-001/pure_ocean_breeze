@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2022-11-06 22:04:42"
+__updated__ = "2022-11-10 21:42:54"
 
 import os
 import pandas as pd
@@ -358,7 +358,7 @@ def change_index_name(df: pd.DataFrame, name: str = "date") -> pd.DataFrame:
     return df
 
 
-def merge_many(dfs: list[pd.DataFrame], names: list = None) -> pd.DataFrame:
+def merge_many(dfs: list[pd.DataFrame], names: list = None, how:str='outer') -> pd.DataFrame:
     """将多个宽dataframe依据columns和index，拼接在一起，拼成一个长dataframe
 
     Parameters
@@ -367,6 +367,8 @@ def merge_many(dfs: list[pd.DataFrame], names: list = None) -> pd.DataFrame:
         将所有要拼接的宽表放在一个列表里
     names : list, optional
         拼接后，每一列宽表对应的名字, by default None
+    how : str, optional
+        拼接的方式, by default 'outer'
 
     Returns
     -------
@@ -379,7 +381,7 @@ def merge_many(dfs: list[pd.DataFrame], names: list = None) -> pd.DataFrame:
     dfs = [i.stack().reset_index() for i in dfs]
     dfs = [i.rename(columns={list(i.columns)[-1]: j}) for i, j in zip(dfs, names)]
     dfs = [i.rename(columns={list(i.columns)[-2]: "code"}) for i in dfs]
-    df = reduce(lambda x, y: pd.merge(x, y, on=["date", "code"]), dfs)
+    df = reduce(lambda x, y: pd.merge(x, y, on=["date", "code"],how=how), dfs)
     return df
 
 
@@ -1012,22 +1014,65 @@ def feather_to_parquet(folder: str):
     for file in tqdm.auto.tqdm(files):
         try:
             df = pd.read_feather(file)
-            if (
-                ("date" in list(df.columns)) and ("code" not in list(df.columns))
-            ) or ("index" in list(df.columns)):
+            if (("date" in list(df.columns)) and ("code" not in list(df.columns))) or (
+                "index" in list(df.columns)
+            ):
                 df = df.set_index(list(df.columns)[0])
-            df.to_parquet(file.split(".")[0]+'.parquet')
+            df.to_parquet(file.split(".")[0] + ".parquet")
         except Exception:
             logger.warning(f"{file}不是parquet文件")
 
 
 def feather_to_parquet_all():
-    """将数据库中所有的feather文件都转化为parquet文件
-    """    
-    homeplace=HomePlace()
+    """将数据库中所有的feather文件都转化为parquet文件"""
+    homeplace = HomePlace()
     feather_to_parquet(homeplace.daily_data_file)
     feather_to_parquet(homeplace.barra_data_file)
     feather_to_parquet(homeplace.final_factor_file)
     feather_to_parquet(homeplace.update_data_file)
     feather_to_parquet(homeplace.factor_data_file)
-    logger.success('数据库中的feather文件全部被转化为了parquet文件，您可以手动删除所有的feather文件了')
+    logger.success("数据库中的feather文件全部被转化为了parquet文件，您可以手动删除所有的feather文件了")
+
+
+def zip_many_dfs(dfs: list[pd.DataFrame]) -> pd.DataFrame:
+    """将多个dataframe，拼在一起，相同index和columns指向的那个values，变为多个dataframe的值的列表
+    通常用于存储整合分钟数据计算的因子值
+
+    Parameters
+    ----------
+    dfs : list[pd.DataFrame]
+        多个dataframe，每一个的values都是float形式
+
+    Returns
+    -------
+    pd.DataFrame
+        整合后的dataframe，每一个values都是list的形式
+    """
+    df = merge_many(dfs)
+    cols = [df[f"fac{i}"] for i in range(1, len(dfs) + 1)]
+    df = df.assign(fac=pd.Series(zip(*cols)))
+    df = df.pivot(index="date", columns="code", values="fac")
+    return df
+
+
+def get_values(df:pd.DataFrame)->list[pd.DataFrame]:
+    """从一个values为列表的dataframe中，一次性取出所有值，分别设置为一个dataframe，并依照顺序存储在列表中
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        一个values为list的dataframe
+
+    Returns
+    -------
+    list[pd.DataFrame]
+        多个dataframe，每一个的values都是float形式
+    """    
+    d=df.dropna(how='all',axis=1)
+    d=d.iloc[:,0].dropna()
+    num=len(d.iloc[0])
+    facs=list(map(lambda x:get_value(df,x),range(num)))
+    return facs
+
+
+        

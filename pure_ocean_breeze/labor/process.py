@@ -1,4 +1,4 @@
-__updated__ = "2022-11-06 22:16:34"
+__updated__ = "2022-11-10 22:48:38"
 
 import warnings
 
@@ -850,6 +850,49 @@ def boom_four(
         twins_minus = (pure_fallmount(df_mean) + (pure_fallmount(-df_std),))()
         rtwins_minus = df_mean.rank(axis=1) - df_std.rank(axis=1)
     return df_mean, df_std, twins_add, rtwins_add, twins_minus, rtwins_minus
+
+
+def boom_fours(
+    dfs: list[pd.DataFrame],
+    backsee: Union[int, list[int]] = 20,
+    daily: Union[bool, list[bool]] = 0,
+    min_periods: Union[int, list[int]] = None,
+) -> list[list[pd.DataFrame]]:
+    """对多个因子，每个因子都进行boom_four的操作
+
+    Parameters
+    ----------
+    dfs : list[pd.DataFrame]
+        多个因子的dataframe组成的list
+    backsee : Union[int,list[int]], optional
+        每个因子回看期数, by default 20
+    daily : Union[bool,list[bool]], optional
+        每个因子是否逐日计算, by default 0
+    min_periods : Union[int,list[int]], optional
+        每个因子计算的最小期, by default None
+
+    Returns
+    -------
+    list[list[pd.DataFrame]]
+        每个因子进行boom_four后的结果
+    """
+    if not isinstance(backsee, list):
+        backsee = [backsee] * len(dfs)
+    if not isinstance(daily, list):
+        daily = [daily] * len(dfs)
+    if not isinstance(min_periods, list):
+        min_periods = [min_periods] * len(dfs)
+    return list(
+        map(
+            lambda x, y, z, u: boom_four(
+                x, backsee=y, daily=z, min_periods=u
+            ),
+            dfs,
+            backsee,
+            daily,
+            min_periods,
+        )
+    )
 
 
 def add_cross_standardlize(*args: list) -> pd.DataFrame:
