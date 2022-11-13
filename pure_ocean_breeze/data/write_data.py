@@ -1,11 +1,42 @@
-__updated__ = "2022-11-06 22:11:14"
+__updated__ = "2022-11-13 15:44:00"
 
+import time
 try:
     import rqdatac
 
     rqdatac.init()
-except Exception:
-    print("暂时未连接米筐")
+except Exception as e:
+    print(e)
+    desicion=input('米筐连接暂时有错误，是否等待并继续连接，等待请输入y，不等待则输入n')
+    if desicion=='y':
+        print('连接米筐暂时有错误，将等待30秒后重试')
+        time.sleep(30)
+        try:
+            import rqdatac
+
+            rqdatac.init()
+        except Exception as e:
+            print(e)
+            print('连接米筐暂时有错误，将等待60秒后重试')
+            time.sleep(60)
+            try:
+                import rqdatac
+
+                rqdatac.init()
+            except Exception as e:
+                print(e)
+                print('连接米筐暂时有错误，将等待60秒后重试')
+                time.sleep(60)
+                try:
+                    import rqdatac
+
+                    rqdatac.init()
+                except Exception as e:
+                    print(e)
+                    print("暂时未连接米筐")
+    else:
+        print("暂时未连接米筐")
+                
 from loguru import logger
 import os
 import time

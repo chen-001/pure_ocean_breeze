@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2022-11-10 21:42:54"
+__updated__ = "2022-11-11 01:00:48"
 
 import os
 import pandas as pd
@@ -334,27 +334,6 @@ def set_index_first(df: pd.DataFrame) -> pd.DataFrame:
         修改后的dataframe
     """
     df = df.set_index(list(df.columns)[0])
-    return df
-
-
-def change_index_name(df: pd.DataFrame, name: str = "date") -> pd.DataFrame:
-    """修改dataframe的index的名称，便于写入feather时统一命名
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        要修改的dataframe
-    name : str, optional
-        想要修改的名字, by default 'date'
-
-    Returns
-    -------
-    pd.DataFrame
-        修改后的dataframe
-    """
-    df = df.reset_index()
-    df.columns = [name] + list(df.columns)[1:]
-    df = set_index_first(df)
     return df
 
 

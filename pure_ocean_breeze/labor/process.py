@@ -1,4 +1,4 @@
-__updated__ = "2022-11-10 22:48:38"
+__updated__ = "2022-11-11 22:36:40"
 
 import warnings
 
@@ -340,7 +340,8 @@ def rankic_test_on_industry(
     """
     vs = group_test_on_industry(df, swindustry=swindustry, zxindustry=zxindustry)
     rankics = vs[["RankIC"]].T
-    rankics.to_excel(excel_name)
+    if excel_name is not None:
+        rankics.to_excel(excel_name)
     rankics.plot(kind="bar")
     plt.show()
     plt.savefig(png_name)
@@ -884,9 +885,7 @@ def boom_fours(
         min_periods = [min_periods] * len(dfs)
     return list(
         map(
-            lambda x, y, z, u: boom_four(
-                x, backsee=y, daily=z, min_periods=u
-            ),
+            lambda x, y, z, u: boom_four(x, backsee=y, daily=z, min_periods=u),
             dfs,
             backsee,
             daily,
@@ -4099,10 +4098,21 @@ def follow_tests(
         net_values_writer = NET_VALUES_WRITER
 
     shen = pure_moonnight(fac)
-    shen.comments_ten().to_excel(comments_writer, sheet_name="十分组")
+    if (
+        shen.shen.group_net_values.group1.iloc[-1]
+        > shen.shen.group_net_values.group10.iloc[-1]
+    ):
+        neg = 1
+    else:
+        pos = 1
+    if comments_writer is not None:
+        shen.comments_ten().to_excel(comments_writer, sheet_name="十分组")
+    print(shen.comments_ten())
     """相关系数与纯净化"""
     pure_fac = pure_snowtrain(fac)
-    pure_fac.corr.to_excel(comments_writer, sheet_name="相关系数")
+    if comments_writer is not None:
+        pure_fac.corr.to_excel(comments_writer, sheet_name="相关系数")
+    print(pure_fac.corr)
     shen = pure_moonnight(
         pure_fac(),
         comments_writer=comments_writer,
@@ -4119,19 +4129,31 @@ def follow_tests(
         sheetname="300多空",
     )
     if pos:
-        make_relative_comments(shen.shen.group_rets.group10, hs300=1).to_excel(
-            comments_writer, sheet_name="300超额"
-        )
-        make_relative_comments_plot(shen.shen.group_rets.group10, hs300=1).to_excel(
-            net_values_writer, sheet_name="300超额"
-        )
+        if comments_writer is not None:
+            make_relative_comments(shen.shen.group_rets.group10, hs300=1).to_excel(
+                comments_writer, sheet_name="300超额"
+            )
+        else:
+            make_relative_comments(shen.shen.group_rets.group10, hs300=1)
+        if net_values_writer is not None:
+            make_relative_comments_plot(shen.shen.group_rets.group10, hs300=1).to_excel(
+                net_values_writer, sheet_name="300超额"
+            )
+        else:
+            make_relative_comments_plot(shen.shen.group_rets.group10, hs300=1)
     elif neg:
-        make_relative_comments(shen.shen.group_rets.group1, hs300=1).to_excel(
-            comments_writer, sheet_name="300超额"
-        )
-        make_relative_comments_plot(shen.shen.group_rets.group1, hs300=1).to_excel(
-            net_values_writer, sheet_name="300超额"
-        )
+        if comments_writer is not None:
+            make_relative_comments(shen.shen.group_rets.group1, hs300=1).to_excel(
+                comments_writer, sheet_name="300超额"
+            )
+        else:
+            make_relative_comments(shen.shen.group_rets.group1, hs300=1)
+        if net_values_writer is not None:
+            make_relative_comments_plot(shen.shen.group_rets.group1, hs300=1).to_excel(
+                net_values_writer, sheet_name="300超额"
+            )
+        else:
+            make_relative_comments_plot(shen.shen.group_rets.group1, hs300=1)
     else:
         raise IOError("请指定因子的方向是正是负🤒")
     # 500
@@ -4143,19 +4165,31 @@ def follow_tests(
         sheetname="500多空",
     )
     if pos:
-        make_relative_comments(shen.shen.group_rets.group10, zz500=1).to_excel(
-            comments_writer, sheet_name="500超额"
-        )
-        make_relative_comments_plot(shen.shen.group_rets.group10, zz500=1).to_excel(
-            net_values_writer, sheet_name="500超额"
-        )
+        if comments_writer is not None:
+            make_relative_comments(shen.shen.group_rets.group10, zz500=1).to_excel(
+                comments_writer, sheet_name="500超额"
+            )
+        else:
+            make_relative_comments(shen.shen.group_rets.group10, zz500=1)
+        if net_values_writer is not None:
+            make_relative_comments_plot(shen.shen.group_rets.group10, zz500=1).to_excel(
+                net_values_writer, sheet_name="500超额"
+            )
+        else:
+            make_relative_comments_plot(shen.shen.group_rets.group10, zz500=1)
     else:
-        make_relative_comments(shen.shen.group_rets.group1, zz500=1).to_excel(
-            comments_writer, sheet_name="500超额"
-        )
-        make_relative_comments_plot(shen.shen.group_rets.group1, zz500=1).to_excel(
-            net_values_writer, sheet_name="500超额"
-        )
+        if comments_writer is not None:
+            make_relative_comments(shen.shen.group_rets.group1, zz500=1).to_excel(
+                comments_writer, sheet_name="500超额"
+            )
+        else:
+            make_relative_comments(shen.shen.group_rets.group1, zz500=1)
+        if net_values_writer is not None:
+            make_relative_comments_plot(shen.shen.group_rets.group1, zz500=1).to_excel(
+                net_values_writer, sheet_name="500超额"
+            )
+        else:
+            make_relative_comments_plot(shen.shen.group_rets.group1, zz500=1)
     # 1000
     fi1000 = daily_factor_on300500(fac, zz1000=1)
     shen = pure_moonnight(
@@ -4165,19 +4199,31 @@ def follow_tests(
         sheetname="1000多空",
     )
     if pos:
-        make_relative_comments(shen.shen.group_rets.group10, zz1000=1).to_excel(
-            comments_writer, sheet_name="1000超额"
-        )
-        make_relative_comments_plot(shen.shen.group_rets.group10, zz1000=1).to_excel(
-            net_values_writer, sheet_name="1000超额"
-        )
+        if comments_writer is not None:
+            make_relative_comments(shen.shen.group_rets.group10, zz1000=1).to_excel(
+                comments_writer, sheet_name="1000超额"
+            )
+        else:
+            make_relative_comments(shen.shen.group_rets.group10, zz1000=1)
+        if net_values_writer is not None:
+            make_relative_comments_plot(
+                shen.shen.group_rets.group10, zz1000=1
+            ).to_excel(net_values_writer, sheet_name="1000超额")
+        else:
+            make_relative_comments_plot(shen.shen.group_rets.group10, zz1000=1)
     else:
-        make_relative_comments(shen.shen.group_rets.group1, zz1000=1).to_excel(
-            comments_writer, sheet_name="1000超额"
-        )
-        make_relative_comments_plot(shen.shen.group_rets.group1, zz1000=1).to_excel(
-            net_values_writer, sheet_name="1000超额"
-        )
+        if comments_writer is not None:
+            make_relative_comments(shen.shen.group_rets.group1, zz1000=1).to_excel(
+                comments_writer, sheet_name="1000超额"
+            )
+        else:
+            make_relative_comments(shen.shen.group_rets.group1, zz1000=1)
+        if net_values_writer is not None:
+            make_relative_comments_plot(shen.shen.group_rets.group1, zz1000=1).to_excel(
+                net_values_writer, sheet_name="1000超额"
+            )
+        else:
+            make_relative_comments_plot(shen.shen.group_rets.group1, zz1000=1)
     # 各行业Rank IC
     rankics = rankic_test_on_industry(fac, comments_writer)
     # 买3只超额表现

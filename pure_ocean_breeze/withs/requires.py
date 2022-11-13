@@ -19,7 +19,8 @@ try:
     import rqdatac
 
     rqdatac.init()
-except Exception:
+except Exception as e:
+    print(e)
     print("暂时未连接米筐")
 
 import knockknock as kk

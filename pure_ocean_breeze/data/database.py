@@ -1,4 +1,4 @@
-__updated__ = "2022-10-20 23:11:06"
+__updated__ = "2022-11-11 23:04:12"
 
 import pandas as pd
 import pymysql
@@ -523,7 +523,7 @@ class ClickHouseClient(object):
         PRIMARY KEY(date,num)
         ORDER BY (date, num);
     ```
-        其中如果主键不制定，则会默认为第一个，主键不能重复，因此会自动保留最后一个。
+        其中如果主键不指定，则会默认为第一个，主键不能重复，因此会自动保留最后一个。
         创建表格后，需插入一行数，才算创建成功，否则依然不能写入，插入语句如下
     ```sql
     INSERT INTO minute_data.minute_data (date, code, open, high, low, close, amount, money, num) VALUES
