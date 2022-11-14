@@ -2,7 +2,7 @@
 初始化时保存的路径
 """
 
-__updated__ = "2022-08-18 03:06:52"
+__updated__ = "2022-11-14 11:38:53"
 
 import os
 import pickle
@@ -17,20 +17,16 @@ class HomePlace(object):
     update_data_file: 更新辅助数据的存放位置
     api_token: dcube的api
     final_factor_file: 最终因子数据的存放位置
-    daily_enddate: 日频数据更新截止日期
     ```
     """
 
     __slots__ = [
         "daily_data_file",
-        "minute_data_file",
         "factor_data_file",
         "barra_data_file",
         "update_data_file",
         "api_token",
         "final_factor_file",
-        "daily_enddate",
-        "minute_enddate",
     ]
 
     def __init__(self):

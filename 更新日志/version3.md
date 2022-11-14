@@ -1,5 +1,7 @@
 ## 更新日志🗓 — v3
 
+* v3.5.6 — 2022.11.14
+> 1. 删去了`Homeplace.__slots__`中的minute_data_file、daily_enddate、minute_enddate，以修复新用户初始化后导入失败的bug
 * v3.5.5 — 2022.11.13
 > 1. 删去了change_index_name函数，可以通过形如`df.index.name='date'`的代码直接指定
 > 1. 在write_data模块中，新增了连接米筐失败时，输出失败原因，提供是否等待的选项，并设置了在30秒、60秒、60秒内重连三次的尝试
