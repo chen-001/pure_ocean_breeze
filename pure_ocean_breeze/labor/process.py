@@ -1,4 +1,4 @@
-__updated__ = "2022-11-11 22:36:40"
+__updated__ = "2022-11-16 14:41:43"
 
 import warnings
 
@@ -1943,9 +1943,16 @@ class pure_moon(object):
 
     def get_total_comments(self):
         """综合IC、ICIR、RankIC、RankICIR,年化收益率、年化波动率、信息比率、胜率、最大回撤率"""
+        rankic = self.rankics.mean()
+        rankic_win = self.rankics[self.rankics * rankic > 0]
+        rankic_win_ratio = rankic_win.dropna().shape[0] / self.rankics.dropna().shape[0]
         self.total_comments = pd.concat(
             [
                 self.ic_icir_and_rank,
+                pd.DataFrame(
+                    {"评价指标": [rankic_win_ratio]},
+                    index=["RankIC胜率"],
+                ),
                 self.long_short_comments,
                 # week_here
                 pd.DataFrame(
@@ -1990,8 +1997,8 @@ class pure_moon(object):
             )
             here = pd.concat(
                 [
-                    comments.iloc[:5, :].reset_index(drop=True),
-                    comments.iloc[5:, :].reset_index(drop=True),
+                    comments.iloc[:6, :].reset_index(drop=True),
+                    comments.iloc[6:, :].reset_index(drop=True),
                 ],
                 axis=1,
             )
@@ -2208,8 +2215,8 @@ class pure_moon(object):
         if print_comments:
             if not STATES["NO_COMMENT"]:
                 tb = Texttable()
-                tb.set_cols_width([8] * 4 + [12] + [8] * 2 + [7] * 2 + [8] + [10])
-                tb.set_cols_dtype(["f"] * 11)
+                tb.set_cols_width([8] * 4 + [12] + [9] + [8] * 2 + [7] * 2 + [8] + [10])
+                tb.set_cols_dtype(["f"] * 12)
                 tb.header(list(self.total_comments.T.columns))
                 tb.add_rows(self.total_comments.T.to_numpy(), header=False)
                 print(tb.draw())
@@ -2225,10 +2232,11 @@ class pure_moon(object):
                     tc[4] = str(round(tc[4], 2))
                     tc[5] = str(round(tc[5] * 100, 2)) + "%"
                     tc[6] = str(round(tc[6] * 100, 2)) + "%"
-                    tc[7] = str(round(tc[7], 2))
-                    tc[8] = str(round(tc[8] * 100, 2)) + "%"
+                    tc[7] = str(round(tc[7] * 100, 2)) + "%"
+                    tc[8] = str(round(tc[8], 2))
                     tc[9] = str(round(tc[9] * 100, 2)) + "%"
                     tc[10] = str(round(tc[10] * 100, 2)) + "%"
+                    tc[11] = str(round(tc[11] * 100, 2)) + "%"
                     new_total_comments = pd.DataFrame(
                         {sheetname: tc}, index=total_comments.index
                     )
@@ -2262,10 +2270,11 @@ class pure_moon(object):
                 tc[4] = str(round(tc[4], 2))
                 tc[5] = str(round(tc[5] * 100, 2)) + "%"
                 tc[6] = str(round(tc[6] * 100, 2)) + "%"
-                tc[7] = str(round(tc[7], 2))
-                tc[8] = str(round(tc[8] * 100, 2)) + "%"
+                tc[7] = str(round(tc[7] * 100, 2)) + "%"
+                tc[8] = str(round(tc[8], 2))
                 tc[9] = str(round(tc[9] * 100, 2)) + "%"
                 tc[10] = str(round(tc[10] * 100, 2)) + "%"
+                tc[11] = str(round(tc[11] * 100, 2)) + "%"
                 new_total_comments = pd.DataFrame(
                     {comments_sheetname: tc}, index=total_comments.index
                 )
@@ -3347,8 +3356,11 @@ class pure_fall_frequent(object):
             self.factor.to_parquet(self.factor_file)
             logger.info(f"截止到{new_end_date}的因子值计算完了")
             # 删除存储在questdb的中途备份数据
-            self.factor_steps.do_order(f"drop table {self.factor_file_pinyin}")
-            logger.info("备份在questdb的表格已删除")
+            try:
+                self.factor_steps.do_order(f"drop table {self.factor_file_pinyin}")
+                logger.info("备份在questdb的表格已删除")
+            except Exception:
+                logger.warning("删除questdb中表格时，存在某个未知错误，请当心")
 
         else:
             self.factor = drop_duplicates_index(self.factor_old)

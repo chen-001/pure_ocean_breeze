@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2022-11-11 01:00:48"
+__updated__ = "2022-11-17 01:04:57"
 
 import os
 import pandas as pd
@@ -24,6 +24,19 @@ except Exception:
     print("暂时未连接米筐")
 from pure_ocean_breeze.state.homeplace import HomePlace
 from pure_ocean_breeze.state.states import is_notebook
+
+
+def is_notebook() -> bool:
+    try:
+        shell = get_ipython().__class__.__name__
+        if shell == "ZMQInteractiveShell":
+            return True  # Jupyter notebook or qtconsole
+        elif shell == "TerminalInteractiveShell":
+            return False  # Terminal running IPython
+        else:
+            return False  # Other type (?)
+    except NameError:
+        return False
 
 
 def read_h5(path: str) -> dict:
@@ -337,7 +350,9 @@ def set_index_first(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def merge_many(dfs: list[pd.DataFrame], names: list = None, how:str='outer') -> pd.DataFrame:
+def merge_many(
+    dfs: list[pd.DataFrame], names: list = None, how: str = "outer"
+) -> pd.DataFrame:
     """将多个宽dataframe依据columns和index，拼接在一起，拼成一个长dataframe
 
     Parameters
@@ -360,7 +375,7 @@ def merge_many(dfs: list[pd.DataFrame], names: list = None, how:str='outer') -> 
     dfs = [i.stack().reset_index() for i in dfs]
     dfs = [i.rename(columns={list(i.columns)[-1]: j}) for i, j in zip(dfs, names)]
     dfs = [i.rename(columns={list(i.columns)[-2]: "code"}) for i in dfs]
-    df = reduce(lambda x, y: pd.merge(x, y, on=["date", "code"],how=how), dfs)
+    df = reduce(lambda x, y: pd.merge(x, y, on=["date", "code"], how=how), dfs)
     return df
 
 
@@ -1034,7 +1049,7 @@ def zip_many_dfs(dfs: list[pd.DataFrame]) -> pd.DataFrame:
     return df
 
 
-def get_values(df:pd.DataFrame)->list[pd.DataFrame]:
+def get_values(df: pd.DataFrame) -> list[pd.DataFrame]:
     """从一个values为列表的dataframe中，一次性取出所有值，分别设置为一个dataframe，并依照顺序存储在列表中
 
     Parameters
@@ -1046,12 +1061,259 @@ def get_values(df:pd.DataFrame)->list[pd.DataFrame]:
     -------
     list[pd.DataFrame]
         多个dataframe，每一个的values都是float形式
-    """    
-    d=df.dropna(how='all',axis=1)
-    d=d.iloc[:,0].dropna()
-    num=len(d.iloc[0])
-    facs=list(map(lambda x:get_value(df,x),range(num)))
+    """
+    d = df.dropna(how="all", axis=1)
+    d = d.iloc[:, 0].dropna()
+    num = len(d.iloc[0])
+    facs = list(map(lambda x: get_value(df, x), range(num)))
     return facs
 
 
-        
+def get_fac_via_corr(
+    df: pd.DataFrame,
+    history_file: str = None,
+    backsee: int = 20,
+    fillna_method: Union[float, str] = "ffill",
+    corr_method: str = "pearson",
+    daily: bool = 0,
+    abs: bool = 0,
+) -> pd.DataFrame:
+    """对一个日频因子，对其滚动时间窗口进行因子月度化计算。
+    具体操作为每天（或每月月底）计算过去20天因子值的相关性矩阵，
+    然后对每个股票的所有相关系数求均值
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        日频因子，index为时间，columns为股票代码，values为时间
+    history_file : str, optional
+        用于存储历史数据的本地文件, by default None
+    backsee : int, optional
+        滚动窗口长度, by default 20
+    fillna_method : Union[float, str], optional
+        由于存在缺失值时，相关性矩阵的计算存在问题，因此这里对其进行补全，可选择补全方式，输入`‘ffill'`或`'bfill'`即为取前取后填充,输入数字则为用固定数字填充 by default "ffill"
+    corr_method : str, optional
+        求相关性的方法，可以指定`'pearson'`、`'spearman'`、`'kendall'`, default 'pearson'
+    daily : bool, optional
+        是否每天滚动, by default 0
+    abs : bool, optional
+        是否要对相关系数矩阵取绝对值, by default 0
+
+    Returns
+    -------
+    pd.DataFrame
+        月度化后的因子值
+    """
+    homeplace = HomePlace()
+    if history_file is not None:
+        if os.path.exists(homeplace.update_data_file + history_file):
+            old = pd.read_parquet(homeplace.update_data_file + history_file)
+        else:
+            old = None
+            logger.info("这一结果是新的，将从头计算")
+    else:
+        old = None
+    if old is not None:
+        old_tail = old.tail(backsee - 1)
+        old_end = old.index.max()
+        old_end_str = datetime.datetime.strftime(old_end, "%Y%m%d")
+        logger.info(f"上次计算到了{old_end_str}")
+        df = df[df.index > old_end]
+        if df.shape[0] > 0:
+            df = pd.concat([old_tail, df])
+            ends = list(df.index)
+            ends = pd.Series(ends, index=ends)
+            ends = ends.resample("M").last()
+            ends = list(ends)
+            if daily:
+                iters = list(df.index)
+            else:
+                iters = ends
+            dfs = []
+            for end in tqdm.auto.tqdm(iters):
+                if isinstance(fillna_method, float):
+                    df0 = (
+                        df.loc[:end]
+                        .tail(backsee)
+                        .dropna(how="all", axis=1)
+                        .fillna(fillna_method)
+                        .dropna(axis=1)
+                    )
+                else:
+                    df0 = (
+                        df.loc[:end]
+                        .tail(backsee)
+                        .dropna(how="all", axis=1)
+                        .fillna(method=fillna_method)
+                        .dropna(axis=1)
+                    )
+                corr = df0.corr(method=corr_method)
+                if abs:
+                    corr = corr.abs()
+                df0 = corr.mean().to_frame(end)
+                dfs.append(df0)
+            dfs = pd.concat(dfs, axis=1).T
+            dfs = drop_duplicates_index(pd.concat([old, dfs]))
+            dfs.to_parquet(homeplace.update_data_file + history_file)
+            return dfs
+        else:
+            logger.info("已经是最新的了")
+            return old
+    else:
+        ends = list(df.index)
+        ends = pd.Series(ends, index=ends)
+        ends = ends.resample("M").last()
+        ends = list(ends)
+        if daily:
+            iters = list(df.index)
+        else:
+            iters = ends
+        dfs = []
+        for end in tqdm.auto.tqdm(iters):
+            if isinstance(fillna_method, float):
+                df0 = (
+                    df.loc[:end]
+                    .tail(backsee)
+                    .dropna(how="all", axis=1)
+                    .fillna(fillna_method)
+                    .dropna(axis=1)
+                )
+            else:
+                df0 = (
+                    df.loc[:end]
+                    .tail(backsee)
+                    .dropna(how="all", axis=1)
+                    .fillna(method=fillna_method)
+                    .dropna(axis=1)
+                )
+            corr = df0.corr(method=corr_method)
+            if abs:
+                corr = corr.abs()
+            df0 = corr.mean().to_frame(end)
+            dfs.append(df0)
+        dfs = pd.concat(dfs, axis=1).T
+        if history_file is not None:
+            dfs.to_parquet(homeplace.update_data_file + history_file)
+        return dfs
+
+
+def get_fac_cross_via_func(
+    df: pd.DataFrame,
+    func: Callable,
+    history_file: str = None,
+    backsee: int = 20,
+    fillna_method: Union[float, str, None] = "ffill",
+    daily: bool = 0,
+) -> pd.DataFrame:
+    """对一个日频因子，对其滚动时间窗口进行因子月度化计算。
+    具体操作为每天（或每月月底）截取过去一段窗口，并进行某个自定义的操作，
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        日频因子，index为时间，columns为股票代码，values为时间
+    func : Callable
+        自定义的操作函数，需要对一个窗口时间内的面板数据进行处理，最终要返回一个series，index为股票代码，values为月度化的因子值，name无所谓
+    history_file : str, optional
+        用于存储历史数据的本地文件, by default None
+    backsee : int, optional
+        滚动窗口长度, by default 20
+    fillna_method : Union[float, str], optional
+        对缺失值进行补全，可选择补全方式，输入`'ffill'`或`'bfill'`即为取前取后填充；输入数字则为用固定数字填充；输入None则不填充缺失值 by default "ffill"
+    daily : bool, optional
+        是否每天滚动, by default 0
+
+    Returns
+    -------
+    pd.DataFrame
+        月度化后的因子值
+    """
+    homeplace = HomePlace()
+    if history_file is not None:
+        if os.path.exists(homeplace.update_data_file + history_file):
+            old = pd.read_parquet(homeplace.update_data_file + history_file)
+        else:
+            old = None
+            logger.info("这一结果是新的，将从头计算")
+    else:
+        old = None
+    if old is not None:
+        old_tail = old.tail(backsee - 1)
+        old_end = old.index.max()
+        old_end_str = datetime.datetime.strftime(old_end, "%Y%m%d")
+        logger.info(f"上次计算到了{old_end_str}")
+        df = df[df.index > old_end]
+        if df.shape[0] > 0:
+            df = pd.concat([old_tail, df])
+            ends = list(df.index)
+            ends = pd.Series(ends, index=ends)
+            ends = ends.resample("M").last()
+            ends = list(ends)
+            if daily:
+                iters = list(df.index)
+            else:
+                iters = ends
+            dfs = []
+            for end in tqdm.auto.tqdm(iters):
+                if isinstance(fillna_method, float):
+                    df0 = (
+                        df.loc[:end]
+                        .tail(backsee)
+                        .dropna(how="all", axis=1)
+                        .fillna(fillna_method)
+                        .dropna(axis=1)
+                    )
+                elif isinstance(fillna_method, str):
+                    df0 = (
+                        df.loc[:end]
+                        .tail(backsee)
+                        .dropna(how="all", axis=1)
+                        .fillna(method=fillna_method)
+                        .dropna(axis=1)
+                    )
+                else:
+                    df0 = df.loc[:end].tail(backsee).dropna(how="all", axis=1)
+                corr = func(df0).to_frame(end)
+                dfs.append(corr)
+            dfs = pd.concat(dfs, axis=1).T
+            dfs = drop_duplicates_index(pd.concat([old, dfs]))
+            dfs.to_parquet(homeplace.update_data_file + history_file)
+            return dfs
+        else:
+            logger.info("已经是最新的了")
+            return old
+    else:
+        ends = list(df.index)
+        ends = pd.Series(ends, index=ends)
+        ends = ends.resample("M").last()
+        ends = list(ends)
+        if daily:
+            iters = list(df.index)
+        else:
+            iters = ends
+        dfs = []
+        for end in tqdm.auto.tqdm(iters):
+            if isinstance(fillna_method, float):
+                df0 = (
+                    df.loc[:end]
+                    .tail(backsee)
+                    .dropna(how="all", axis=1)
+                    .fillna(fillna_method)
+                    .dropna(axis=1)
+                )
+            elif isinstance(fillna_method, str):
+                df0 = (
+                    df.loc[:end]
+                    .tail(backsee)
+                    .dropna(how="all", axis=1)
+                    .fillna(method=fillna_method)
+                    .dropna(axis=1)
+                )
+            else:
+                df0 = df.loc[:end].tail(backsee).dropna(how="all", axis=1)
+            corr = func(df0).to_frame(end)
+            dfs.append(corr)
+        dfs = pd.concat(dfs, axis=1).T
+        if history_file is not None:
+            dfs.to_parquet(homeplace.update_data_file + history_file)
+        return dfs
