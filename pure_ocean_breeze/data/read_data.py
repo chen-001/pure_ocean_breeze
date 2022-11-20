@@ -1,4 +1,4 @@
-__updated__ = "2022-11-04 21:36:59"
+__updated__ = "2022-11-19 10:24:31"
 
 import os
 import numpy as np
@@ -543,7 +543,11 @@ def get_industry_dummies(
 
 
 def database_read_final_factors(
-    name: str = None, order: int = None, output: bool = 0, new: bool = 0
+    name: str = None,
+    order: int = None,
+    freq: str = "月",
+    output: bool = 0,
+    new: bool = 0,
 ) -> tuple[pd.DataFrame, str]:
     """根据因子名字，或因子序号，读取最终因子的因子值
 
@@ -553,6 +557,8 @@ def database_read_final_factors(
         因子的名字, by default None
     order : int, optional
         因子的序号, by default None
+    freq : str, optional
+        因子的频率，目前支持`'月'`和`'周'`
     output : bool, optional
         是否输出到csv文件, by default 0
     new : bool, optional
@@ -569,10 +575,10 @@ def database_read_final_factors(
         raise IOError("请指定因子名字或者因子序号")
     elif name is None and order is not None:
         key = "多因子" + str(order)
-        ans = [i for i in facs if key in i][0]
+        ans = [i for i in facs if ((key in i) and (freq in i))][0]
     elif name is not None and name is None:
         key = name
-        ans = [i for i in facs if key in i]
+        ans = [i for i in facs if ((key in i) and (freq in i))]
         if len(ans) > 0:
             ans = ans[0]
         else:
@@ -580,12 +586,12 @@ def database_read_final_factors(
     else:
         key1 = name
         key2 = "多因子" + str(order)
-        ans1 = [i for i in facs if key1 in i]
+        ans1 = [i for i in facs if ((key1 in i) and (freq in i))]
         if len(ans1) > 0:
             ans1 = ans1[0]
         else:
             raise IOError(f"您名字记错了，不存在叫{name}的因子")
-        ans2 = [i for i in facs if key2 in i][0]
+        ans2 = [i for i in facs if ((key2 in i) and (freq in i))][0]
         if ans1 != ans2:
             ans = ans1
             logger.warning("您输入的名字和序号不一致，怀疑您记错了序号，程序默认以名字为准了哈")
@@ -605,6 +611,9 @@ def database_read_final_factors(
                     + ans.split("_")[0]
                     + "因子"
                     + final_date
+                    + "_"
+                    + freq
+                    + "频"
                     + "因子值.csv"
                 )
             else:
@@ -615,6 +624,9 @@ def database_read_final_factors(
                     + ans.split("_")[0]
                     + "因子"
                     + final_date
+                    + "_"
+                    + freq
+                    + "频"
                     + "因子值.csv"
                 )
             df.tail(1).T.to_csv(fac_name)
@@ -627,6 +639,9 @@ def database_read_final_factors(
                     + ans.split("_")[0]
                     + "因子截至"
                     + final_date
+                    + "_"
+                    + freq
+                    + "频"
                     + "因子值.csv"
                 )
             else:
@@ -637,6 +652,9 @@ def database_read_final_factors(
                     + ans.split("_")[0]
                     + "因子截至"
                     + final_date
+                    + "_"
+                    + freq
+                    + "频"
                     + "因子值.csv"
                 )
             df.to_csv(fac_name)

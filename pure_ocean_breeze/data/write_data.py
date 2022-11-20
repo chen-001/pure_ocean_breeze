@@ -1,15 +1,16 @@
-__updated__ = "2022-11-13 15:44:00"
+__updated__ = "2022-11-19 10:15:42"
 
 import time
+
 try:
     import rqdatac
 
     rqdatac.init()
 except Exception as e:
     print(e)
-    desicion=input('米筐连接暂时有错误，是否等待并继续连接，等待请输入y，不等待则输入n')
-    if desicion=='y':
-        print('连接米筐暂时有错误，将等待30秒后重试')
+    desicion = input("米筐连接暂时有错误，是否等待并继续连接，等待请输入y，不等待则输入n")
+    if desicion == "y":
+        print("连接米筐暂时有错误，将等待30秒后重试")
         time.sleep(30)
         try:
             import rqdatac
@@ -17,7 +18,7 @@ except Exception as e:
             rqdatac.init()
         except Exception as e:
             print(e)
-            print('连接米筐暂时有错误，将等待60秒后重试')
+            print("连接米筐暂时有错误，将等待60秒后重试")
             time.sleep(60)
             try:
                 import rqdatac
@@ -25,7 +26,7 @@ except Exception as e:
                 rqdatac.init()
             except Exception as e:
                 print(e)
-                print('连接米筐暂时有错误，将等待60秒后重试')
+                print("连接米筐暂时有错误，将等待60秒后重试")
                 time.sleep(60)
                 try:
                     import rqdatac
@@ -36,7 +37,7 @@ except Exception as e:
                     print("暂时未连接米筐")
     else:
         print("暂时未连接米筐")
-                
+
 from loguru import logger
 import os
 import time
@@ -65,7 +66,12 @@ from pure_ocean_breeze.data.database import (
 )
 from pure_ocean_breeze.data.read_data import read_daily, read_money_flow
 from pure_ocean_breeze.data.dicts import INDUS_DICT, INDEX_DICT, ZXINDUS_DICT
-from pure_ocean_breeze.data.tools import 生成每日分类表, add_suffix, convert_code,drop_duplicates_index
+from pure_ocean_breeze.data.tools import (
+    生成每日分类表,
+    add_suffix,
+    convert_code,
+    drop_duplicates_index,
+)
 from pure_ocean_breeze.labor.process import pure_fama
 
 
@@ -578,7 +584,6 @@ def download_calendar(startdate, enddate):
         return df0
 
 
-
 def database_update_daily_files() -> None:
     """更新数据库中的日频数据
 
@@ -624,7 +629,7 @@ def database_update_daily_files() -> None:
     # 交易日历
     df0 = download_calendar(startdate, now)
     tradedates = sorted(list(set(df0.trade_date)))
-    finish=1
+    finish = 1
     if len(tradedates) > 1:
         # 存储每天数据
         df1s = []
@@ -640,7 +645,7 @@ def database_update_daily_files() -> None:
     elif len(tradedates) == 1:
         df1s, df2s = download_single_daily(tradedates[0])
     else:
-        finish=0
+        finish = 0
         logger.info("从上次更新到这次更新，还没有经过交易日。放假就好好休息吧，别跑代码了🤒")
     if finish:
         df1s.tradestatus = (df1s.tradestatus == "交易") + 0
@@ -708,9 +713,7 @@ def database_update_daily_files() -> None:
             columns="code", index="date", values="float_share"
         )
         part3 = part3 * 10000
-        part3_old = pd.read_parquet(
-            homeplace.daily_data_file + "sharenums.parquet"
-        )
+        part3_old = pd.read_parquet(homeplace.daily_data_file + "sharenums.parquet")
         part3_new = pd.concat([part3_old, part3]).drop_duplicates()
         part3_new = part3_new[closes.columns]
         part3_new = drop_duplicates_index(part3_new)
@@ -981,7 +984,7 @@ def database_update_zxindustry_prices():
         )
         zxprices.append(ind)
     zxprice = reduce(lambda x, y: pd.merge(x, y, on=["date"], how="outer"), zxprices)
-    zxprice.set_index(['date']).to_parquet(
+    zxprice.set_index(["date"]).to_parquet(
         homeplace.daily_data_file + "中信各行业行情数据.parquet"
     )
     new_date = datetime.datetime.strftime(zxprice.date.max(), "%Y%m%d")
@@ -1131,7 +1134,9 @@ def database_update_index_members():
         download_single_index_member(k)
 
 
-def database_save_final_factors(df: pd.DataFrame, name: str, order: int) -> None:
+def database_save_final_factors(
+    df: pd.DataFrame, name: str, order: int, freq: str = "月"
+) -> None:
     """保存最终因子的因子值
 
     Parameters
@@ -1144,7 +1149,16 @@ def database_save_final_factors(df: pd.DataFrame, name: str, order: int) -> None
         因子的序号
     """
     homeplace = HomePlace()
-    path = homeplace.final_factor_file + name + "_" + "多因子" + str(order) + ".parquet"
+    path = (
+        homeplace.final_factor_file
+        + name
+        + "_"
+        + "多因子"
+        + str(order)
+        + "_"
+        + freq
+        + ".parquet"
+    )
     df = df.drop_duplicates().dropna(how="all")
     df.to_parquet(path)
     final_date = df.index.max()
@@ -1205,9 +1219,7 @@ def database_update_money_flow():
     dfs.date = pd.to_datetime(dfs.date, format="%Y%m%d")
     ws = [i for i in list(dfs.columns) if i not in ["date", "code"]]
     for w in ws:
-        old = pd.read_parquet(
-            homeplace.daily_data_file + w[:-6] + ".parquet"
-        )
+        old = pd.read_parquet(homeplace.daily_data_file + w[:-6] + ".parquet")
         new = dfs.pivot(index="date", columns="code", values=w)
         new = pd.concat([old, new])
         new = new[sorted(list(new.columns))]
@@ -1277,7 +1289,7 @@ def database_update_zxindustry_member():
 
 def database_update_idiosyncratic_ret():
     pb = read_daily(pb=1, start=20100101)
-    cap = read_daily(flow_cap=1, start=20100101).dropna(how='all')
+    cap = read_daily(flow_cap=1, start=20100101).dropna(how="all")
     fama = pure_fama([cap, pb])
-    fama().to_parquet(homeplace.daily_data_file+"idiosyncratic_ret.parquet")
+    fama().to_parquet(homeplace.daily_data_file + "idiosyncratic_ret.parquet")
     logger.success("特质收益率已经更新完成")

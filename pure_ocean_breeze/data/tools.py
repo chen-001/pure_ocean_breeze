@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2022-11-17 01:04:57"
+__updated__ = "2022-11-18 01:04:50"
 
 import os
 import pandas as pd
@@ -1317,3 +1317,36 @@ def get_fac_cross_via_func(
         if history_file is not None:
             dfs.to_parquet(homeplace.update_data_file + history_file)
         return dfs
+
+
+def 计算连续期数(ret0: pd.Series, point: float = 0) -> pd.Series:
+    """计算一列数，持续大于或持续小于某个临界点的期数
+
+    Parameters
+    ----------
+    ret0 : pd.Series
+        收益率序列、或者某个指标的序列
+    point : float, optional
+        临界值, by default 0
+
+    Returns
+    -------
+    pd.Series
+        持续大于或小于的期数
+    """
+    ret = ret0.copy()
+    ret = ((ret >= point) + 0).replace(0, -1)
+    ret = ret.to_frame("signal").assign(num=range(ret.shape[0]))
+    ret.signal = ret.signal.diff().shift(-1)
+    ret1 = ret[ret.signal != 0]
+    ret1 = ret1.assign(duration=ret1.num.diff())
+    ret = pd.concat([ret, ret1[["duration"]]], axis=1)
+    ret.signal = ret.signal.diff()
+    ret2 = ret[ret.signal.abs() == 2]
+    ret2 = ret2.assign(add_duration=1)
+    ret = pd.concat([ret, ret2[["add_duration"]]], axis=1)
+    ret.duration = ret.duration.fillna(0)
+    ret.add_duration = ret.add_duration.fillna(0)
+    ret.duration = select_max(ret.duration, ret.add_duration)
+    ret.duration = ret.duration.replace(0, np.nan).interpolate()
+    return ret.duration
