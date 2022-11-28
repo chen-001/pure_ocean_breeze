@@ -1,4 +1,4 @@
-__updated__ = "2022-11-16 14:41:43"
+__updated__ = "2022-11-28 20:38:37"
 
 import warnings
 
@@ -1253,6 +1253,41 @@ def show_corrs_with_old(
     return corrs
 
 
+def remove_unavailable(df: pd.DataFrame) -> pd.DataFrame:
+    """对日频或月频因子值，剔除st股、不正常交易的股票和上市不足60天的股票
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        因子值，index是时间，columns是股票代码，values是因子值
+
+    Returns
+    -------
+    pd.DataFrame
+        剔除后的因子值
+    """
+    df0 = df.resample("M").last()
+    if df.shape[0] / df0.shape[0] > 2:
+        daily = 1
+    else:
+        daily = 0
+    if daily:
+        state = read_daily(state=1).replace(0, np.nan)
+        st = read_daily(st=1)
+        age = read_daily(age=1)
+        st = (1 - st).replace(0, np.nan)
+        age = ((age >= 60) + 0).replace(0, np.nan)
+        df = df * age * st * state
+    else:
+        moon = pure_moon(no_read_indu=1)
+        moon.set_basic_data(
+            ages=read_daily(age=1), sts=read_daily(st=1), states=read_daily(state=1)
+        )
+        moon.judge_month()
+        df = moon.tris_monthly * df
+    return df
+
+
 class frequency_controller(object):
     def __init__(self, freq: str):
         self.homeplace = HomePlace()
@@ -1351,6 +1386,13 @@ class pure_moon(object):
         "rets_monthly_last",
         "freq_ctrl",
         "freq",
+        "factor_cover",
+        "factor_cross_skew",
+        "factor_cross_skew_after_neu",
+        "pos_neg_rate",
+        "corr_itself",
+        "factor_cross_stds",
+        "corr_itself_shift2",
     ]
 
     @classmethod
@@ -1430,33 +1472,47 @@ class pure_moon(object):
     @classmethod
     def set_basic_data(
         cls,
-        age: pd.DataFrame,
-        st: pd.DataFrame,
-        state: pd.DataFrame,
-        open: pd.DataFrame,
-        close: pd.DataFrame,
-        capital: pd.DataFrame,
+        ages: pd.DataFrame = None,
+        sts: pd.DataFrame = None,
+        states: pd.DataFrame = None,
+        opens: pd.DataFrame = None,
+        closes: pd.DataFrame = None,
+        capitals: pd.DataFrame = None,
     ):
         # 上市天数文件
-        cls.ages = age
+        cls.ages = ages
         # st日子标志文件
-        cls.sts = st.fillna(0)
+        cls.sts = sts.fillna(0)
         # cls.sts = 1 - cls.sts.fillna(0)
         # 交易状态文件
-        cls.states = state
+        cls.states = states
         # 复权开盘价数据文件
-        cls.opens = open
+        cls.opens = opens
         # 复权收盘价数据文件
-        cls.closes = close
+        cls.closes = closes
         # 月底流通市值数据
-        cls.capital = capital
-        cls.opens = cls.opens.replace(0, np.nan)
-        cls.closes = cls.closes.replace(0, np.nan)
+        cls.capital = capitals
+        if cls.opens is not None:
+            cls.opens = cls.opens.replace(0, np.nan)
+        if cls.closes is not None:
+            cls.closes = cls.closes.replace(0, np.nan)
 
-    def set_factor_df_date_as_index(self, df):
+    def set_factor_df_date_as_index(self, df: pd.DataFrame):
         """设置因子数据的dataframe，因子表列名应为股票代码，索引应为时间"""
         # week_here
-        self.factors = df.resample(self.freq).last()
+        self.factors = df.resample(self.freq).last().dropna(how="all")
+        self.factor_cover = np.sign(self.factors.abs() + 1).sum().sum()
+        total = np.sign(self.opens.resample(self.freq).last()).sum().sum()
+        self.factor_cover = min(self.factor_cover / total, 1)
+        self.factor_cross_skew = self.factors.skew(axis=1).mean()
+        pos_num = ((self.factors > 0) + 0).sum().sum()
+        neg_num = ((self.factors < 0) + 0).sum().sum()
+        self.pos_neg_rate = pos_num / (neg_num + pos_num)
+        self.corr_itself = show_corr(self.factors, self.factors.shift(1), plt_plot=0)
+        self.corr_itself_shift2 = show_corr(
+            self.factors, self.factors.shift(2), plt_plot=0
+        )
+        self.factor_cross_stds = self.factors.std(axis=1)
 
     @classmethod
     def judge_month_st(cls, df):
@@ -1642,7 +1698,6 @@ class pure_moon(object):
     def deal_with_factors(self):
         """删除不符合交易条件的因子数据"""
         self.__factors_out = self.factors.copy()
-        self.__factors_out.columns = [i[1] for i in list(self.__factors_out.columns)]
         # week_here
         self.factors.index = self.factors.index + self.freq_ctrl.time_shift
         # week_here
@@ -1727,7 +1782,7 @@ class pure_moon(object):
         df2 = df2.T
         dura = (df.date.max() - df.date.min()).days / 365
         t_value = df2.iloc[3, 0] * (dura ** (1 / 2))
-        df3 = pd.DataFrame({"评价指标": [t_value]}, index=["RankIC均值t值"])
+        df3 = pd.DataFrame({"评价指标": [t_value]}, index=["RankIC.t"])
         df4 = pd.concat([df2, df3])
         return df4
 
@@ -1946,6 +2001,7 @@ class pure_moon(object):
         rankic = self.rankics.mean()
         rankic_win = self.rankics[self.rankics * rankic > 0]
         rankic_win_ratio = rankic_win.dropna().shape[0] / self.rankics.dropna().shape[0]
+        self.factor_cross_skew_after_neu = self.__factors_out.skew(axis=1).mean()
         self.total_comments = pd.concat(
             [
                 self.ic_icir_and_rank,
@@ -1956,8 +2012,26 @@ class pure_moon(object):
                 self.long_short_comments,
                 # week_here
                 pd.DataFrame(
-                    {"评价指标": [self.factor_turnover_rate]},
-                    index=[f"{self.freq_ctrl.comment_name}均换手率"],
+                    {
+                        "评价指标": [
+                            self.factor_turnover_rate,
+                            self.factor_cover,
+                            self.pos_neg_rate,
+                            self.factor_cross_skew,
+                            self.factor_cross_skew_after_neu,
+                            self.corr_itself,
+                            self.corr_itself_shift2,
+                        ]
+                    },
+                    index=[
+                        f"{self.freq_ctrl.comment_name}均换手率",
+                        "因子覆盖率",
+                        "因子正值占比",
+                        "因子截面偏度",
+                        "中性化后偏度",
+                        "一阶自相关性",
+                        "二阶自相关性",
+                    ],
                 ),
             ]
         )
@@ -1971,21 +2045,21 @@ class pure_moon(object):
             b = self.rankics.copy()
             b.index = [int(i.year) if i.month == 1 else "" for i in list(b.index)]
             b.plot(kind="bar", rot=60, ax=ax[1])
-            self.factor_turnover_rates.plot(rot=60, ax=ax[2])
+            self.factor_cross_stds.plot(rot=60, ax=ax[2])
 
             filename_path = filename + ".png"
             if not STATES["NO_SAVE"]:
                 plt.savefig(filename_path)
         else:
             tris = pd.concat(
-                [self.group_net_values, self.factor_turnover_rates, self.rankics],
+                [self.group_net_values, self.factor_cross_stds, self.rankics],
                 axis=1,
-            ).rename(columns={0: "turnover_rate"})
+            ).rename(columns={0: "因子截面标准差"})
             figs = cf.figures(
                 tris,
                 [
                     dict(kind="line", y=list(self.group_net_values.columns)),
-                    dict(kind="line", y="turnover_rate"),
+                    dict(kind="bar", y="因子截面标准差"),
                     dict(kind="bar", y="rankic"),
                 ],
                 asList=True,
@@ -1998,11 +2072,12 @@ class pure_moon(object):
             here = pd.concat(
                 [
                     comments.iloc[:6, :].reset_index(drop=True),
-                    comments.iloc[6:, :].reset_index(drop=True),
+                    comments.iloc[6:12, :].reset_index(drop=True),
+                    comments.iloc[12:, :].reset_index(drop=True),
                 ],
                 axis=1,
             )
-            here.columns = ["信息系数", "结果", "绩效指标", "结果"]
+            here.columns = ["信息系数", "结果", "绩效指标", "结果", "其他指标", "结果"]
             # here=here.to_numpy().tolist()+[['信息系数','结果','绩效指标','结果']]
             table = FF.create_table(here.iloc[::-1])
             table.update_yaxes(matches=None)
@@ -2016,14 +2091,15 @@ class pure_moon(object):
 
             sp = cf.subplots(
                 figs,
-                shape=(2, 10),
+                shape=(2, 11),
                 base_layout=base_layout,
                 vertical_spacing=0.15,
                 horizontal_spacing=0.03,
                 shared_yaxes=False,
                 specs=[
                     [
-                        {"rowspan": 2, "colspan": 3},
+                        {"rowspan": 2, "colspan": 4},
+                        None,
                         None,
                         None,
                         {"rowspan": 2, "colspan": 4},
@@ -2042,12 +2118,13 @@ class pure_moon(object):
                         None,
                         None,
                         None,
+                        None,
                         {"colspan": 3},
                         None,
                         None,
                     ],
                 ],
-                subplot_titles=["净值曲线", "月换手率", "Rank IC时序图", "绩效指标"],
+                subplot_titles=["净值曲线", "因子截面标准差", "Rank IC时序图", "绩效指标"],
             )
             sp["layout"].update(showlegend=ilegend)
             # los=sp['layout']['annotations']
@@ -2121,7 +2198,7 @@ class pure_moon(object):
         swindustry_dummies=0,
         only_cap=0,
         iplot=1,
-        ilegend=1,
+        ilegend=0,
     ):
         """运行回测部分"""
         if comments_writer and not (comments_sheetname or sheetname):
@@ -2215,8 +2292,10 @@ class pure_moon(object):
         if print_comments:
             if not STATES["NO_COMMENT"]:
                 tb = Texttable()
-                tb.set_cols_width([8] * 4 + [12] + [9] + [8] * 2 + [7] * 2 + [8] + [10])
-                tb.set_cols_dtype(["f"] * 12)
+                tb.set_cols_width(
+                    [8] * 5 + [9] + [8] * 2 + [7] * 2 + [8] + [8] + [9] + [10] * 5
+                )
+                tb.set_cols_dtype(["f"] * 18)
                 tb.header(list(self.total_comments.T.columns))
                 tb.add_rows(self.total_comments.T.to_numpy(), header=False)
                 print(tb.draw())
@@ -2233,10 +2312,16 @@ class pure_moon(object):
                     tc[5] = str(round(tc[5] * 100, 2)) + "%"
                     tc[6] = str(round(tc[6] * 100, 2)) + "%"
                     tc[7] = str(round(tc[7] * 100, 2)) + "%"
-                    tc[8] = str(round(tc[8], 2))
+                    tc[8] = str(round(tc[8] * 100, 2))
                     tc[9] = str(round(tc[9] * 100, 2)) + "%"
                     tc[10] = str(round(tc[10] * 100, 2)) + "%"
                     tc[11] = str(round(tc[11] * 100, 2)) + "%"
+                    tc[12] = str(round(tc[12] * 100, 2)) + "%"
+                    tc[13] = str(round(tc[13] * 100, 2)) + "%"
+                    tc[14] = str(round(tc[14], 2))
+                    tc[15] = str(round(tc[15], 2))
+                    tc[16] = str(round(tc[16] * 100, 2)) + "%"
+                    tc[17] = str(round(tc[17] * 100, 2)) + "%"
                     new_total_comments = pd.DataFrame(
                         {sheetname: tc}, index=total_comments.index
                     )
@@ -2271,10 +2356,16 @@ class pure_moon(object):
                 tc[5] = str(round(tc[5] * 100, 2)) + "%"
                 tc[6] = str(round(tc[6] * 100, 2)) + "%"
                 tc[7] = str(round(tc[7] * 100, 2)) + "%"
-                tc[8] = str(round(tc[8], 2))
+                tc[8] = str(round(tc[8] * 100, 2))
                 tc[9] = str(round(tc[9] * 100, 2)) + "%"
                 tc[10] = str(round(tc[10] * 100, 2)) + "%"
                 tc[11] = str(round(tc[11] * 100, 2)) + "%"
+                tc[12] = str(round(tc[12] * 100, 2)) + "%"
+                tc[13] = str(round(tc[13] * 100, 2)) + "%"
+                tc[14] = str(round(tc[14], 2))
+                tc[15] = str(round(tc[15], 2))
+                tc[16] = str(round(tc[16] * 100, 2)) + "%"
+                tc[17] = str(round(tc[17] * 100, 2)) + "%"
                 new_total_comments = pd.DataFrame(
                     {comments_sheetname: tc}, index=total_comments.index
                 )
@@ -2340,7 +2431,7 @@ class pure_moonnight(object):
         no_read_indu: bool = 0,
         only_cap: bool = 0,
         iplot: bool = 1,
-        ilegend: bool = 1,
+        ilegend: bool = 0,
     ) -> None:
         """一键回测框架，测试单因子的月频调仓的分组表现
         每月月底计算因子值，月初第一天开盘时买入，月末收盘最后一天收盘时卖出
@@ -2473,12 +2564,12 @@ class pure_moonnight(object):
             read_in_swindustry_dummy=swindustry_dummies,
         )
         self.shen.set_basic_data(
-            age=ages,
-            st=sts,
-            state=states,
-            open=opens,
-            close=closes,
-            capital=capitals,
+            ages=ages,
+            sts=sts,
+            states=states,
+            opens=opens,
+            closes=closes,
+            capitals=capitals,
         )
         self.shen.set_factor_df_date_as_index(factors)
         self.shen.prerpare()
@@ -3046,7 +3137,7 @@ class pure_fall_frequent(object):
                 f"上次计算途中被打断，已经将数据备份在questdb数据库的表{self.factor_file_pinyin}中，但您选择重新计算，所以正在删除原来的数据，从头计算"
             )
             factor_old = self.factor_steps.do_order(
-                f"drop table {self.factor_file_pinyin}"
+                f"drop table '{self.factor_file_pinyin}'"
             )
             self.factor_old = None
             self.dates_old = []
@@ -3357,7 +3448,7 @@ class pure_fall_frequent(object):
             logger.info(f"截止到{new_end_date}的因子值计算完了")
             # 删除存储在questdb的中途备份数据
             try:
-                self.factor_steps.do_order(f"drop table {self.factor_file_pinyin}")
+                self.factor_steps.do_order(f"drop table '{self.factor_file_pinyin}'")
                 logger.info("备份在questdb的表格已删除")
             except Exception:
                 logger.warning("删除questdb中表格时，存在某个未知错误，请当心")

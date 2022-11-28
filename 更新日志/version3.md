@@ -1,5 +1,30 @@
 ## 更新日志🗓 — v3
 
+* v3.5.9 — 2022.11.29
+> 1. 修复了读取不复权价格数据时的bug
+>
+> 2. 新增了将所有因子截面上减去最小值，使其变为非负数的函数all_pos
+>
+> 3. 新增了对日票或月频因子值剔除st股、停牌股、上市不足60天的函数remove_unavailable
+>
+> 4. pure_moon类中set_basic_data函数的参数值不再必填
+>
+> 5. 修复了pure_moon不做行业市值中性化时，factors_out属性的columns异常的问题
+>
+> 6. 将pure_moon回测的绩效指标的`RankIC均值t值`改为了`RankIC.t`
+>
+> 7. pure_moon回测新增了6个绩效指标
+> > * self.factor_cover：因子覆盖率，为因子的数量与复权开盘价数据的数量的比值
+> > * self.pos_neg_rate：因子正值占比，为原始因子值中，为正数的数量占非零值数量的比值
+> > * self.factor_cross_skew：因子截面偏度，为原始因子值每个截面的偏度序列的均值，为0则为正态分布，为正则右偏（右边尾巴长），小于零则左偏（左边尾巴长）
+> > * self.factor_cross_skew_after_neu：中性化后偏度，对因子进行行业市值中性化之后，平均截面偏度
+> > * self.corr_itself：一阶自相关性，原始因子值与其上一期的因子值之间的对应期截面spearman相关系数的均值
+> > * self.corr_itself_shift2：二阶自相关性，原始因子值与其上两期的因子值之间的对应期截面spearman相关系数的均值
+> 8. 取消了原来的每月换手率变化曲线，新增了每月原始因子值的截面标准差的柱状图
+> 8. pure_moon中的回测结果使用cufflinks画图时（即iplot为1时），默认不再显示图例，即ilegend默认值改为了0
+> 8. 调整了pure_moon类中set_basic_data函数的形参名称
+> 8. 修复了pure_fall_frequent中，暂存至questdb时，表名中带有特殊符号会无法删除表格的bug
+>
 * v3.5.8 — 2022.11.19
 > 1. 给database_read_final_factors和database_save_final_factors新增了`freq`参数，可以指定为'月'或'周'，即可存入月频因子数据（滚动20天）和周频因子（滚动5天）数据
 > 2. 新增了`计算连续期数`函数，可以用于计算某个指标连续大于或连续小于某个阈值的期数

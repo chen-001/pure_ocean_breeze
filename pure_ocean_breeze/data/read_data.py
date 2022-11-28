@@ -1,4 +1,4 @@
-__updated__ = "2022-11-19 10:24:31"
+__updated__ = "2022-11-21 22:55:17"
 
 import os
 import numpy as np
@@ -187,16 +187,16 @@ def read_daily(
             raise IOError("阁下总得读点什么吧？🤒")
     else:
         if open:
-            opens = pd.read_parquet(homeplace.daily_data_file + "opens.parquet")
+            opens = pd.read_parquet(homeplace.daily_data_file + "opens_unadj.parquet")
             df = opens
         elif close:
-            closes = pd.read_parquet(homeplace.daily_data_file + "closes.parquet")
+            closes = pd.read_parquet(homeplace.daily_data_file + "closes_unadj.parquet")
             df = closes
         elif high:
-            highs = pd.read_parquet(homeplace.daily_data_file + "highs.parquet")
+            highs = pd.read_parquet(homeplace.daily_data_file + "highs_unadj.parquet")
             df = highs
         elif low:
-            lows = pd.read_parquet(homeplace.daily_data_file + "lows.parquet")
+            lows = pd.read_parquet(homeplace.daily_data_file + "lows_unadj.parquet")
             df = lows
 
         else:

@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2022-11-18 01:04:50"
+__updated__ = "2022-11-28 21:17:46"
 
 import os
 import pandas as pd
@@ -1350,3 +1350,19 @@ def 计算连续期数(ret0: pd.Series, point: float = 0) -> pd.Series:
     ret.duration = select_max(ret.duration, ret.add_duration)
     ret.duration = ret.duration.replace(0, np.nan).interpolate()
     return ret.duration
+
+
+def all_pos(df: pd.DataFrame) -> pd.DataFrame:
+    """将因子值每个截面上减去最小值，从而都变成非负数
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        因子值，index为时间，columns为股票代码，values为因子值
+
+    Returns
+    -------
+    pd.DataFrame
+        变化后非负的因子值
+    """
+    return (df.T - df.T.min()).T
