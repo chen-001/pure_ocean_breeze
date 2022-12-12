@@ -1,4 +1,4 @@
-__updated__ = "2022-11-28 20:38:37"
+__updated__ = "2022-12-13 00:49:27"
 
 import warnings
 
@@ -2312,7 +2312,7 @@ class pure_moon(object):
                     tc[5] = str(round(tc[5] * 100, 2)) + "%"
                     tc[6] = str(round(tc[6] * 100, 2)) + "%"
                     tc[7] = str(round(tc[7] * 100, 2)) + "%"
-                    tc[8] = str(round(tc[8] * 100, 2))
+                    tc[8] = str(round(tc[8], 2))
                     tc[9] = str(round(tc[9] * 100, 2)) + "%"
                     tc[10] = str(round(tc[10] * 100, 2)) + "%"
                     tc[11] = str(round(tc[11] * 100, 2)) + "%"
@@ -2356,7 +2356,7 @@ class pure_moon(object):
                 tc[5] = str(round(tc[5] * 100, 2)) + "%"
                 tc[6] = str(round(tc[6] * 100, 2)) + "%"
                 tc[7] = str(round(tc[7] * 100, 2)) + "%"
-                tc[8] = str(round(tc[8] * 100, 2))
+                tc[8] = str(round(tc[8], 2))
                 tc[9] = str(round(tc[9] * 100, 2)) + "%"
                 tc[10] = str(round(tc[10] * 100, 2)) + "%"
                 tc[11] = str(round(tc[11] * 100, 2)) + "%"
@@ -3043,6 +3043,7 @@ class pure_fall_frequent(object):
     def __init__(
         self,
         factor_file: str,
+        project: str = None,
         startdate: int = None,
         enddate: int = None,
         kind: str = "stock",
@@ -3057,6 +3058,8 @@ class pure_fall_frequent(object):
         ----------
         factor_file : str
             用于保存因子值的文件名，需为parquet文件，以'.parquet'结尾
+        project : str, optional
+            该因子所属项目，即子文件夹名称, by default None
         startdate : int, optional
             起始时间，形如20121231，为开区间, by default None
         enddate : int, optional
@@ -3091,8 +3094,18 @@ class pure_fall_frequent(object):
             factor_file.replace(".parquet", ""), ""
         )
         self.factor_steps = Questdb()
+        if project is not None:
+            if not os.path.exists(homeplace.factor_data_file + project):
+                os.makedirs(homeplace.factor_data_file + project)
+            else:
+                logger.info(f"当前正在{project}项目中……")
+        else:
+            logger.warning("当前因子不属于任何项目，这将造成因子数据文件夹的混乱，不便于管理，建议指定一个项目名称")
         # 完整的因子文件路径
-        factor_file = homeplace.factor_data_file + factor_file
+        if project is not None:
+            factor_file = homeplace.factor_data_file + project + "/" + factor_file
+        else:
+            factor_file = homeplace.factor_data_file + factor_file
         self.factor_file = factor_file
         # 读入之前的因子
         if os.path.exists(factor_file):
@@ -3108,7 +3121,7 @@ class pure_fall_frequent(object):
                 f"上次计算途中被打断，已经将数据备份在questdb数据库的表{self.factor_file_pinyin}中，现在将读取上次的数据，继续计算"
             )
             factor_old = self.factor_steps.get_data(
-                f"select * from {self.factor_file_pinyin}"
+                f"select * from '{self.factor_file_pinyin}'"
             )
             # 判断一下每天是否生成多个数据，单个数据就以float形式存储，多个数据以list形式存储
             if "f0" in list(factor_old.columns):
@@ -3253,7 +3266,6 @@ class pure_fall_frequent(object):
             cut_points = cut_points[:-1]
         cut_first = cut_points[0]
         cuts = tuple(zip(cut_points[:-1], cut_points[1:]))
-        print(f"共{len(cuts)}段")
         factor_new = []
         df_first = self.select_one_calculate(
             date=dates[0],

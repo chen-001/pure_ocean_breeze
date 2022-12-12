@@ -1,4 +1,4 @@
-__updated__ = "2022-11-21 22:55:17"
+__updated__ = "2022-12-13 00:59:02"
 
 import os
 import numpy as np
@@ -212,6 +212,7 @@ def read_market(
     low: bool = 0,
     start: int = STATES["START"],
     every_stock: bool = 1,
+    market_code: str = "000985.SH",
 ) -> Union[pd.DataFrame, pd.Series]:
     """读取中证全指日行情数据
 
@@ -229,6 +230,8 @@ def read_market(
         读取的起始日期, by default STATES["START"]
     every_stock : bool, optional
         是否修改为index是时间，columns是每只股票代码，每一列值都相同的形式, by default 1
+    market_code : str, optional
+        选用哪个指数作为市场指数，默认使用中证全指
 
     Returns
     -------
@@ -242,15 +245,16 @@ def read_market(
     """
     try:
         chc = ClickHouseClient("minute_data")
-        df = chc.get_data(
-            f"select * from minute_data.minute_data_index where code='000985.SH' and date>={start}00 order by date,num"
+        df = (
+            chc.get_data(
+                f"select date,num,close,high,low from minute_data.minute_data_index where code='{market_code}' and date>={start}00 order by date,num"
+            )
+            / 100
         )
-        df = df.set_index("code")
-        df = df / 100
     except Exception:
         qdb = Questdb()
         df = qdb.get_data(
-            "select date,num,close from minute_data_index where code='000985.SH'"
+            f"select date,num,close,high,low from minute_data_index where code='{market_code}' and cast(date as int)>={start}"
         )
         df.num = df.num.astype(int)
     df = df.set_index("date")
@@ -363,6 +367,18 @@ def read_money_flow(
 
 
 def read_index_single(code: str) -> pd.Series:
+    """读取某个指数的日行情收盘价数据
+
+    Parameters
+    ----------
+    code : str
+        指数的wind代码
+
+    Returns
+    -------
+    pd.Series
+        日行情数据
+    """    
     try:
         chc = ClickHouseClient("minute_data")
         hs300 = (

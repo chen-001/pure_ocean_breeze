@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2022-11-28 21:17:46"
+__updated__ = "2022-12-12 23:33:14"
 
 import os
 import pandas as pd
@@ -23,7 +23,8 @@ try:
 except Exception:
     print("暂时未连接米筐")
 from pure_ocean_breeze.state.homeplace import HomePlace
-from pure_ocean_breeze.state.states import is_notebook
+import deprecation
+from pure_ocean_breeze import __version__
 
 
 def is_notebook() -> bool:
@@ -39,6 +40,12 @@ def is_notebook() -> bool:
         return False
 
 
+@deprecation.deprecated(
+    deprecated_in="3.0",
+    removed_in="4.0",
+    current_version=__version__,
+    details="考虑到h5文件的多样性，4.0版本开始将不再支持一键读入h5文件",
+)
 def read_h5(path: str) -> dict:
     """
     Reads a HDF5 file into a dictionary of pandas DataFrames.
@@ -65,6 +72,12 @@ def read_h5(path: str) -> dict:
     return res
 
 
+@deprecation.deprecated(
+    deprecated_in="3.0",
+    removed_in="4.0",
+    current_version=__version__,
+    details="考虑到h5文件的多样性，4.0版本开始将不再支持一键读入h5文件",
+)
 def read_h5_new(path: str) -> pd.DataFrame:
     """读取h5文件
 
@@ -121,10 +134,14 @@ def convert_code(x: str) -> tuple[str, str]:
         x2 = ".SZ"
     elif x2 == "XSHG":
         x2 = ".SH"
+    elif x2 == "SZ":
+        x2 = ".XSHE"
+    elif x2 == "SH":
+        x2 = ".XSHG"
     x = x1 + x2
-    if (x1[0] == "0" or x1[:2] == "30") and x2 == ".SZ":
+    if (x1[0] == "0" or x1[:2] == "30") and x2 in [".SZ", ".XSHE"]:
         kind = "stock"
-    elif x1[0] == "6" and x2 == ".SH":
+    elif x1[0] == "6" and x2 in [".SH", ".XSHG"]:
         kind = "stock"
     else:
         kind = "index"
@@ -576,9 +593,9 @@ def drop_duplicates_index(new: pd.DataFrame) -> pd.DataFrame:
         去重后的dataframe
     """
     new = new.reset_index()
-    new = new.rename(columns={list(new.columns)[0]: "date"})
+    new = new.rename(columns={list(new.columns)[0]: "tmp_name_for_this_function_never_same_to_others"})
     new = new.drop_duplicates(subset=["date"], keep="first")
-    new = new.set_index("date")
+    new = new.set_index("tmp_name_for_this_function_never_same_to_others")
     return new
 
 
@@ -1366,3 +1383,71 @@ def all_pos(df: pd.DataFrame) -> pd.DataFrame:
         变化后非负的因子值
     """
     return (df.T - df.T.min()).T
+
+
+def clip_mad(df:pd.DataFrame,n:float=3)->pd.DataFrame:
+    df0=df.T
+    median = df0.quantile(0.5)
+    diff_median = ((df0 - median).abs()).quantile(0.5)
+    max_range = median + n * diff_median
+    min_range = median - n * diff_median
+    mid1=(((df0-min_range)>=0)+0).replace(0,np.nan)
+    mid2=(((df0-max_range)<=0)+0).replace(0,np.nan)
+    return (df0*mid1*mid2).T
+
+
+def clip_three_sigma(df:pd.DataFrame,n:float=3)->pd.DataFrame:
+    df0=df.T
+    mean = df0.mean()
+    std = df0.std()
+    max_range = mean + n * std
+    min_range = mean - n * std
+    mid1=(((df0-min_range)>=0)+0).replace(0,np.nan)
+    mid2=(((df0-max_range)<=0)+0).replace(0,np.nan)
+    return (df0*mid1*mid2).T
+
+
+def clip_percentile(df:pd.DataFrame, min_percent:float= 0.025, max_percent:float= 0.975)->pd.DataFrame:
+    df0=df.T
+    max_range = df0.quantile(max_percent)
+    min_range = df0.quantile(min_percent)
+    mid1=(((df0-min_range)>=0)+0).replace(0,np.nan)
+    mid2=(((df0-max_range)<=0)+0).replace(0,np.nan)
+    return (df0*mid1*mid2).T
+
+
+def clip(df:pd.DataFrame,mad:bool=0,three_sigma:bool=0,percentile:bool=0,parameter:Union[float,tuple]=None)->pd.DataFrame:
+    """对因子值进行截面去极值的操作
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        要处理的因子表，columns为股票代码，index为时间
+    mad : bool, optional
+        使用mad法去极值，先计算所有因子与平均值之间的距离总和来检测离群值, by default 0
+    three_sigma : bool, optional
+        根据均值和几倍标准差做调整, by default 0
+    percentile : bool, optional
+        根据上下限的分位数去极值, by default 0
+    parameter : Union[float,tuple], optional
+        参数，mad和three_sigma默认参数为3，输入float形式；而percentile默认参数为(0.025,0.975)，输入tuple形式, by default None
+    [参考资料](https://blog.csdn.net/The_Time_Runner/article/details/100118505) 
+
+    Returns
+    -------
+    pd.DataFrame
+        去极值后的参数
+
+    Raises
+    ------
+    ValueError
+        不指定方法或参数类型错误，将报错
+    """    
+    if mad and isinstance(parameter,float):
+        return clip_mad(df,parameter)
+    elif three_sigma and isinstance(parameter,float):
+        return clip_three_sigma(df,parameter)
+    elif percentile and isinstance(parameter,tuple):
+        return clip_percentile(df,parameter[0],parameter[1])
+    else:
+        raise ValueError('参数输入错误')
