@@ -1,5 +1,9 @@
 ## 更新日志🗓 — v3
 
+* v3.6.1 — 2022.12.14
+> 1. 修复了drop_duplicates_index的bug
+> 1. 给pure_moonnight增加了without_breakpoint参数，用于控制iplot画图忽略空格
+> 1. 新增了和pure_moon功能一模一样的pure_week，并修复了在同一进程中，不能使用pure_moonnight同时进行月频回测和周频回测的bug
 * v3.6.0 — 2022.12.13
 > 1. 读取市场指数数据的函数read_market不再限定只能读取中证全指的数据，改为可以通过market_code参数读取任何指数数据
 > 1. 修复了read_market函数中使用questdb读取最高价、最低价、开盘价数据的bug，以及不能指定起始时间的bug

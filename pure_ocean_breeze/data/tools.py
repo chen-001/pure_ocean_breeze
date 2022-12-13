@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2022-12-12 23:33:14"
+__updated__ = "2022-12-13 10:44:59"
 
 import os
 import pandas as pd
@@ -594,7 +594,7 @@ def drop_duplicates_index(new: pd.DataFrame) -> pd.DataFrame:
     """
     new = new.reset_index()
     new = new.rename(columns={list(new.columns)[0]: "tmp_name_for_this_function_never_same_to_others"})
-    new = new.drop_duplicates(subset=["date"], keep="first")
+    new = new.drop_duplicates(subset=["tmp_name_for_this_function_never_same_to_others"], keep="first")
     new = new.set_index("tmp_name_for_this_function_never_same_to_others")
     return new
 

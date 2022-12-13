@@ -1,4 +1,4 @@
-__updated__ = "2022-12-13 00:49:27"
+__updated__ = "2022-12-14 00:27:19"
 
 import warnings
 
@@ -2036,7 +2036,7 @@ class pure_moon(object):
             ]
         )
 
-    def plot_net_values(self, y2, filename, iplot=1, ilegend=1):
+    def plot_net_values(self, y2, filename, iplot=1, ilegend=1, without_breakpoint=0):
         """使用matplotlib来画图，y2为是否对多空组合采用双y轴"""
         if not iplot:
             fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(33, 8))
@@ -2055,6 +2055,8 @@ class pure_moon(object):
                 [self.group_net_values, self.factor_cross_stds, self.rankics],
                 axis=1,
             ).rename(columns={0: "因子截面标准差"})
+            if without_breakpoint:
+                tris = tris.dropna()
             figs = cf.figures(
                 tris,
                 [
@@ -2199,6 +2201,7 @@ class pure_moon(object):
         only_cap=0,
         iplot=1,
         ilegend=0,
+        without_breakpoint=0,
     ):
         """运行回测部分"""
         if comments_writer and not (comments_sheetname or sheetname):
@@ -2267,7 +2270,11 @@ class pure_moon(object):
             if not STATES["NO_PLOT"]:
                 if filename:
                     self.plot_net_values(
-                        y2=y2, filename=filename, iplot=iplot, ilegend=bool(ilegend)
+                        y2=y2,
+                        filename=filename,
+                        iplot=iplot,
+                        ilegend=bool(ilegend),
+                        without_breakpoint=without_breakpoint,
                     )
                 else:
                     self.plot_net_values(
@@ -2277,6 +2284,7 @@ class pure_moon(object):
                         + "分组",
                         iplot=iplot,
                         ilegend=bool(ilegend),
+                        without_breakpoint=without_breakpoint,
                     )
                 plt.show()
         if plotly_plot:
@@ -2432,6 +2440,7 @@ class pure_moonnight(object):
         only_cap: bool = 0,
         iplot: bool = 1,
         ilegend: bool = 0,
+        without_breakpoint: bool = 0,
     ) -> None:
         """一键回测框架，测试单因子的月频调仓的分组表现
         每月月底计算因子值，月初第一天开盘时买入，月末收盘最后一天收盘时卖出
@@ -2513,6 +2522,8 @@ class pure_moonnight(object):
             使用cufflinks呈现回测结果, by default 1
         ilegend : bool, optional
             使用cufflinks绘图时，是否显示图例, by default 1
+        without_breakpoint : bool, optional
+            画图的时候是否去除间断点, by default 0
         """
 
         if not isinstance(factors, pd.DataFrame):
@@ -2556,13 +2567,22 @@ class pure_moonnight(object):
             only_cap = no_read_indu = 1
         if iplot:
             print_comments = 0
-        self.shen = pure_moon(
-            freq=freq,
-            no_read_indu=no_read_indu,
-            swindustry_dummy=swindustry_dummy,
-            zxindustry_dummy=zxindustry_dummy,
-            read_in_swindustry_dummy=swindustry_dummies,
-        )
+        if freq == "M":
+            self.shen = pure_moon(
+                freq=freq,
+                no_read_indu=no_read_indu,
+                swindustry_dummy=swindustry_dummy,
+                zxindustry_dummy=zxindustry_dummy,
+                read_in_swindustry_dummy=swindustry_dummies,
+            )
+        elif freq == "W":
+            self.shen = pure_week(
+                freq=freq,
+                no_read_indu=no_read_indu,
+                swindustry_dummy=swindustry_dummy,
+                zxindustry_dummy=zxindustry_dummy,
+                read_in_swindustry_dummy=swindustry_dummies,
+            )
         self.shen.set_basic_data(
             ages=ages,
             sts=sts,
@@ -2598,6 +2618,7 @@ class pure_moonnight(object):
             only_cap=only_cap,
             iplot=iplot,
             ilegend=ilegend,
+            without_breakpoint=without_breakpoint,
         )
 
     def __call__(self) -> pd.DataFrame:
@@ -2629,6 +2650,10 @@ class pure_moonnight(object):
             coms.append(com)
         df = pd.concat(coms, axis=1)
         return df.T
+
+
+class pure_week(pure_moon):
+    ...
 
 
 class pure_fall(object):
