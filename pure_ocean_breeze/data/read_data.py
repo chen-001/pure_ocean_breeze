@@ -1,4 +1,4 @@
-__updated__ = "2022-12-13 00:59:02"
+__updated__ = "2022-12-16 00:48:25"
 
 import os
 import numpy as np
@@ -32,6 +32,7 @@ def read_daily(
     ret: bool = 0,
     ret_inday: bool = 0,
     ret_night: bool = 0,
+    vol_daily: bool = 0,
     vol: bool = 0,
     vol_inday: bool = 0,
     vol_night: bool = 0,
@@ -79,6 +80,8 @@ def read_daily(
         为1则表示读取日内收益率, by default 0
     ret_night : bool, optional
         为1则表示读取隔夜波动率, by default 0
+    vol_daily : bool, optional
+        为1则表示读取使用分钟收盘价的标准差计算的波动率, by default 0
     vol : bool, optional
         为1则选择读取滚动20日日间波动率, by default 0
     vol_inday : bool, optional
@@ -159,6 +162,8 @@ def read_daily(
                 / read_daily(close=1, start=start).shift(1)
                 - 1
             )
+        elif vol_daily:
+            df = pd.read_parquet(homeplace.factor_data_file + "草木皆兵/草木皆兵_初级.parquet")
         elif vol:
             df = read_daily(ret=1, start=start)
             df = df.rolling(20, min_periods=10).std()
@@ -202,7 +207,7 @@ def read_daily(
         else:
             raise IOError("阁下总得读点什么吧？🤒")
     df = df[df.index >= pd.Timestamp(str(start))]
-    return df
+    return df.dropna(how='all')
 
 
 def read_market(
@@ -378,7 +383,7 @@ def read_index_single(code: str) -> pd.Series:
     -------
     pd.Series
         日行情数据
-    """    
+    """
     try:
         chc = ClickHouseClient("minute_data")
         hs300 = (

@@ -1,4 +1,4 @@
-__updated__ = "2022-12-14 00:27:19"
+__updated__ = "2022-12-16 00:45:28"
 
 import warnings
 
@@ -1231,8 +1231,18 @@ def show_corrs_with_old(
             daily = 1
         else:
             daily = 0
+    nums = os.listdir(homeplace.final_factor_file)
+    nums = sorted(
+        set(
+            [
+                int(i.split("多因子")[1].split("_月")[0])
+                for i in nums
+                if i.endswith(".parquet")
+            ]
+        )
+    )
     olds = []
-    for i in range(1, 100):
+    for i in nums:
         try:
             if daily:
                 old = database_read_final_factors(order=i)[0]
@@ -1243,13 +1253,9 @@ def show_corrs_with_old(
             break
     if df is not None:
         olds = [df] + olds
-        corrs = show_corrs(
-            olds, ["new"] + [f"old{i}" for i in range(1, len(olds))], method=method
-        )
+        corrs = show_corrs(olds, ["new"] + [f"old{i}" for i in nums], method=method)
     else:
-        corrs = show_corrs(
-            olds, [f"old{i}" for i in range(1, len(olds))], method=method
-        )
+        corrs = show_corrs(olds, [f"old{i}" for i in nums], method=method)
     return corrs
 
 
