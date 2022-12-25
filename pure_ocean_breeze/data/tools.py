@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2022-12-13 10:44:59"
+__updated__ = "2022-12-20 21:46:40"
 
 import os
 import pandas as pd
@@ -391,7 +391,7 @@ def merge_many(
         names = [f"fac{i+1}" for i in range(num)]
     dfs = [i.stack().reset_index() for i in dfs]
     dfs = [i.rename(columns={list(i.columns)[-1]: j}) for i, j in zip(dfs, names)]
-    dfs = [i.rename(columns={list(i.columns)[-2]: "code"}) for i in dfs]
+    dfs = [i.rename(columns={list(i.columns)[-2]: "code",list(i.columns)[0]: "date"}) for i in dfs]
     df = reduce(lambda x, y: pd.merge(x, y, on=["date", "code"], how=how), dfs)
     return df
 
@@ -401,7 +401,7 @@ def corr_two_daily(
     df2: pd.DataFrame,
     history: str = None,
     rolling_window: int = 20,
-    n_jobs: int = 6,
+    n_jobs: int = 1,
 ) -> pd.DataFrame:
     """求两个因子，在相同股票上，时序上滚动窗口下的相关系数
 
@@ -442,7 +442,7 @@ def cov_two_daily(
     df2: pd.DataFrame,
     history: str = None,
     rolling_window: int = 20,
-    n_jobs: int = 6,
+    n_jobs: int = 1,
 ) -> pd.DataFrame:
     """求两个因子，在相同股票上，时序上滚动窗口下的协方差
 
@@ -484,7 +484,7 @@ def func_two_daily(
     func: Callable,
     history: str = None,
     rolling_window: int = 20,
-    n_jobs: int = 6,
+    n_jobs: int = 1,
 ) -> pd.DataFrame:
     """求两个因子，在相同股票上，时序上滚动窗口下的相关系数
 

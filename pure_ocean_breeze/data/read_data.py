@@ -1,4 +1,4 @@
-__updated__ = "2022-12-16 00:48:25"
+__updated__ = "2022-12-22 23:23:13"
 
 import os
 import numpy as np
@@ -207,7 +207,7 @@ def read_daily(
         else:
             raise IOError("阁下总得读点什么吧？🤒")
     df = df[df.index >= pd.Timestamp(str(start))]
-    return df.dropna(how='all')
+    return df.dropna(how="all")
 
 
 def read_market(
@@ -595,7 +595,7 @@ def database_read_final_factors(
     if name is None and order is None:
         raise IOError("请指定因子名字或者因子序号")
     elif name is None and order is not None:
-        key = "多因子" + str(order)
+        key = "多因子" + str(order) + "_" + freq
         ans = [i for i in facs if ((key in i) and (freq in i))][0]
     elif name is not None and name is None:
         key = name
@@ -606,7 +606,7 @@ def database_read_final_factors(
             raise IOError(f"您名字记错了，不存在叫{name}的因子")
     else:
         key1 = name
-        key2 = "多因子" + str(order)
+        key2 = "多因子" + str(order) + "_" + freq
         ans1 = [i for i in facs if ((key1 in i) and (freq in i))]
         if len(ans1) > 0:
             ans1 = ans1[0]

@@ -1,4 +1,4 @@
-__updated__ = "2022-12-16 00:45:28"
+__updated__ = "2022-12-22 22:58:45"
 
 import warnings
 
@@ -1066,8 +1066,9 @@ def show_corrs(
     else:
         pcorrs = corrs.copy()
     if print_bool:
-        print(pcorrs)
-    return corrs
+        return pcorrs
+    else:
+        return corrs
 
 
 def show_cov(
@@ -1237,7 +1238,7 @@ def show_corrs_with_old(
             [
                 int(i.split("多因子")[1].split("_月")[0])
                 for i in nums
-                if i.endswith(".parquet")
+                if i.endswith("月.parquet")
             ]
         )
     )
