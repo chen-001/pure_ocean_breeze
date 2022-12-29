@@ -1,4 +1,4 @@
-__updated__ = "2022-11-10 23:16:18"
+__updated__ = "2022-12-29 16:22:35"
 
 import numpy as np
 import pandas as pd
@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 
 plt.rcParams["axes.unicode_minus"] = False
 from pure_ocean_breeze.data.read_data import read_index_three, read_daily
+from pure_ocean_breeze.state.decorators import do_on_dfs
 
 
 def comment_on_rets_and_nets(
@@ -131,6 +132,7 @@ def comments_on_twins_periods(
     )
 
 
+@do_on_dfs
 def make_relative_comments(
     ret_fac: pd.Series,
     hs300: bool = 0,
@@ -194,6 +196,7 @@ def make_relative_comments(
         return com
 
 
+@do_on_dfs
 def make_relative_comments_plot(
     ret_fac: pd.Series,
     hs300: bool = 0,

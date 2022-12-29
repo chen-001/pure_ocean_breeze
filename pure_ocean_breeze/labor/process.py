@@ -1,4 +1,4 @@
-__updated__ = "2022-12-22 22:58:45"
+__updated__ = "2022-12-29 18:25:47"
 
 import warnings
 
@@ -47,6 +47,7 @@ from pure_ocean_breeze.state.homeplace import HomePlace
 
 homeplace = HomePlace()
 from pure_ocean_breeze.state.states import STATES
+from pure_ocean_breeze.state.decorators import do_on_dfs
 from pure_ocean_breeze.data.database import *
 from pure_ocean_breeze.data.dicts import INDUS_DICT
 from pure_ocean_breeze.data.tools import (
@@ -62,6 +63,7 @@ from pure_ocean_breeze.labor.comment import (
 )
 
 
+@do_on_dfs
 def daily_factor_on300500(
     fac: pd.DataFrame,
     hs300: bool = 0,
@@ -213,6 +215,7 @@ def daily_factor_on300500(
     return df
 
 
+@do_on_dfs
 def daily_factor_on_industry(
     df: pd.DataFrame, swindustry: bool = 0, zxindustry: bool = 0
 ) -> dict:
@@ -251,6 +254,7 @@ def daily_factor_on_industry(
     return ress
 
 
+@do_on_dfs
 def group_test_on_industry(
     df: pd.DataFrame,
     group_num: int = 10,
@@ -311,6 +315,7 @@ def group_test_on_industry(
     return vs
 
 
+@do_on_dfs
 def rankic_test_on_industry(
     df: pd.DataFrame,
     excel_name: str = "行业rankic.xlsx",
@@ -348,6 +353,7 @@ def rankic_test_on_industry(
     return rankics
 
 
+@do_on_dfs
 def long_test_on_industry(
     df: pd.DataFrame,
     nums: list,
@@ -548,6 +554,7 @@ def long_test_on_industry(
         return [coms_finals, rets_save]
 
 
+@do_on_dfs
 def long_test_on_swindustry(
     df: pd.DataFrame,
     nums: list,
@@ -590,6 +597,7 @@ def long_test_on_swindustry(
     return res
 
 
+@do_on_dfs
 def long_test_on_zxindustry(
     df: pd.DataFrame,
     nums: list,
@@ -632,6 +640,7 @@ def long_test_on_zxindustry(
     return res
 
 
+@do_on_dfs
 @kk.desktop_sender(title="嘿，行业中性化做完啦～🛁")
 def decap(df: pd.DataFrame, daily: bool = 0, monthly: bool = 0) -> pd.DataFrame:
     """对因子做市值中性化
@@ -684,6 +693,7 @@ def decap(df: pd.DataFrame, daily: bool = 0, monthly: bool = 0) -> pd.DataFrame:
     return df
 
 
+@do_on_dfs
 @kk.desktop_sender(title="嘿，行业市值中性化做完啦～🛁")
 def decap_industry(
     df: pd.DataFrame,
@@ -794,6 +804,7 @@ def decap_industry(
     return df
 
 
+@do_on_dfs
 def deboth(df: pd.DataFrame) -> pd.DataFrame:
     """通过回测的方式，对月频因子做行业市值中性化
 
@@ -811,6 +822,7 @@ def deboth(df: pd.DataFrame) -> pd.DataFrame:
     return shen()
 
 
+@do_on_dfs
 def boom_four(
     df: pd.DataFrame, backsee: int = 20, daily: bool = 0, min_periods: int = None
 ) -> tuple[pd.DataFrame]:
@@ -877,23 +889,10 @@ def boom_fours(
     list[list[pd.DataFrame]]
         每个因子进行boom_four后的结果
     """
-    if not isinstance(backsee, list):
-        backsee = [backsee] * len(dfs)
-    if not isinstance(daily, list):
-        daily = [daily] * len(dfs)
-    if not isinstance(min_periods, list):
-        min_periods = [min_periods] * len(dfs)
-    return list(
-        map(
-            lambda x, y, z, u: boom_four(x, backsee=y, daily=z, min_periods=u),
-            dfs,
-            backsee,
-            daily,
-            min_periods,
-        )
-    )
+    return boom_four(df=dfs,backsee=backsee,daily=daily,min_periods=min_periods)
 
 
+@do_on_dfs
 def add_cross_standardlize(*args: list) -> pd.DataFrame:
     """将众多因子横截面做z-score标准化之后相加
 
@@ -909,6 +908,7 @@ def add_cross_standardlize(*args: list) -> pd.DataFrame:
     return final()
 
 
+@do_on_dfs
 def to_tradeends(df: pd.DataFrame) -> pd.DataFrame:
     """将最后一个自然日改变为最后一个交易日
 
@@ -932,6 +932,7 @@ def to_tradeends(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+@do_on_dfs
 def market_kind(
     df: pd.DataFrame,
     zhuban: bool = 0,
@@ -1209,6 +1210,7 @@ def de_cross(
     return (y - xs)()
 
 
+@do_on_dfs
 def show_corrs_with_old(
     df: pd.DataFrame = None, method: str = "spearman"
 ) -> pd.DataFrame:
@@ -1260,6 +1262,7 @@ def show_corrs_with_old(
     return corrs
 
 
+@do_on_dfs
 def remove_unavailable(df: pd.DataFrame) -> pd.DataFrame:
     """对日频或月频因子值，剔除st股、不正常交易的股票和上市不足60天的股票
 
@@ -2405,11 +2408,12 @@ class pure_moon(object):
                 group_rets.to_excel(rets_writer, sheet_name=rets_sheetname)
 
 
+@do_on_dfs
 class pure_moonnight(object):
     """封装选股框架"""
 
     __slots__ = ["shen"]
-
+    
     def __init__(
         self,
         factors: pd.DataFrame,
@@ -3240,6 +3244,17 @@ class pure_fall_frequent(object):
         """
         return self.factor.copy()
 
+    def forward_dates(self, dates, many_days):
+        dates_index = [self.dates_all.index(i) for i in dates]
+
+        def value(x, a):
+            if x >= 0:
+                return a[x]
+            else:
+                return None
+
+        return [value(i - many_days, self.dates_all) for i in dates_index]
+
     def select_one_calculate(
         self,
         date: pd.Timestamp,
@@ -3288,82 +3303,117 @@ class pure_fall_frequent(object):
         chunksize: int = 10,
         show_time: bool = 0,
         tqdm_inside: bool = 0,
+        many_days: int = 1,
     ) -> None:
         the_func = partial(func)
-        dates = [int(datetime.datetime.strftime(i, "%Y%m%d")) for i in dates]
-        # 将需要更新的日子分块，每200天一组，一起运算
-        dates_new_len = len(dates)
-        cut_points = list(range(0, dates_new_len, chunksize)) + [dates_new_len - 1]
-        if cut_points[-1] == cut_points[-2]:
-            cut_points = cut_points[:-1]
-        cut_first = cut_points[0]
-        cuts = tuple(zip(cut_points[:-1], cut_points[1:]))
         factor_new = []
-        df_first = self.select_one_calculate(
-            date=dates[0],
-            func=func,
-            fields=fields,
-            show_time=show_time,
-        )
-        factor_new.append(df_first)
-        to_save = df_first.stack().reset_index()
-        to_save.columns = ["date", "code", "fac"]
-        self.factor_steps.write_via_csv(to_save, self.factor_file_pinyin)
+        dates = [int(datetime.datetime.strftime(i, "%Y%m%d")) for i in dates]
+        if many_days == 1:
+            # 将需要更新的日子分块，每200天一组，一起运算
+            dates_new_len = len(dates)
+            cut_points = list(range(0, dates_new_len, chunksize)) + [dates_new_len - 1]
+            if cut_points[-1] == cut_points[-2]:
+                cut_points = cut_points[:-1]
+            cuts = tuple(zip(cut_points[:-many_days], cut_points[many_days:]))
+            df_first = self.select_one_calculate(
+                date=dates[0],
+                func=func,
+                fields=fields,
+                show_time=show_time,
+            )
+            factor_new.append(df_first)
+            to_save = df_first.stack().reset_index()
+            to_save.columns = ["date", "code", "fac"]
+            self.factor_steps.write_via_csv(to_save, self.factor_file_pinyin)
 
-        if tqdm_inside == 1:
-            # 开始计算因子值
-            for date1, date2 in cuts:
-                if self.clickhouse == 1:
-                    sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{dates[date1] * 100} and date<={dates[date2] * 100} order by code,date,num"
-                else:
-                    sql_order = f"select {fields} from minute_data_{self.kind} where cast(date as int)>{dates[date1]} and cast(date as int)<={dates[date2]}"
-                if show_time:
-                    df = self.chc.get_data_show_time(sql_order)
-                else:
-                    df = self.chc.get_data(sql_order)
-                if self.clickhouse == 1:
-                    df = ((df.set_index("code")) / 100).reset_index()
-                else:
-                    df.num = df.num.astype(int)
-                    df.date = df.date.astype(int)
-                    df = df.sort_values(["date", "num"])
-                tqdm.auto.tqdm.pandas()
-                df = df.groupby(self.groupby_target).progress_apply(the_func)
-                df = df.to_frame("fac").reset_index()
-                df.columns = ["date", "code", "fac"]
-                df = df.pivot(columns="code", index="date", values="fac")
-                df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
-                factor_new.append(df)
-                to_save = df.stack().reset_index()
-                to_save.columns = ["date", "code", "fac"]
-                self.factor_steps.write_via_csv(to_save, self.factor_file_pinyin)
-        else:
-            # 开始计算因子值
-            for date1, date2 in tqdm.auto.tqdm(cuts, desc="不知乘月几人归，落月摇情满江树。"):
-                if self.clickhouse == 1:
-                    sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{dates[date1] * 100} and date<={dates[date2] * 100} order by code,date,num"
-                else:
-                    sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{dates[date1]} and date<={dates[date2]} order by code,date,num"
-                if show_time:
-                    df = self.chc.get_data_show_time(sql_order)
-                else:
-                    df = self.chc.get_data(sql_order)
-                if self.clickhouse == 1:
-                    df = ((df.set_index("code")) / 100).reset_index()
-                df = df.groupby(self.groupby_target).apply(the_func)
-                if self.groupby_target == ["date", "code"]:
+            if tqdm_inside == 1:
+                # 开始计算因子值
+                for date1, date2 in cuts:
+                    if self.clickhouse == 1:
+                        sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{dates[date1] * 100} and date<={dates[date2] * 100} order by code,date,num"
+                    else:
+                        sql_order = f"select {fields} from minute_data_{self.kind} where cast(date as int)>{dates[date1]} and cast(date as int)<={dates[date2]}"
+                    if show_time:
+                        df = self.chc.get_data_show_time(sql_order)
+                    else:
+                        df = self.chc.get_data(sql_order)
+                    if self.clickhouse == 1:
+                        df = ((df.set_index("code")) / 100).reset_index()
+                    else:
+                        df.num = df.num.astype(int)
+                        df.date = df.date.astype(int)
+                        df = df.sort_values(["date", "num"])
+                    tqdm.auto.tqdm.pandas()
+                    df = df.groupby(self.groupby_target).progress_apply(the_func)
                     df = df.to_frame("fac").reset_index()
                     df.columns = ["date", "code", "fac"]
-                else:
-                    df = df.reset_index()
-                df = df.pivot(columns="code", index="date", values="fac")
-                df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
-                factor_new.append(df)
-                to_save = df.stack().reset_index()
-                to_save.columns = ["date", "code", "fac"]
-                self.factor_steps.write_via_csv(to_save, self.factor_file_pinyin)
-        factor_new = pd.concat(factor_new)
-        return factor_new
+                    df = df.pivot(columns="code", index="date", values="fac")
+                    df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
+                    factor_new.append(df)
+                    to_save = df.stack().reset_index()
+                    to_save.columns = ["date", "code", "fac"]
+                    self.factor_steps.write_via_csv(to_save, self.factor_file_pinyin)
+            else:
+                # 开始计算因子值
+                for date1, date2 in tqdm.auto.tqdm(cuts, desc="不知乘月几人归，落月摇情满江树。"):
+                    if self.clickhouse == 1:
+                        sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{dates[date1] * 100} and date<={dates[date2] * 100} order by code,date,num"
+                    else:
+                        sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{dates[date1]} and date<={dates[date2]} order by code,date,num"
+                    if show_time:
+                        df = self.chc.get_data_show_time(sql_order)
+                    else:
+                        df = self.chc.get_data(sql_order)
+                    if self.clickhouse == 1:
+                        df = ((df.set_index("code")) / 100).reset_index()
+                    df = df.groupby(self.groupby_target).apply(the_func)
+                    if self.groupby_target == ["date", "code"]:
+                        df = df.to_frame("fac").reset_index()
+                        df.columns = ["date", "code", "fac"]
+                    else:
+                        df = df.reset_index()
+                    df = df.pivot(columns="code", index="date", values="fac")
+                    df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
+                    factor_new.append(df)
+                    to_save = df.stack().reset_index()
+                    to_save.columns = ["date", "code", "fac"]
+                    self.factor_steps.write_via_csv(to_save, self.factor_file_pinyin)
+        else:
+            pairs = self.forward_dates(dates, many_days=many_days)
+            for date1, date2 in tqdm.auto.tqdm(
+                list(zip(pairs, dates)), desc="知不可乎骤得，托遗响于悲风。"
+            ):
+                if date1 is not None:
+                    if self.clickhouse == 1:
+                        sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{date1*100} and date<={date2*100} order by code,date,num"
+                    else:
+                        sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{date1} and date<={date2} order by code,date,num"
+                    if show_time:
+                        df = self.chc.get_data_show_time(sql_order)
+                    else:
+                        df = self.chc.get_data(sql_order)
+                    if self.clickhouse == 1:
+                        df = ((df.set_index("code")) / 100).reset_index()
+                    if self.groupby_target == [
+                        "date",
+                        "code",
+                    ] or self.groupby_target == ["code"]:
+                        df = df.groupby(["code"]).apply(the_func).reset_index()
+                    else:
+                        df = the_func(df)
+                    df = df.assign(date=date2)
+                    df.columns = ["code", "fac", "date"]
+                    df = df.pivot(columns="code", index="date", values="fac")
+                    df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
+                    factor_new.append(df)
+                    to_save = df.stack().reset_index()
+                    to_save.columns = ["date", "code", "fac"]
+                    self.factor_steps.write_via_csv(to_save, self.factor_file_pinyin)
+        if len(factor_new) > 0:
+            factor_new = pd.concat(factor_new)
+            return factor_new
+        else:
+            return None
 
     def select_any_calculate(
         self,
@@ -3373,8 +3423,9 @@ class pure_fall_frequent(object):
         chunksize: int = 10,
         show_time: bool = 0,
         tqdm_inside: bool = 0,
+        many_days: int = 1,
     ) -> None:
-        if len(dates) == 1:
+        if len(dates) == 1 and many_days == 1:
             res = self.select_one_calculate(
                 dates[0],
                 func=func,
@@ -3389,6 +3440,7 @@ class pure_fall_frequent(object):
                 chunksize=chunksize,
                 show_time=show_time,
                 tqdm_inside=tqdm_inside,
+                many_days=many_days,
             )
         return res
 
@@ -3453,6 +3505,7 @@ class pure_fall_frequent(object):
         chunksize: int = 10,
         show_time: bool = 0,
         tqdm_inside: bool = 0,
+        many_days: int = 1,
     ) -> None:
         """每次抽取chunksize天的截面上全部股票的分钟数据
         对每天的股票的数据计算因子值
@@ -3470,6 +3523,8 @@ class pure_fall_frequent(object):
             展示每次读取数据所需要的时间, by default 0
         tqdm_inside : bool, optional
             将进度条加在内部，而非外部，建议仅chunksize较大时使用, by default 0
+        many_days: int, optional
+            计算某天的因子值时，需要使用之前多少天的数据
         """
         if len(self.dates_new) > 0:
             for interval in self.dates_new_intervals:
@@ -3480,8 +3535,10 @@ class pure_fall_frequent(object):
                     chunksize=chunksize,
                     show_time=show_time,
                     tqdm_inside=tqdm_inside,
+                    many_days=many_days,
                 )
-                self.factor_new.append(df)
+                if df is not None:
+                    self.factor_new.append(df)
             self.factor_new = pd.concat(self.factor_new)
             # 拼接新的和旧的
             self.factor = pd.concat([self.factor_old, self.factor_new]).sort_index()
@@ -3503,6 +3560,14 @@ class pure_fall_frequent(object):
             self.factor.to_parquet(self.factor_file)
             new_end_date = datetime.datetime.strftime(self.factor.index.max(), "%Y%m%d")
             logger.info(f"当前截止到{new_end_date}的因子值已经是最新的了")
+
+    def drop_table(self):
+        """直接删除存储在questdb中的暂存数据"""
+        try:
+            self.factor_steps.do_order(f"drop table '{self.factor_file_pinyin}'")
+            logger.success(f"暂存在questdb中的数据表格'{self.factor_file_pinyin}'已经删除")
+        except Exception:
+            logger.warning(f"您要删除的表格'{self.factor_file_pinyin}'已经不存在了，请检查")
 
 
 class pure_fall_flexible(object):
@@ -3931,6 +3996,7 @@ class pure_coldwinter(object):
         self.get_snow_fac()
 
 
+@do_on_dfs
 class pure_snowtrain(object):
     """直接返回纯净因子"""
 
@@ -4199,6 +4265,7 @@ class pure_dawn(object):
         self.get_monthly_factor(func)
 
 
+@do_on_dfs
 def follow_tests(
     fac: pd.DataFrame,
     comments_writer: pd.ExcelWriter = None,
@@ -4779,6 +4846,7 @@ class pure_rollingols(object):
             ...
 
 
+@do_on_dfs
 def test_on_300500(
     df: pd.DataFrame,
     hs300: bool = 0,
@@ -4854,6 +4922,7 @@ def test_on_300500(
         return abrets
 
 
+@do_on_dfs
 def test_on_index_four(
     df: pd.DataFrame, iplot: bool = 1, gz2000: bool = 0, boxcox: bool = 1
 ) -> pd.DataFrame:
@@ -5034,6 +5103,7 @@ def test_on_index_four(
         print(tb.draw())
 
 
+@do_on_dfs
 class pure_star(object):
     def __init__(
         self,
@@ -5189,3 +5259,26 @@ class pure_star(object):
             tb.header(list(coms.T.reset_index().columns))
             tb.add_rows(coms.T.reset_index().to_numpy(), header=True)
             print(tb.draw())
+
+
+@do_on_dfs
+def get_group(df: pd.DataFrame, group_num: int = 10) -> pd.DataFrame:
+    """使用groupby的方法，将一组因子值改为截面上的分组值，此方法相比qcut的方法更加稳健，但速度更慢一些
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        因子值，index为时间，columns为股票代码，values为因子值
+    group_num : int, optional
+        分组的数量, by default 10
+
+    Returns
+    -------
+    pd.DataFrame
+        转化为分组值后的df，index为时间，columns为股票代码，values为分组值
+    """
+    a = pure_moon(no_read_indu=1)
+    df = df.stack().reset_index()
+    df.columns = ["date", "code", "fac"]
+    df = a.get_groups(df, group_num).pivot(index="date", columns="code", values="group")
+    return df

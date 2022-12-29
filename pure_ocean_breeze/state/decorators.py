@@ -2,7 +2,32 @@
 用于标注函数功能的一些装饰器（用处不大）
 """
 
-__updated__ = "2022-08-18 03:23:32"
+__updated__ = "2022-12-29 16:12:50"
+from typing import Iterable
+
+def _list_value(x,list_num_order):
+    if isinstance(x,Iterable):
+        return x[list_num_order]
+    else:
+        return x
+
+def _dict_value(x,list_num_order):
+    dfs={}
+    for k,v in x.items():
+        if isinstance(v,Iterable):
+            dfs[k]=v[list_num_order]
+        else:
+            dfs[k]=v
+    return dfs
+        
+def do_on_dfs(func):
+    def wrapper(df,*args,**kwargs):
+        if isinstance(df,list):
+            dfs=[func(i,*[_list_value(i,num) for i in args],**_dict_value(kwargs,num)) for num,i in enumerate(df)]
+            return dfs
+        else:
+            return func(df)
+    return wrapper
 
 
 class params_setter(object):

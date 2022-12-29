@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2022-12-20 21:46:40"
+__updated__ = "2022-12-29 16:37:19"
 
 import os
 import pandas as pd
@@ -25,6 +25,7 @@ except Exception:
 from pure_ocean_breeze.state.homeplace import HomePlace
 import deprecation
 from pure_ocean_breeze import __version__
+from pure_ocean_breeze.state.decorators import do_on_dfs
 
 
 def is_notebook() -> bool:
@@ -40,6 +41,7 @@ def is_notebook() -> bool:
         return False
 
 
+@do_on_dfs
 @deprecation.deprecated(
     deprecated_in="3.0",
     removed_in="4.0",
@@ -72,6 +74,7 @@ def read_h5(path: str) -> dict:
     return res
 
 
+@do_on_dfs
 @deprecation.deprecated(
     deprecated_in="3.0",
     removed_in="4.0",
@@ -99,6 +102,7 @@ def read_h5_new(path: str) -> pd.DataFrame:
     return pd.DataFrame(v)
 
 
+@do_on_dfs
 def read_mat(path: str) -> pd.DataFrame:
     """读取mat文件
 
@@ -115,6 +119,7 @@ def read_mat(path: str) -> pd.DataFrame:
     return list(scio.loadmat(path).values())[3]
 
 
+@do_on_dfs
 def convert_code(x: str) -> tuple[str, str]:
     """将米筐代码转换为wind代码，并识别其是股票还是指数
 
@@ -148,6 +153,7 @@ def convert_code(x: str) -> tuple[str, str]:
     return x, kind
 
 
+@do_on_dfs
 def get_value(df: pd.DataFrame, n: int) -> pd.DataFrame:
     """很多因子计算时，会一次性生成很多值，使用时只取出一个值
 
@@ -174,6 +180,7 @@ def get_value(df: pd.DataFrame, n: int) -> pd.DataFrame:
     return df
 
 
+@do_on_dfs
 def indus_name(df: pd.DataFrame, col_name: str = None) -> pd.DataFrame:
     """将2021版申万行业的代码，转化为对应行业的名字
 
@@ -286,6 +293,7 @@ def rqdatac_show_used() -> float:
     return user2
 
 
+@do_on_dfs
 def add_suffix(code: str) -> str:
     """给没有后缀的股票代码加上wind后缀
 
@@ -310,6 +318,7 @@ def add_suffix(code: str) -> str:
     return code
 
 
+@do_on_dfs
 def 生成每日分类表(
     df: pd.DataFrame, code: str, entry: str, exit: str, kind: str
 ) -> pd.DataFrame:
@@ -351,6 +360,7 @@ def 生成每日分类表(
     return ff
 
 
+@do_on_dfs
 def set_index_first(df: pd.DataFrame) -> pd.DataFrame:
     """将dataframe的第一列，无论其是什么名字，都设置为index
 
@@ -391,7 +401,10 @@ def merge_many(
         names = [f"fac{i+1}" for i in range(num)]
     dfs = [i.stack().reset_index() for i in dfs]
     dfs = [i.rename(columns={list(i.columns)[-1]: j}) for i, j in zip(dfs, names)]
-    dfs = [i.rename(columns={list(i.columns)[-2]: "code",list(i.columns)[0]: "date"}) for i in dfs]
+    dfs = [
+        i.rename(columns={list(i.columns)[-2]: "code", list(i.columns)[0]: "date"})
+        for i in dfs
+    ]
     df = reduce(lambda x, y: pd.merge(x, y, on=["date", "code"], how=how), dfs)
     return df
 
@@ -579,6 +592,7 @@ def func_two_daily(
             return cors
 
 
+@do_on_dfs
 def drop_duplicates_index(new: pd.DataFrame) -> pd.DataFrame:
     """对dataframe依照其index进行去重，并保留最上面的行
 
@@ -593,8 +607,14 @@ def drop_duplicates_index(new: pd.DataFrame) -> pd.DataFrame:
         去重后的dataframe
     """
     new = new.reset_index()
-    new = new.rename(columns={list(new.columns)[0]: "tmp_name_for_this_function_never_same_to_others"})
-    new = new.drop_duplicates(subset=["tmp_name_for_this_function_never_same_to_others"], keep="first")
+    new = new.rename(
+        columns={
+            list(new.columns)[0]: "tmp_name_for_this_function_never_same_to_others"
+        }
+    )
+    new = new.drop_duplicates(
+        subset=["tmp_name_for_this_function_never_same_to_others"], keep="first"
+    )
     new = new.set_index("tmp_name_for_this_function_never_same_to_others")
     return new
 
@@ -635,6 +655,7 @@ def select_min(df1: pd.DataFrame, df2: pd.DataFrame) -> pd.DataFrame:
     return (df1 + df2 - np.abs(df1 - df2)) / 2
 
 
+@do_on_dfs
 def debj(df: pd.DataFrame) -> pd.DataFrame:
     """去除因子中的北交所数据
 
@@ -652,6 +673,7 @@ def debj(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+@do_on_dfs
 def standardlize(df: pd.DataFrame, all_pos: bool = 0) -> pd.DataFrame:
     """对因子dataframe做横截面z-score标准化
 
@@ -673,6 +695,7 @@ def standardlize(df: pd.DataFrame, all_pos: bool = 0) -> pd.DataFrame:
     return df
 
 
+@do_on_dfs
 def count_value(df: pd.DataFrame, with_zero: bool = 0) -> int:
     """计算dataframe中总共有多少（非0）非空的值
 
@@ -694,6 +717,7 @@ def count_value(df: pd.DataFrame, with_zero: bool = 0) -> int:
     return y.sum().sum()
 
 
+@do_on_dfs
 def detect_nan(df: pd.DataFrame) -> bool:
     """检查一个pd.DataFrame中是否存在空值
 
@@ -716,6 +740,7 @@ def detect_nan(df: pd.DataFrame) -> bool:
         return False
 
 
+@do_on_dfs
 def get_abs(df: pd.DataFrame, median: bool = 0, square: bool = 0) -> pd.DataFrame:
     """均值距离化：计算因子与截面均值的距离
 
@@ -745,6 +770,7 @@ def get_abs(df: pd.DataFrame, median: bool = 0, square: bool = 0) -> pd.DataFram
             return ((df.T - df.T.mean()).T) ** 2
 
 
+@do_on_dfs
 def get_normal(df: pd.DataFrame) -> pd.DataFrame:
     """将因子横截面正态化
 
@@ -763,6 +789,7 @@ def get_normal(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+@do_on_dfs
 def coin_reverse(
     ret20: pd.DataFrame, vol20: pd.DataFrame, mean: bool = 1, positive_negtive: bool = 0
 ) -> pd.DataFrame:
@@ -846,6 +873,7 @@ def coin_reverse(
             return ret20
 
 
+@do_on_dfs
 def multidfs_to_one(*args: list) -> pd.DataFrame:
     """很多个df，各有一部分，其余位置都是空，
     想把各自df有值的部分保留，都没有值的部分继续设为空
@@ -866,6 +894,7 @@ def multidfs_to_one(*args: list) -> pd.DataFrame:
     return df_final
 
 
+@do_on_dfs
 def to_percent(x: float) -> Union[float, str]:
     """把小数转化为2位小数的百分数
 
@@ -886,6 +915,7 @@ def to_percent(x: float) -> Union[float, str]:
         return x
 
 
+@do_on_dfs
 def calc_exp_list(window: int, half_life: int) -> np.ndarray:
     """生成半衰序列
 
@@ -905,6 +935,7 @@ def calc_exp_list(window: int, half_life: int) -> np.ndarray:
     return exp_wt[::-1] / np.sum(exp_wt)
 
 
+@do_on_dfs
 def calcWeightedStd(series: pd.Series, weights: Union[pd.Series, np.ndarray]) -> float:
     """计算半衰加权标准差
 
@@ -924,6 +955,7 @@ def calcWeightedStd(series: pd.Series, weights: Union[pd.Series, np.ndarray]) ->
     return np.sqrt(np.sum((series - np.mean(series)) ** 2 * weights))
 
 
+@do_on_dfs
 def get_list_std(delta_sts: list[pd.DataFrame]) -> pd.DataFrame:
     """同一天多个因子，计算这些因子在当天的标准差
 
@@ -944,6 +976,7 @@ def get_list_std(delta_sts: list[pd.DataFrame]) -> pd.DataFrame:
     return delta_sts_std
 
 
+@do_on_dfs
 def to_group(df: pd.DataFrame, group: int = 10) -> pd.DataFrame:
     """把一个index为时间，code为时间的df，每个截面上的值，按照排序分为group组，将值改为组号，从0开始
 
@@ -1012,6 +1045,7 @@ def same_index(dfs: list[pd.DataFrame]) -> list[pd.DataFrame]:
     return res
 
 
+@do_on_dfs
 def feather_to_parquet(folder: str):
     """将某个路径下的所有feather文件都转化为parquet文件
 
@@ -1032,6 +1066,7 @@ def feather_to_parquet(folder: str):
             df.to_parquet(file.split(".")[0] + ".parquet")
         except Exception:
             logger.warning(f"{file}不是parquet文件")
+
 
 
 def feather_to_parquet_all():
@@ -1086,6 +1121,7 @@ def get_values(df: pd.DataFrame) -> list[pd.DataFrame]:
     return facs
 
 
+@do_on_dfs
 def get_fac_via_corr(
     df: pd.DataFrame,
     history_file: str = None,
@@ -1214,6 +1250,7 @@ def get_fac_via_corr(
         return dfs
 
 
+@do_on_dfs
 def get_fac_cross_via_func(
     df: pd.DataFrame,
     func: Callable,
@@ -1336,6 +1373,7 @@ def get_fac_cross_via_func(
         return dfs
 
 
+@do_on_dfs
 def 计算连续期数(ret0: pd.Series, point: float = 0) -> pd.Series:
     """计算一列数，持续大于或持续小于某个临界点的期数
 
@@ -1369,6 +1407,7 @@ def 计算连续期数(ret0: pd.Series, point: float = 0) -> pd.Series:
     return ret.duration
 
 
+@do_on_dfs
 def all_pos(df: pd.DataFrame) -> pd.DataFrame:
     """将因子值每个截面上减去最小值，从而都变成非负数
 
@@ -1385,38 +1424,50 @@ def all_pos(df: pd.DataFrame) -> pd.DataFrame:
     return (df.T - df.T.min()).T
 
 
-def clip_mad(df:pd.DataFrame,n:float=3)->pd.DataFrame:
-    df0=df.T
+@do_on_dfs
+def clip_mad(df: pd.DataFrame, n: float = 3) -> pd.DataFrame:
+    df0 = df.T
     median = df0.quantile(0.5)
     diff_median = ((df0 - median).abs()).quantile(0.5)
     max_range = median + n * diff_median
     min_range = median - n * diff_median
-    mid1=(((df0-min_range)>=0)+0).replace(0,np.nan)
-    mid2=(((df0-max_range)<=0)+0).replace(0,np.nan)
-    return (df0*mid1*mid2).T
+    mid1 = (((df0 - min_range) >= 0) + 0).replace(0, np.nan)
+    mid2 = (((df0 - max_range) <= 0) + 0).replace(0, np.nan)
+    return (df0 * mid1 * mid2).T
 
 
-def clip_three_sigma(df:pd.DataFrame,n:float=3)->pd.DataFrame:
-    df0=df.T
+@do_on_dfs
+def clip_three_sigma(df: pd.DataFrame, n: float = 3) -> pd.DataFrame:
+    df0 = df.T
     mean = df0.mean()
     std = df0.std()
     max_range = mean + n * std
     min_range = mean - n * std
-    mid1=(((df0-min_range)>=0)+0).replace(0,np.nan)
-    mid2=(((df0-max_range)<=0)+0).replace(0,np.nan)
-    return (df0*mid1*mid2).T
+    mid1 = (((df0 - min_range) >= 0) + 0).replace(0, np.nan)
+    mid2 = (((df0 - max_range) <= 0) + 0).replace(0, np.nan)
+    return (df0 * mid1 * mid2).T
 
 
-def clip_percentile(df:pd.DataFrame, min_percent:float= 0.025, max_percent:float= 0.975)->pd.DataFrame:
-    df0=df.T
+@do_on_dfs
+def clip_percentile(
+    df: pd.DataFrame, min_percent: float = 0.025, max_percent: float = 0.975
+) -> pd.DataFrame:
+    df0 = df.T
     max_range = df0.quantile(max_percent)
     min_range = df0.quantile(min_percent)
-    mid1=(((df0-min_range)>=0)+0).replace(0,np.nan)
-    mid2=(((df0-max_range)<=0)+0).replace(0,np.nan)
-    return (df0*mid1*mid2).T
+    mid1 = (((df0 - min_range) >= 0) + 0).replace(0, np.nan)
+    mid2 = (((df0 - max_range) <= 0) + 0).replace(0, np.nan)
+    return (df0 * mid1 * mid2).T
 
 
-def clip(df:pd.DataFrame,mad:bool=0,three_sigma:bool=0,percentile:bool=0,parameter:Union[float,tuple]=None)->pd.DataFrame:
+@do_on_dfs
+def clip(
+    df: pd.DataFrame,
+    mad: bool = 0,
+    three_sigma: bool = 0,
+    percentile: bool = 0,
+    parameter: Union[float, tuple] = None,
+) -> pd.DataFrame:
     """对因子值进行截面去极值的操作
 
     Parameters
@@ -1431,7 +1482,7 @@ def clip(df:pd.DataFrame,mad:bool=0,three_sigma:bool=0,percentile:bool=0,paramet
         根据上下限的分位数去极值, by default 0
     parameter : Union[float,tuple], optional
         参数，mad和three_sigma默认参数为3，输入float形式；而percentile默认参数为(0.025,0.975)，输入tuple形式, by default None
-    [参考资料](https://blog.csdn.net/The_Time_Runner/article/details/100118505) 
+    [参考资料](https://blog.csdn.net/The_Time_Runner/article/details/100118505)
 
     Returns
     -------
@@ -1442,12 +1493,47 @@ def clip(df:pd.DataFrame,mad:bool=0,three_sigma:bool=0,percentile:bool=0,paramet
     ------
     ValueError
         不指定方法或参数类型错误，将报错
-    """    
-    if mad and isinstance(parameter,float):
-        return clip_mad(df,parameter)
-    elif three_sigma and isinstance(parameter,float):
-        return clip_three_sigma(df,parameter)
-    elif percentile and isinstance(parameter,tuple):
-        return clip_percentile(df,parameter[0],parameter[1])
+    """
+    if mad and ((isinstance(parameter, float)) or (parameter is None)):
+        return clip_mad(df, parameter)
+    elif three_sigma and ((isinstance(parameter, float)) or (parameter is None)):
+        return clip_three_sigma(df, parameter)
+    elif percentile and ((isinstance(parameter, tuple)) or (parameter is None)):
+        return clip_percentile(df, parameter[0], parameter[1])
     else:
-        raise ValueError('参数输入错误')
+        raise ValueError("参数输入错误")
+
+
+def judge_factor_by_third(
+    fac1: pd.DataFrame, fac2: pd.DataFrame, judge: Union[pd.DataFrame, pd.Series]
+) -> pd.DataFrame:
+    """对于fac1和fac2两个因子，依据judge这个series或dataframe进行判断，
+    judge可能为全市场的某个时序指标，也可能是每个股票各一个的指标，
+    如果judge这一期的值大于0，则取fac1的值，小于0则取fac2的值
+
+    Parameters
+    ----------
+    fac1 : pd.DataFrame
+        因子1，index为时间，columns为股票代码，values为因子值
+    fac2 : pd.DataFrame
+        因子2，index为时间，columns为股票代码，values为因子值
+    judge : Union[pd.DataFrame,pd.Series]
+        市场指标或个股指标，为市场指标时，则输入series形式，index为时间，values为指标值
+        为个股指标时，则输入dataframe形式，index为时间，columns为股票代码，values为因子值
+
+    Returns
+    -------
+    pd.DataFrame
+        合成后的因子值，index为时间，columns为股票代码，values为因子值
+    """
+    if isinstance(judge, pd.Series):
+        judge = pd.DataFrame(
+            {k: list(judge) for k in list(fac1.columns)}, index=judge.index
+        )
+    s1 = (judge > 0) + 0
+    s2 = (judge < 0) + 0
+    fac1 = fac1 * s1
+    fac2 = fac2 * s2
+    fac = fac1 + fac2
+    have = np.sign(fac1.abs() + 1)
+    return fac * have
