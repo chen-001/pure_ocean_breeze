@@ -1,4 +1,4 @@
-__updated__ = "2022-11-19 10:15:42"
+__updated__ = "2023-01-06 02:30:21"
 
 import time
 
@@ -1293,3 +1293,10 @@ def database_update_idiosyncratic_ret():
     fama = pure_fama([cap, pb])
     fama().to_parquet(homeplace.daily_data_file + "idiosyncratic_ret.parquet")
     logger.success("特质收益率已经更新完成")
+
+
+def database_update_illiquidity():
+    ret = read_daily(ret=1, start=20100101)
+    money = read_daily(money=1, start=20100101)
+    illi = ret.abs() / money
+    illi.to_parquet(homeplace.daily_data_file + "illiquidity.parquet")

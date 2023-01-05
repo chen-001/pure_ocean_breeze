@@ -1,4 +1,4 @@
-__updated__ = "2022-12-29 18:25:47"
+__updated__ = "2023-01-05 17:32:06"
 
 import warnings
 
@@ -889,7 +889,7 @@ def boom_fours(
     list[list[pd.DataFrame]]
         每个因子进行boom_four后的结果
     """
-    return boom_four(df=dfs,backsee=backsee,daily=daily,min_periods=min_periods)
+    return boom_four(df=dfs, backsee=backsee, daily=daily, min_periods=min_periods)
 
 
 @do_on_dfs
@@ -1480,6 +1480,7 @@ class pure_moon(object):
         return self.factors_out
 
     @classmethod
+    @lru_cache(maxsize=None)
     def set_basic_data(
         cls,
         ages: pd.DataFrame = None,
@@ -1489,6 +1490,18 @@ class pure_moon(object):
         closes: pd.DataFrame = None,
         capitals: pd.DataFrame = None,
     ):
+        if ages is None:
+            ages = read_daily(age=1, start=20100101)
+        if sts is None:
+            sts = read_daily(st=1, start=20100101)
+        if states is None:
+            states = read_daily(state=1, start=20100101)
+        if opens is None:
+            opens = read_daily(open=1, start=20100101)
+        if closes is None:
+            closes = read_daily(close=1, start=20100101)
+        if capitals is None:
+            capitals = read_daily(flow_cap=1, start=20100101).resample(cls.freq).last()
         # 上市天数文件
         cls.ages = ages
         # st日子标志文件
@@ -1858,13 +1871,6 @@ class pure_moon(object):
         )
         self.data = pd.concat([self.data, rets_monthly_limit_downs])
 
-    def select_data_time(self, time_start, time_end):
-        """筛选特定的时间段"""
-        if time_start:
-            self.data = self.data[self.data.date >= time_start]
-        if time_end:
-            self.data = self.data[self.data.date <= time_end]
-
     def make_start_to_one(self, l):
         """让净值序列的第一个数变成1"""
         min_date = self.factors.date.min()
@@ -2061,10 +2067,14 @@ class pure_moon(object):
             if not STATES["NO_SAVE"]:
                 plt.savefig(filename_path)
         else:
-            tris = pd.concat(
-                [self.group_net_values, self.factor_cross_stds, self.rankics],
-                axis=1,
-            ).rename(columns={0: "因子截面标准差"})
+            tris = (
+                pd.concat(
+                    [self.group_net_values, self.factor_cross_stds, self.rankics],
+                    axis=1,
+                )
+                .rename(columns={0: "因子截面标准差"})
+                .dropna()
+            )
             if without_breakpoint:
                 tris = tris.dropna()
             figs = cf.figures(
@@ -2195,8 +2205,6 @@ class pure_moon(object):
         plt_plot=True,
         plotly_plot=False,
         filename="分组净值图",
-        time_start=None,
-        time_end=None,
         print_comments=True,
         comments_writer=None,
         net_values_writer=None,
@@ -2239,7 +2247,6 @@ class pure_moon(object):
             self.deal_with_factors()
         self.get_limit_ups_downs()
         self.get_data(groups_num)
-        self.select_data_time(time_start, time_end)
         self.get_group_rets_net_values(
             groups_num=groups_num, value_weighted=value_weighted
         )
@@ -2413,7 +2420,7 @@ class pure_moonnight(object):
     """封装选股框架"""
 
     __slots__ = ["shen"]
-    
+
     def __init__(
         self,
         factors: pd.DataFrame,
@@ -2482,9 +2489,9 @@ class pure_moonnight(object):
         filename : str, optional
             分组净值曲线的图保存的名称, by default "分组净值图"
         time_start : int, optional
-            回测起始时间（此参数已废弃，请在因子上直接截断）, by default None
+            回测起始时间, by default None
         time_end : int, optional
-            回测终止时间（此参数已废弃，请在因子上直接截断）, by default None
+            回测终止时间, by default None
         print_comments : bool, optional
             是否打印出评价指标, by default 1
         comments_writer : pd.ExcelWriter, optional
@@ -2539,19 +2546,6 @@ class pure_moonnight(object):
 
         if not isinstance(factors, pd.DataFrame):
             factors = factors()
-        start = datetime.datetime.strftime(factors.index.min(), "%Y%m%d")
-        if ages is None:
-            ages = read_daily(age=1, start=start)
-        if sts is None:
-            sts = read_daily(st=1, start=start)
-        if states is None:
-            states = read_daily(state=1, start=start)
-        if opens is None:
-            opens = read_daily(open=1, start=start)
-        if closes is None:
-            closes = read_daily(close=1, start=start)
-        if capitals is None:
-            capitals = read_daily(flow_cap=1, start=start).resample(freq).last()
         if comments_writer is None and sheetname is not None:
             from pure_ocean_breeze.state.states import COMMENTS_WRITER
 
@@ -2564,14 +2558,20 @@ class pure_moonnight(object):
             from pure_ocean_breeze.state.states import ON_PAPER
 
             on_paper = ON_PAPER
-        from pure_ocean_breeze.state.states import MOON_START
+        if time_start is None:
+            from pure_ocean_breeze.state.states import MOON_START
 
-        if MOON_START is not None:
-            factors = factors[factors.index >= pd.Timestamp(str(MOON_START))]
-        from pure_ocean_breeze.state.states import MOON_END
+            if MOON_START is not None:
+                factors = factors[factors.index >= pd.Timestamp(str(MOON_START))]
+        else:
+            factors = factors[factors.index >= pd.Timestamp(str(time_start))]
+        if time_end is None:
+            from pure_ocean_breeze.state.states import MOON_END
 
-        if MOON_END is not None:
-            factors = factors[factors.index <= pd.Timestamp(str(MOON_END))]
+            if MOON_END is not None:
+                factors = factors[factors.index <= pd.Timestamp(str(MOON_END))]
+        else:
+            factors = factors[factors.index <= pd.Timestamp(str(time_end))]
         if boxcox + neutralize == 0:
             no_read_indu = 1
         if only_cap + no_read_indu > 0:
@@ -2613,8 +2613,6 @@ class pure_moonnight(object):
             plt_plot=plt_plot,
             plotly_plot=plotly_plot,
             filename=filename,
-            time_start=time_start,
-            time_end=time_end,
             print_comments=print_comments,
             comments_writer=comments_writer,
             net_values_writer=net_values_writer,

@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2022-12-29 16:37:19"
+__updated__ = "2023-01-06 02:30:20"
 
 import os
 import pandas as pd
@@ -1066,7 +1066,6 @@ def feather_to_parquet(folder: str):
             df.to_parquet(file.split(".")[0] + ".parquet")
         except Exception:
             logger.warning(f"{file}不是parquet文件")
-
 
 
 def feather_to_parquet_all():

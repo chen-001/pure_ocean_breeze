@@ -1,4 +1,4 @@
-__updated__ = "2022-12-22 23:23:13"
+__updated__ = "2023-01-06 02:29:53"
 
 import os
 import numpy as np
@@ -24,6 +24,7 @@ def read_daily(
     tr: bool = 0,
     sharenum: bool = 0,
     volume: bool = 0,
+    money: bool = 0,
     age: bool = 0,
     flow_cap: bool = 0,
     st: bool = 0,
@@ -41,6 +42,7 @@ def read_daily(
     pe: bool = 0,
     iret: bool = 0,
     ivol: bool = 0,
+    illiquidity: bool = 0,
     start: int = STATES["START"],
 ) -> pd.DataFrame:
     """直接读取常用的量价读取日频数据，默认为复权价格，
@@ -64,6 +66,8 @@ def read_daily(
         为1则选择读取流通股数, by default 0
     volume : bool, optional
         为1则选择读取成交量, by default 0
+    money : bool, optional
+        为1则表示读取成交额, by default 0
     age : bool, optional
         为1则选择读取上市天数, by default 0
     flow_cap : bool, optional
@@ -98,6 +102,8 @@ def read_daily(
         为1则表示读取20日回归的fama三因子（市场、流通市值、市净率）特质收益率, by default 0
     ivol : bool, optional
         为1则表示读取20日回归的20日fama三因子（市场、流通市值、市净率）特质波动率, by default 0
+    illiquidity : bool, optional
+        为1则表示读取当日amihud非流动性指标, by default 0
     start : int, optional
         起始日期，形如20130101, by default STATES["START"]
 
@@ -137,6 +143,10 @@ def read_daily(
         elif volume:
             volumes = pd.read_parquet(homeplace.daily_data_file + "volumes.parquet")
             df = volumes
+        elif money:
+            df = pd.read_parquet(
+                homeplace.factor_data_file + "日频数据-每日成交额/每日成交额.parquet"
+            )
         elif age:
             age = pd.read_parquet(homeplace.daily_data_file + "ages.parquet")
             df = age
@@ -188,6 +198,8 @@ def read_daily(
         elif ivol:
             df = read_daily(iret=1, start=start)
             df = df.rolling(20, min_periods=10).std()
+        elif illiquidity:
+            df = pd.read_parquet(homeplace.daily_data_file + "illiquidity.parquet")
         else:
             raise IOError("阁下总得读点什么吧？🤒")
     else:

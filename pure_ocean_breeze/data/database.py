@@ -1,4 +1,4 @@
-__updated__ = "2022-11-11 23:04:12"
+__updated__ = "2023-01-05 17:17:09"
 
 import pandas as pd
 import pymysql
@@ -594,7 +594,7 @@ class ClickHouseClient(object):
         """
         a = pd.read_sql(sql_order, con=self.engine)
         return a
-    
+
     def get_data(
         self, sql_order: str, only_array: bool = 0
     ) -> Union[pd.DataFrame, np.ndarray]:
@@ -778,12 +778,13 @@ class Questdb(DriverOfPostgre):
 
     def __init__(
         self,
-        user="admin",
-        password="quest",
-        host="127.0.0.1",
-        port="8812",
-        database="qdb",
-        tmp_csv_path="tmp_dataframe_for_questdb.csv",
+        user: str = "admin",
+        password: str = "quest",
+        host: str = "127.0.0.1",
+        port: str = "8812",
+        database: str = "qdb",
+        tmp_csv_path: str = "tmp_dataframe_for_questdb.csv",
+        web_port: str = "9001",
     ) -> None:
         """通过postgre的psycopg2驱动连接questdb数据库
 
@@ -801,6 +802,8 @@ class Questdb(DriverOfPostgre):
             数据库, by default "qdb"
         tmp_csv_path : str, optional
             通过csv导入数据时，csv文件的暂存位置, by default "/opt/homebrew/var/questdb/copy_path/tmp_dataframe.csv"
+        web_port : str, optional
+            questdb控制台的端口号，安装questdb软件时默认为9000，本库默认为9001, by default 9001
         """
         super().__init__(user, password, host, port, database)
         self.user = user
@@ -907,7 +910,7 @@ class Questdb(DriverOfPostgre):
         cursor = conn.cursor()
         try:
             csv = {"data": (table, f)}
-            server = "http://localhost:9001/imp"
+            server = f"http://localhost:{self.web_port}/imp"
             response = requests.post(server, files=csv)
         except (Exception, pg.DatabaseError) as error:
             print("Error: %s" % error)
