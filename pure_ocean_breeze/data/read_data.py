@@ -1,4 +1,4 @@
-__updated__ = "2023-01-06 02:29:53"
+__updated__ = "2023-01-10 10:54:06"
 
 import os
 import numpy as np
@@ -43,6 +43,8 @@ def read_daily(
     iret: bool = 0,
     ivol: bool = 0,
     illiquidity: bool = 0,
+    swindustry_ret: bool =0,
+    zxindustry_ret: bool =0,
     start: int = STATES["START"],
 ) -> pd.DataFrame:
     """直接读取常用的量价读取日频数据，默认为复权价格，
@@ -104,6 +106,10 @@ def read_daily(
         为1则表示读取20日回归的20日fama三因子（市场、流通市值、市净率）特质波动率, by default 0
     illiquidity : bool, optional
         为1则表示读取当日amihud非流动性指标, by default 0
+    swindustry_ret : bool, optional
+        为1则表示读取每只股票对应申万一级行业当日收益率, by default 0
+    zxindustry_ret : bool, optional
+        为1则表示读取每只股票对应申万一级行业当日收益率, by default 0
     start : int, optional
         起始日期，形如20130101, by default STATES["START"]
 
@@ -200,6 +206,10 @@ def read_daily(
             df = df.rolling(20, min_periods=10).std()
         elif illiquidity:
             df = pd.read_parquet(homeplace.daily_data_file + "illiquidity.parquet")
+        elif swindustry_ret:
+            df = pd.read_parquet(homeplace.daily_data_file+'股票对应申万一级行业每日收益率.parquet')
+        elif zxindustry_ret:
+            df = pd.read_parquet(homeplace.daily_data_file+'股票对应中信一级行业每日收益率.parquet')
         else:
             raise IOError("阁下总得读点什么吧？🤒")
     else:

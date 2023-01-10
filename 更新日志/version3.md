@@ -1,11 +1,14 @@
 ## 更新日志🗓 — v3
 
+* v3.6.6 — 2023.1.10
+> 1. 新增了database_update_industry_rets_for_stock函数，用于生成每只股票当天对应的一级行业的收益率
+> 1. 给read_daily函数新增了swindustry_ret和zxindustry_ret参数，可以读取每只股票当天对应的一级行业的收益率数据
 * v3.6.5 — 2023.1.6
 > 1. 给Questdb初始化新增了web_port参数，用于表示控制台的端口号
 > 1. 给read_daily函数新增了money参数用于读取每日个股成交额、illiquidity参数用于读取每日个股非流动性
 > 1. 新增了database_update_illiquidity函数用于更新每天非流动性数据
 > 1. 删去了pure_moon中的select_data_time方法，在set_basic_data函数中新增了基础数据为None时从本地读入的方法
-> 1. 优化了因子值时间超过基础数据时间时，结果的展示方式
+> 1. 优化了pure_moonnight因子值时间超过基础数据时间时，结果的展示方式
 > 1. 优化了pure_moonnight的运算逻辑，对回测进行提速，并恢复了time_start和time_end参数的使用，可以为每次回测单独设定回测区间
 > 1. 修复了do_on_dfs装饰器在仅作用于一个目标时，参数不生效的bug
 * v3.6.4 — 2022.12.29

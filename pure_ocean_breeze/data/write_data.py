@@ -1,4 +1,4 @@
-__updated__ = "2023-01-06 02:30:21"
+__updated__ = "2023-01-10 10:56:56"
 
 import time
 
@@ -64,13 +64,20 @@ from pure_ocean_breeze.data.database import (
     PostgreSQL,
     Questdb,
 )
-from pure_ocean_breeze.data.read_data import read_daily, read_money_flow
+from pure_ocean_breeze.data.read_data import (
+    read_daily,
+    read_money_flow,
+    read_zxindustry_prices,
+    read_swindustry_prices,
+    get_industry_dummies,
+)
 from pure_ocean_breeze.data.dicts import INDUS_DICT, INDEX_DICT, ZXINDUS_DICT
 from pure_ocean_breeze.data.tools import (
     生成每日分类表,
     add_suffix,
     convert_code,
     drop_duplicates_index,
+    select_max,
 )
 from pure_ocean_breeze.labor.process import pure_fama
 
@@ -1300,3 +1307,38 @@ def database_update_illiquidity():
     money = read_daily(money=1, start=20100101)
     illi = ret.abs() / money
     illi.to_parquet(homeplace.daily_data_file + "illiquidity.parquet")
+    logger.success("非流动性数据已经更新完成")
+
+
+def database_update_industry_rets_for_stock():
+    closes = read_daily(close=1, start=20100101)
+    indu_rets = read_zxindustry_prices(monthly=0, start=20100101).pct_change()
+    indus = {
+        k: pd.DataFrame(
+            {code: list(indu_rets[k]) for code in list(closes.columns)},
+            index=indu_rets.index,
+        )
+        for k in indu_rets.keys()
+    }
+    a = get_industry_dummies(daily=1, zxindustry=1, start=20100101)
+    res = {k: indus[k] * a[k] for k in indus.keys()}
+    res = reduce(
+        lambda x, y: select_max(x.fillna(-1000), y.fillna(-1000)), list(res.values())
+    ).replace(-1000, np.nan)
+    res.to_parquet(homeplace.daily_data_file + "股票对应中信一级行业每日收益率.parquet")
+    logger.success("股票对应中信一级行业每日收益率已经更新完")
+    indu_rets = read_swindustry_prices(monthly=0, start=20100101).pct_change()
+    indus = {
+        k: pd.DataFrame(
+            {code: list(indu_rets[k]) for code in list(closes.columns)},
+            index=indu_rets.index,
+        )
+        for k in indu_rets.keys()
+    }
+    a = get_industry_dummies(daily=1, swindustry=1, start=20100101)
+    res = {k: indus[k] * a[k] for k in indus.keys()}
+    res = reduce(
+        lambda x, y: select_max(x.fillna(-1000), y.fillna(-1000)), list(res.values())
+    ).replace(-1000, np.nan)
+    res.to_parquet(homeplace.daily_data_file + "股票对应申万一级行业每日收益率.parquet")
+    logger.success("股票对应申万一级行业每日收益率已经更新完")
