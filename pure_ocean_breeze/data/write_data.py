@@ -1,4 +1,4 @@
-__updated__ = "2023-01-10 10:56:56"
+__updated__ = "2023-01-13 15:45:44"
 
 import time
 
@@ -304,7 +304,6 @@ def database_update_minute_data_to_questdb(kind: str) -> None:
         skip_suspended=False,
         market="cn",
         expect_df=True,
-        time_slice=None,
     )
     # 调整数据格式
     ts = ts.reset_index()
