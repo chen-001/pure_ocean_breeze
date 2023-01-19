@@ -1,4 +1,4 @@
-__updated__ = "2023-01-05 17:32:06"
+__updated__ = "2023-01-17 15:26:02"
 
 import warnings
 
@@ -2194,7 +2194,6 @@ class pure_moon(object):
         cls.judge_month()
         cls.get_rets_month()
 
-    @kk.desktop_sender(title="嘿，回测结束啦～🗓")
     def run(
         self,
         groups_num=10,

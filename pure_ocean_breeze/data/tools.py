@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2023-01-06 02:30:20"
+__updated__ = "2023-01-19 22:36:13"
 
 import os
 import pandas as pd
@@ -429,7 +429,7 @@ def corr_two_daily(
     rolling_window : int, optional
         滚动窗口, by default 20
     n_jobs : int, optional
-        并行数量, by default 6
+        并行数量, by default 1
 
     Returns
     -------
@@ -470,7 +470,7 @@ def cov_two_daily(
     rolling_window : int, optional
         滚动窗口, by default 20
     n_jobs : int, optional
-        并行数量, by default 6
+        并行数量, by default 1
 
     Returns
     -------
@@ -514,7 +514,7 @@ def func_two_daily(
     rolling_window : int, optional
         滚动窗口, by default 20
     n_jobs : int, optional
-        并行数量, by default 6
+        并行数量, by default 1
 
     Returns
     -------
@@ -606,6 +606,7 @@ def drop_duplicates_index(new: pd.DataFrame) -> pd.DataFrame:
     pd.DataFrame
         去重后的dataframe
     """
+    pri_name=new.index.name
     new = new.reset_index()
     new = new.rename(
         columns={
@@ -616,6 +617,10 @@ def drop_duplicates_index(new: pd.DataFrame) -> pd.DataFrame:
         subset=["tmp_name_for_this_function_never_same_to_others"], keep="first"
     )
     new = new.set_index("tmp_name_for_this_function_never_same_to_others")
+    if pri_name=="tmp_name_for_this_function_never_same_to_others":
+        new.index.name='date'
+    else:
+        new.index.name=pri_name
     return new
 
 
