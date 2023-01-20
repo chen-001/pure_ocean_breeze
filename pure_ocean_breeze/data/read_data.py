@@ -1,4 +1,4 @@
-__updated__ = "2023-01-10 10:54:06"
+__updated__ = "2023-01-20 20:22:18"
 
 import os
 import numpy as np
@@ -279,10 +279,16 @@ def read_market(
             / 100
         )
     except Exception:
-        qdb = Questdb()
-        df = qdb.get_data(
-            f"select date,num,close,high,low from minute_data_index where code='{market_code}' and cast(date as int)>={start}"
-        )
+        try:
+            qdb = Questdb()
+            df = qdb.get_data(
+                f"select date,num,close,high,low from minute_data_index where code='{market_code}' and cast(date as int)>={start}"
+            )
+        except Exception:
+            qdb = Questdb(web_port='9000')
+            df = qdb.get_data(
+                f"select date,num,close,high,low from minute_data_index where code='{market_code}' and cast(date as int)>={start}"
+            )
         df.num = df.num.astype(int)
     df = df.set_index("date")
     df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
@@ -424,10 +430,16 @@ def read_index_single(code: str) -> pd.Series:
         )
         return hs300
     except Exception:
-        qdb = Questdb()
-        hs300 = qdb.get_data(
-            f"select date,num,close FROM 'minute_data_index' WHERE code='{code}'"
-        )
+        try:
+            qdb = Questdb()
+            hs300 = qdb.get_data(
+                f"select date,num,close FROM 'minute_data_index' WHERE code='{code}'"
+            )
+        except Exception:
+            qdb = Questdb(web_port='9000')
+            hs300 = qdb.get_data(
+                f"select date,num,close FROM 'minute_data_index' WHERE code='{code}'"
+            )
         hs300.date = pd.to_datetime(hs300.date, format="%Y%m%d")
         hs300.num = hs300.num.astype(int)
         hs300 = (

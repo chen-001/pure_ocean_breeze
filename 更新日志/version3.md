@@ -1,5 +1,10 @@
 ## 更新日志🗓 — v3
 
+* v3.7.0 — 2023.1.20
+> 1. 修复了Questdb通过csv写入表格时，进程占用文件，导致无法删除的bug
+> 1. 给read_market、read_index_single、database_update_minute_data_to_clickhouse_and_questdb、database_update_minute_data_to_questdb增加了自动调整web_port参数值的机制
+> 1. 给pure_fall_frequent增加了questdb_web_port参数值，用于指定本台设备questdb的web_port值
+> 1. 修复了pure_rollingols中betas属性显示异常的bug
 * v3.6.9 — 2023.1.19
 > 1. 对drop_duplicates_index函数，增加了保留原来index名字的功能
 > 1. 删去了pure_moon回测中的弹窗提示

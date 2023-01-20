@@ -1,4 +1,4 @@
-__updated__ = "2023-01-17 15:26:02"
+__updated__ = "2023-01-20 20:19:57"
 
 import warnings
 
@@ -3082,6 +3082,7 @@ class pure_fall_frequent(object):
         kind: str = "stock",
         clickhouse: bool = 0,
         questdb: bool = 0,
+        questdb_web_port: str = "9001",
         ignore_history_in_questdb: bool = 0,
         groupby_target: list = ["date", "code"],
     ) -> None:
@@ -3103,6 +3104,8 @@ class pure_fall_frequent(object):
             使用clickhouse作为数据源，如果postgresql与本参数都为0，将依然从clickhouse中读取, by default 0
         questdb : bool, optional
             使用questdb作为数据源, by default 0
+        questdb_web_port : str, optional
+            questdb的web_port, by default '9001'
         ignore_history_in_questdb : bool, optional
             打断后重新从头计算，清除在questdb中的记录
         groupby_target: list, optional
@@ -3116,17 +3119,18 @@ class pure_fall_frequent(object):
             clickhouse = 1
         self.clickhouse = clickhouse
         self.questdb = questdb
+        self.questdb_web_port = questdb_web_port
         if clickhouse == 1:
             # 连接clickhouse
             self.chc = ClickHouseClient("minute_data")
         elif questdb == 1:
-            self.chc = Questdb()
+            self.chc = Questdb(web_port=questdb_web_port)
         # 将计算到一半的因子，存入questdb中，避免中途被打断后重新计算，表名即为因子文件名的汉语拼音
         pinyin = Pinyin()
         self.factor_file_pinyin = pinyin.get_pinyin(
             factor_file.replace(".parquet", ""), ""
         )
-        self.factor_steps = Questdb()
+        self.factor_steps = Questdb(web_port=questdb_web_port)
         if project is not None:
             if not os.path.exists(homeplace.factor_data_file + project):
                 os.makedirs(homeplace.factor_data_file + project)
@@ -4794,10 +4798,10 @@ class pure_rollingols(object):
             self.__betas = {
                 i: self.__data.pivot(index="date", columns="code", values=i)
                 for i in list(self.__data.columns)
-                if i.startswith("x")
+                if i.startswith("cox")
             }
         else:
-            facs = [i for i in list(self.__data.columns) if i.startswith("x")]
+            facs = [i for i in list(self.__data.columns) if i.startswith("cox")]
             self.__betas = {
                 factors_names[num]: self.__data.pivot(
                     index="date", columns="code", values=i

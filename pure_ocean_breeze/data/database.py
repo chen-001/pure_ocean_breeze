@@ -1,4 +1,4 @@
-__updated__ = "2023-01-10 13:24:32"
+__updated__ = "2023-01-20 20:25:43"
 
 import pandas as pd
 import pymysql
@@ -812,7 +812,7 @@ class Questdb(DriverOfPostgre):
         self.port = port
         self.database = database
         self.tmp_csv_path = tmp_csv_path
-        self.web_port=web_port
+        self.web_port = web_port
 
     def __addapt_numpy_float64(self, numpy_float64):
         return AsIs(numpy_float64)
@@ -917,6 +917,7 @@ class Questdb(DriverOfPostgre):
             print("Error: %s" % error)
             conn.rollback()
             cursor.close()
+        f.close()
         cursor.close()
         os.remove(tmp_df)
 

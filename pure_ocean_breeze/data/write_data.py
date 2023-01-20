@@ -1,4 +1,4 @@
-__updated__ = "2023-01-13 15:45:44"
+__updated__ = "2023-01-20 20:24:55"
 
 import time
 
@@ -154,10 +154,14 @@ def database_update_minute_data_to_clickhouse_and_questdb(kind: str) -> None:
     ts = ts.set_index("code")
     ts = ts / 100
     ts = ts.reset_index()
-    qdb = Questdb()
     ts.date = ts.date.astype(int).astype(str)
     ts.num = ts.num.astype(int).astype(str)
-    qdb.write_via_csv(ts, f"minute_data_{kind}")
+    try:
+        qdb = Questdb()
+        qdb.write_via_csv(ts, f"minute_data_{kind}")
+    except Exception:
+        qdb = Questdb(web_port="9000")
+        qdb.write_via_csv(ts, f"minute_data_{kind}")
     # 获取剩余使用额
     user2 = round(rqdatac.user.get_quota()["bytes_used"] / 1024 / 1024, 2)
     user12 = round(user2 - user1, 2)
@@ -190,8 +194,12 @@ def database_update_minute_data_to_postgresql(kind: str) -> None:
     cs = rqdatac.all_instruments(type=code_type, market="cn", date=None)
     codes = list(cs.order_book_id)
     # 获取上次更新截止时间
-    qdb = Questdb()
-    last_date = max(qdb.show_all_dates(f"minute_data_{kind}"))
+    try:
+        qdb = Questdb()
+        last_date = max(qdb.show_all_dates(f"minute_data_{kind}"))
+    except Exception:
+        qdb = Questdb(web_port="9000")
+        last_date = max(qdb.show_all_dates(f"minute_data_{kind}"))
     # 本次更新起始日期
     start_date = pd.Timestamp(str(last_date)) + pd.Timedelta(days=1)
     start_date = datetime.datetime.strftime(start_date, "%Y-%m-%d")
@@ -282,8 +290,12 @@ def database_update_minute_data_to_questdb(kind: str) -> None:
     cs = rqdatac.all_instruments(type=code_type, market="cn", date=None)
     codes = list(cs.order_book_id)
     # 获取上次更新截止时间
-    qdb = Questdb()
-    last_date = max(qdb.show_all_dates(f"minute_data_{kind}"))
+    try:
+        qdb = Questdb()
+        last_date = max(qdb.show_all_dates(f"minute_data_{kind}"))
+    except Exception:
+        qdb = Questdb(web_port="9000")
+        last_date = max(qdb.show_all_dates(f"minute_data_{kind}"))
     # 本次更新起始日期
     start_date = pd.Timestamp(str(last_date)) + pd.Timedelta(days=1)
     start_date = datetime.datetime.strftime(start_date, "%Y-%m-%d")
@@ -326,8 +338,12 @@ def database_update_minute_data_to_questdb(kind: str) -> None:
     ts.date = ts.date.astype(int).astype(str)
     ts.num = ts.num.astype(int).astype(str)
     # 数据写入数据库
-    qdb = Questdb()
-    qdb.write_via_csv(ts, f"minute_data_{kind}")
+    try:
+        qdb = Questdb()
+        qdb.write_via_csv(ts, f"minute_data_{kind}")
+    except Exception:
+        qdb = Questdb(web_port="9000")
+        qdb.write_via_csv(ts, f"minute_data_{kind}")
     # 获取剩余使用额
     user2 = round(rqdatac.user.get_quota()["bytes_used"] / 1024 / 1024, 2)
     user12 = round(user2 - user1, 2)
