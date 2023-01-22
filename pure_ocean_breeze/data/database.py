@@ -1,4 +1,4 @@
-__updated__ = "2023-01-20 20:25:43"
+__updated__ = "2023-01-20 23:02:53"
 
 import pandas as pd
 import pymysql
@@ -13,6 +13,7 @@ import requests
 import os
 from typing import Union
 from psycopg2.extensions import register_adapter, AsIs
+from tenacity import retry,stop_after_attempt
 from pure_ocean_breeze.state.states import STATES
 
 
@@ -77,6 +78,7 @@ class MetaSQLDriver(object):
         except Exception:
             logger.warning(f"已经存在名为{db_name}的数据库，请检查")
 
+    @retry(stop=stop_after_attempt(10))
     def get_data(
         self, sql_order: str, only_array: bool = 0
     ) -> Union[pd.DataFrame, np.ndarray]:

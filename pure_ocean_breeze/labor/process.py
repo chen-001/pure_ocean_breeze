@@ -1,4 +1,4 @@
-__updated__ = "2023-01-20 20:19:57"
+__updated__ = "2023-01-20 22:57:42"
 
 import warnings
 
@@ -3360,13 +3360,17 @@ class pure_fall_frequent(object):
                     if self.clickhouse == 1:
                         sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{dates[date1] * 100} and date<={dates[date2] * 100} order by code,date,num"
                     else:
-                        sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{dates[date1]} and date<={dates[date2]} order by code,date,num"
+                        sql_order = f"select {fields} from minute_data_{self.kind} where cast(date as int)>{dates[date1]} and cast(date as int)<={dates[date2]} order by code,date,num"
                     if show_time:
                         df = self.chc.get_data_show_time(sql_order)
                     else:
                         df = self.chc.get_data(sql_order)
                     if self.clickhouse == 1:
                         df = ((df.set_index("code")) / 100).reset_index()
+                    else:
+                        df.num = df.num.astype(int)
+                        df.date = df.date.astype(int)
+                        df = df.sort_values(["date", "num"])
                     df = df.groupby(self.groupby_target).apply(the_func)
                     if self.groupby_target == ["date", "code"]:
                         df = df.to_frame("fac").reset_index()
@@ -3388,13 +3392,17 @@ class pure_fall_frequent(object):
                     if self.clickhouse == 1:
                         sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{date1*100} and date<={date2*100} order by code,date,num"
                     else:
-                        sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{date1} and date<={date2} order by code,date,num"
+                        sql_order = f"select {fields} from minute_data_{self.kind} where cast(date as int)>{date1} and cast(date as int)<={date2} order by code,date,num"
                     if show_time:
                         df = self.chc.get_data_show_time(sql_order)
                     else:
                         df = self.chc.get_data(sql_order)
                     if self.clickhouse == 1:
                         df = ((df.set_index("code")) / 100).reset_index()
+                    else:
+                        df.num = df.num.astype(int)
+                        df.date = df.date.astype(int)
+                        df = df.sort_values(["date", "num"])
                     if self.groupby_target == [
                         "date",
                         "code",

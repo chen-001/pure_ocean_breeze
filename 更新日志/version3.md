@@ -1,5 +1,9 @@
 ## 更新日志🗓 — v3
 
+* v3.7.1 — 2023.1.22
+> 1. 给MetaSQLDriver的get_data增加了尝试10次后再报错的设定，以避免偶然出现的连接失败错误
+> 1. 修复了pure_fall_frequent中使用questdb调取数据的命令语句的bug
+> 1. 修复了pure_fall_frequent中使用questdb调取数据的数据类型的bug
 * v3.7.0 — 2023.1.20
 > 1. 修复了Questdb通过csv写入表格时，进程占用文件，导致无法删除的bug
 > 1. 给read_market、read_index_single、database_update_minute_data_to_clickhouse_and_questdb、database_update_minute_data_to_questdb增加了自动调整web_port参数值的机制
