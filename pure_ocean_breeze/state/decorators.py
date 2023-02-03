@@ -2,7 +2,7 @@
 用于标注函数功能的一些装饰器（用处不大）
 """
 
-__updated__ = "2023-01-01 11:36:51"
+__updated__ = "2023-02-03 10:41:28"
 from typing import Iterable
 
 
@@ -24,7 +24,7 @@ def _dict_value(x, list_num_order):
 
 
 def do_on_dfs(func):
-    def wrapper(df, *args, **kwargs):
+    def wrapper(df=None, *args, **kwargs):
         if isinstance(df, list):
             dfs = [
                 func(

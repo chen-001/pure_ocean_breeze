@@ -1,4 +1,4 @@
-__updated__ = "2023-01-20 23:02:53"
+__updated__ = "2023-02-03 10:41:21"
 
 import pandas as pd
 import pymysql
@@ -13,7 +13,7 @@ import requests
 import os
 from typing import Union
 from psycopg2.extensions import register_adapter, AsIs
-from tenacity import retry,stop_after_attempt
+from tenacity import retry, stop_after_attempt
 from pure_ocean_breeze.state.states import STATES
 
 
@@ -913,7 +913,7 @@ class Questdb(DriverOfPostgre):
         cursor = conn.cursor()
         try:
             csv = {"data": (table, f)}
-            server = f"http://localhost:{self.web_port}/imp"
+            server = f"http://{self.host}:{self.web_port}/imp"
             response = requests.post(server, files=csv)
         except (Exception, pg.DatabaseError) as error:
             print("Error: %s" % error)

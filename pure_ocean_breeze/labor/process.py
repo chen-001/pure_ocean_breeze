@@ -1,4 +1,4 @@
-__updated__ = "2023-01-20 22:57:42"
+__updated__ = "2023-02-03 10:39:00"
 
 import warnings
 
@@ -68,13 +68,12 @@ def daily_factor_on300500(
     fac: pd.DataFrame,
     hs300: bool = 0,
     zz500: bool = 0,
-    zz800: bool = 0,
     zz1000: bool = 0,
     gz2000: bool = 0,
     other: bool = 0,
 ) -> pd.DataFrame:
     """输入日频或月频因子值，将其限定在某指数成分股的股票池内，
-    目前仅支持沪深300、中证500、中证800、中证1000、国证2000成分股，和除沪深300、中证500、中证1000以外的股票的成分股
+    目前仅支持沪深300、中证500、中证1000、国证2000成分股，以及这四种指数成分股的组合叠加，和除沪深300、中证500、中证1000以外的股票的成分股
 
     Parameters
     ----------
@@ -84,8 +83,6 @@ def daily_factor_on300500(
         限定股票池为沪深300, by default 0
     zz500 : bool, optional
         限定股票池为中证500, by default 0
-    zz800 : bool, optional
-        限定股票池为中证800, by default 0
     zz1000 : bool, optional
         限定股票池为中证1000, by default 0
     gz2000 : bool, optional
@@ -105,39 +102,29 @@ def daily_factor_on300500(
     """
     last = fac.resample("M").last()
     homeplace = HomePlace()
+    dummies = []
     if fac.shape[0] / last.shape[0] > 2:
         if hs300:
             df = pd.read_parquet(
                 homeplace.daily_data_file + "沪深300日成分股.parquet"
-            ).replace(0, np.nan)
-            df = df * fac
-            df = df.dropna(how="all")
-        elif zz500:
+            ).fillna(0)
+            dummies.append(df)
+        if zz500:
             df = pd.read_parquet(
                 homeplace.daily_data_file + "中证500日成分股.parquet"
-            ).replace(0, np.nan)
-            df = df * fac
-            df = df.dropna(how="all")
-        elif zz800:
-            df1 = pd.read_parquet(homeplace.daily_data_file + "沪深300日成分股.parquet")
-            df2 = pd.read_parquet(homeplace.daily_data_file + "中证500日成分股.parquet")
-            df = df1 + df2
-            df = df.replace(0, np.nan)
-            df = df * fac
-            df = df.dropna(how="all")
-        elif zz1000:
+            ).fillna(0)
+            dummies.append(df)
+        if zz1000:
             df = pd.read_parquet(
                 homeplace.daily_data_file + "中证1000日成分股.parquet"
-            ).replace(0, np.nan)
-            df = df * fac
-            df = df.dropna(how="all")
-        elif gz2000:
+            ).fillna(0)
+            dummies.append(df)
+        if gz2000:
             df = pd.read_parquet(
                 homeplace.daily_data_file + "国证2000日成分股.parquet"
-            ).replace(0, np.nan)
-            df = df * fac
-            df = df.dropna(how="all")
-        elif other:
+            ).fillna(0)
+            dummies.append(df)
+        if other:
             tr = read_daily(tr=1).fillna(0).replace(0, 1)
             tr = np.sign(tr)
             df1 = (
@@ -152,47 +139,34 @@ def daily_factor_on300500(
             df = (1 - df1) * (1 - df2) * (1 - df3) * tr
             df = df.replace(0, np.nan) * fac
             df = df.dropna(how="all")
-        else:
+        if (hs300 + zz500 + zz1000 + gz2000 + other) == 0:
             raise ValueError("总得指定一下是哪个成分股吧🤒")
     else:
         if hs300:
             df = pd.read_parquet(
                 homeplace.daily_data_file + "沪深300日成分股.parquet"
-            ).replace(0, np.nan)
+            ).fillna(0)
             df = df.resample("M").last()
-            df = df * fac
-            df = df.dropna(how="all")
-        elif zz500:
+            dummies.append(df)
+        if zz500:
             df = pd.read_parquet(
                 homeplace.daily_data_file + "中证500日成分股.parquet"
-            ).replace(0, np.nan)
+            ).fillna(0)
             df = df.resample("M").last()
-            df = df * fac
-            df = df.dropna(how="all")
-        elif zz800:
-            df1 = pd.read_parquet(homeplace.daily_data_file + "沪深300日成分股.parquet")
-            df1 = df1.resample("M").last()
-            df2 = pd.read_parquet(homeplace.daily_data_file + "中证500日成分股.parquet")
-            df2 = df2.resample("M").last()
-            df = df1 + df2
-            df = df.replace(0, np.nan)
-            df = df * fac
-            df = df.dropna(how="all")
-        elif zz1000:
+            dummies.append(df)
+        if zz1000:
             df = pd.read_parquet(
                 homeplace.daily_data_file + "中证1000日成分股.parquet"
-            ).replace(0, np.nan)
+            ).fillna(0)
             df = df.resample("M").last()
-            df = df * fac
-            df = df.dropna(how="all")
-        elif gz2000:
+            dummies.append(df)
+        if gz2000:
             df = pd.read_parquet(
                 homeplace.daily_data_file + "国证2000日成分股.parquet"
-            ).replace(0, np.nan)
+            ).fillna(0)
             df = df.resample("M").last()
-            df = df * fac
-            df = df.dropna(how="all")
-        elif other:
+            dummies.append(df)
+        if other:
             tr = read_daily(tr=1).fillna(0).replace(0, 1).resample("M").last()
             tr = np.sign(tr)
             df1 = (
@@ -210,8 +184,11 @@ def daily_factor_on300500(
             df = (1 - df1) * (1 - df2) * (1 - df3)
             df = df.replace(0, np.nan) * fac
             df = df.dropna(how="all")
-        else:
+        if (hs300 + zz500 + zz1000 + gz2000 + other) == 0:
             raise ValueError("总得指定一下是哪个成分股吧🤒")
+    if len(dummies) > 0:
+        dummies = sum(dummies).replace(0, np.nan)
+        df = (dummies * fac).dropna(how="all")
     return df
 
 
@@ -1290,9 +1267,7 @@ def remove_unavailable(df: pd.DataFrame) -> pd.DataFrame:
         df = df * age * st * state
     else:
         moon = pure_moon(no_read_indu=1)
-        moon.set_basic_data(
-            ages=read_daily(age=1), sts=read_daily(st=1), states=read_daily(state=1)
-        )
+        moon.set_basic_data()
         moon.judge_month()
         df = moon.tris_monthly * df
     return df
@@ -4858,6 +4833,7 @@ class pure_rollingols(object):
 @do_on_dfs
 def test_on_300500(
     df: pd.DataFrame,
+    group_num: int = 10,
     hs300: bool = 0,
     zz500: bool = 0,
     zz1000: bool = 0,
@@ -4870,6 +4846,8 @@ def test_on_300500(
     ----------
     df : pd.DataFrame
         因子值，index为时间，columns为股票代码
+    group_num : int
+        分组数量, by default 10
     hs300 : bool, optional
         在沪深300成分股内测试, by default 0
     zz500 : bool, optional
@@ -4889,7 +4867,7 @@ def test_on_300500(
     fi300 = daily_factor_on300500(
         df, hs300=hs300, zz500=zz500, zz1000=zz1000, gz2000=gz2000
     )
-    shen = pure_moonnight(fi300, iplot=iplot)
+    shen = pure_moonnight(fi300, groups_num=group_num, iplot=iplot)
     if (
         shen.shen.group_net_values.group1.iloc[-1]
         > shen.shen.group_net_values.group10.iloc[-1]
@@ -4933,7 +4911,11 @@ def test_on_300500(
 
 @do_on_dfs
 def test_on_index_four(
-    df: pd.DataFrame, iplot: bool = 1, gz2000: bool = 0, boxcox: bool = 1
+    df: pd.DataFrame,
+    group_num: int = 10,
+    iplot: bool = 1,
+    gz2000: bool = 0,
+    boxcox: bool = 1,
 ) -> pd.DataFrame:
     """对因子同时在沪深300、中证500、中证1000、国证2000这4个指数成分股内进行多空和多头超额测试
 
@@ -4941,6 +4923,8 @@ def test_on_index_four(
     ----------
     df : pd.DataFrame
         因子值，index为时间，columns为股票代码
+    group_num : int
+        分组数量, by default 10
     iplot : bol,optional
         多空回测的时候，是否使用cufflinks绘画
     gz2000 : bool, optional
@@ -4954,7 +4938,7 @@ def test_on_index_four(
         多头组在各个指数上的超额收益序列
     """
     fi300 = daily_factor_on300500(df, hs300=1)
-    shen = pure_moonnight(fi300, iplot=iplot, boxcox=boxcox)
+    shen = pure_moonnight(fi300, groups_num=group_num, iplot=iplot, boxcox=boxcox)
     if (
         shen.shen.group_net_values.group1.iloc[-1]
         > shen.shen.group_net_values.group10.iloc[-1]

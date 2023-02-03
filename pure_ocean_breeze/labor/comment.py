@@ -1,4 +1,4 @@
-__updated__ = "2022-12-29 16:22:35"
+__updated__ = "2023-02-03 10:41:10"
 
 import numpy as np
 import pandas as pd
@@ -8,7 +8,11 @@ mpl.rcParams.update(mpl.rcParamsDefault)
 import matplotlib.pyplot as plt
 
 plt.rcParams["axes.unicode_minus"] = False
-from pure_ocean_breeze.data.read_data import read_index_three, read_daily
+from pure_ocean_breeze.data.read_data import (
+    read_index_three,
+    read_daily,
+    read_index_single,
+)
 from pure_ocean_breeze.state.decorators import do_on_dfs
 
 
@@ -27,7 +31,7 @@ def comment_on_rets_and_nets(
     name : str, optional
         绩效指标列名字, by default '绩效'
     counts_one_year : int
-        一年内有多少次交易, by default 12           
+        一年内有多少次交易, by default 12
 
     Returns
     -------
@@ -41,10 +45,10 @@ def comment_on_rets_and_nets(
     vol = np.std(rets) * (counts_one_year**0.5)
     info_rate = ret_yearly / vol
     win_rate = len(rets[rets > 0]) / len(rets)
-    if counts_one_year==12:
-        names='月度胜率'
+    if counts_one_year == 12:
+        names = "月度胜率"
     else:
-        names='胜率'
+        names = "胜率"
     comments = pd.DataFrame(
         {
             "年化收益率": ret_yearly,
@@ -58,7 +62,9 @@ def comment_on_rets_and_nets(
     return comments
 
 
-def comments_on_twins(nets: pd.Series, rets: pd.Series, counts_one_year: int = 12) -> pd.Series:
+def comments_on_twins(
+    nets: pd.Series, rets: pd.Series, counts_one_year: int = 12
+) -> pd.Series:
     """输入月频的收益率序列和净值序列，给出评价
     评价指标包括年化收益率、总收益率、年化波动率、年化夏普比率、最大回撤率、胜率
     输入2个pd.Series，时间是索引
@@ -70,7 +76,7 @@ def comments_on_twins(nets: pd.Series, rets: pd.Series, counts_one_year: int = 1
     rets : pd.Series
         收益率序列，index为时间
     counts_one_year : int
-        一年内有多少次交易, by default 12 
+        一年内有多少次交易, by default 12
 
     Returns
     -------
@@ -171,17 +177,31 @@ def make_relative_comments(
     `IOError`
         如果没指定任何一个指数，将报错
     """
-    if hs300:
-        net_index = read_index_three(day=day)[0]
-    elif zz500:
-        net_index = read_index_three(day=day)[1]
-    elif zz1000:
-        net_index = read_index_three(day=day)[2]
-    elif gz2000:
-        net_index = read_index_three(day=day)[3]
+
+    if hs300 and zz500:
+        net_index = read_index_single("000906.SH").resample("M").last()
     else:
-        raise IOError("你总得指定一个股票池吧？")
+        net_indexs = []
+        if hs300:
+            net_index = read_index_single("000300.SH").resample("M").last()
+            net_indexs.append(net_index)
+        if zz500:
+            net_index = read_index_single("000905.SH").resample("M").last()
+            net_indexs.append(net_index)
+        if zz1000:
+            net_index = read_index_single("000852.SH").resample("M").last()
+            net_indexs.append(net_index)
+        if gz2000:
+            net_index = read_index_single("399303.SZ").resample("M").last()
+            net_indexs.append(net_index)
+        if (hs300 + zz500 + zz1000 + gz2000) == 0:
+            raise IOError("你总得指定一个股票池吧？")
+        net_index = pd.concat(net_indexs, axis=1)
     ret_index = net_index.pct_change()
+    if isinstance(ret_index, pd.DataFrame):
+        ret_index = ret_index.mean(axis=1)
+    if day is not None:
+        ret_index = ret_index[ret_index.index >= pd.Timestamp(day)]
     ret = ret_fac - ret_index
     ret = ret.dropna()
     net = (1 + ret).cumprod()
@@ -232,25 +252,35 @@ def make_relative_comments_plot(
     `IOError`
         如果没指定任何一个指数，将报错
     """
-    if hs300:
-        net_index = read_index_three(day=day)[0]
-    elif zz500:
-        net_index = read_index_three(day=day)[1]
-    elif zz1000:
-        net_index = read_index_three(day=day)[2]
-    elif gz2000:
-        net_index = read_index_three(day=day)[3]
+    if hs300 and zz500:
+        net_index = read_index_single("000906.SH").resample("M").last()
     else:
-        raise IOError("你总得指定一个股票池吧？")
+        net_indexs = []
+        if hs300:
+            net_index = read_index_single("000300.SH").resample("M").last()
+            net_indexs.append(net_index)
+        if zz500:
+            net_index = read_index_single("000905.SH").resample("M").last()
+            net_indexs.append(net_index)
+        if zz1000:
+            net_index = read_index_single("000852.SH").resample("M").last()
+            net_indexs.append(net_index)
+        if gz2000:
+            net_index = read_index_single("399303.SZ").resample("M").last()
+            net_indexs.append(net_index)
+        if (hs300 + zz500 + zz1000 + gz2000) == 0:
+            raise IOError("你总得指定一个股票池吧？")
+        net_index = pd.concat(net_indexs, axis=1)
     ret_index = net_index.pct_change()
+    if isinstance(ret_index, pd.DataFrame):
+        ret_index = ret_index.mean(axis=1)
+    if day is not None:
+        ret_index = ret_index[ret_index.index >= pd.Timestamp(day)]
     ret = ret_fac - ret_index
     ret = ret.dropna()
     net = (1 + ret).cumprod()
     ntop = pd.Series(1, index=[net.index.min() - pd.DateOffset(months=1)])
-    rtop = pd.Series(0, index=[net.index.min() - pd.DateOffset(months=1)])
     net = pd.concat([ntop, net]).resample("M").last()
-    ret = pd.concat([rtop, ret]).resample("M").last()
-    com = comments_on_twins(net, ret)
     net.plot(rot=60)
     plt.show()
     return net
