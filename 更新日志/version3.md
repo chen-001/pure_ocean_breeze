@@ -1,5 +1,9 @@
 ## 更新日志🗓 — v3
 
+* v3.7.3 — 2023.2.21
+> 1. 删去了do_on_dfs装饰器对get_list_std函数的支持
+> 1. 修复了database_update_minute_data_to_clickhouse_and_questdb和database_update_minute_data_to_questdb在端口号为9000的设备上的写入bug，并增加了web_port参数，用于手动指定端口参数
+> 1. 给do_on_dfs装饰器支持了对tuple的识别
 * v3.7.2 — 2023.2.3
 > 1. 修复了Questdb通过csv写入数据只能向本地数据库写入的bug
 > 1. 对make_relative_comments和make_relative_comments_plot的进行了提速，并新增了多种股票池混合的方式，可以指定多个参数为1，当且仅当hs300和zz500同时为1时，基准指数为中证800指数000906.SH

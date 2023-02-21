@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2023-01-19 22:36:13"
+__updated__ = "2023-02-21 09:09:08"
 
 import os
 import pandas as pd
@@ -960,7 +960,6 @@ def calcWeightedStd(series: pd.Series, weights: Union[pd.Series, np.ndarray]) ->
     return np.sqrt(np.sum((series - np.mean(series)) ** 2 * weights))
 
 
-@do_on_dfs
 def get_list_std(delta_sts: list[pd.DataFrame]) -> pd.DataFrame:
     """同一天多个因子，计算这些因子在当天的标准差
 

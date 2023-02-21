@@ -1,4 +1,4 @@
-__updated__ = "2023-01-20 20:24:55"
+__updated__ = "2023-02-19 22:46:25"
 
 import time
 
@@ -82,13 +82,15 @@ from pure_ocean_breeze.data.tools import (
 from pure_ocean_breeze.labor.process import pure_fama
 
 
-def database_update_minute_data_to_clickhouse_and_questdb(kind: str) -> None:
+def database_update_minute_data_to_clickhouse_and_questdb(kind: str,web_port:str='9001') -> None:
     """使用米筐更新分钟数据至clickhouse和questdb中
 
     Parameters
     ----------
     kind : str
         更新股票分钟数据或指数分钟数据，股票则'stock'，指数则'index'
+    web_port : str
+        questdb数据库的web console的端口号, by default '9001'
 
     Raises
     ------
@@ -156,12 +158,8 @@ def database_update_minute_data_to_clickhouse_and_questdb(kind: str) -> None:
     ts = ts.reset_index()
     ts.date = ts.date.astype(int).astype(str)
     ts.num = ts.num.astype(int).astype(str)
-    try:
-        qdb = Questdb()
-        qdb.write_via_csv(ts, f"minute_data_{kind}")
-    except Exception:
-        qdb = Questdb(web_port="9000")
-        qdb.write_via_csv(ts, f"minute_data_{kind}")
+    qdb = Questdb(web_port=web_port)
+    qdb.write_via_csv(ts, f"minute_data_{kind}")
     # 获取剩余使用额
     user2 = round(rqdatac.user.get_quota()["bytes_used"] / 1024 / 1024, 2)
     user12 = round(user2 - user1, 2)
@@ -264,13 +262,15 @@ def database_update_minute_data_to_postgresql(kind: str) -> None:
     logger.info(f"今日已使用rqsdk流量{user2}MB，本项更新消耗流量{user12}MB")
 
 
-def database_update_minute_data_to_questdb(kind: str) -> None:
+def database_update_minute_data_to_questdb(kind: str,web_port:str='9001') -> None:
     """使用米筐更新分钟数据至questdb中
 
     Parameters
     ----------
     kind : str
         更新股票分钟数据或指数分钟数据，股票则'stock'，指数则'index'
+    web_port : str
+        questdb数据库的控制台端口号, by default '9001'
 
     Raises
     ------
@@ -290,12 +290,8 @@ def database_update_minute_data_to_questdb(kind: str) -> None:
     cs = rqdatac.all_instruments(type=code_type, market="cn", date=None)
     codes = list(cs.order_book_id)
     # 获取上次更新截止时间
-    try:
-        qdb = Questdb()
-        last_date = max(qdb.show_all_dates(f"minute_data_{kind}"))
-    except Exception:
-        qdb = Questdb(web_port="9000")
-        last_date = max(qdb.show_all_dates(f"minute_data_{kind}"))
+    qdb = Questdb(web_port=web_port)
+    last_date = max(qdb.show_all_dates(f"minute_data_{kind}"))
     # 本次更新起始日期
     start_date = pd.Timestamp(str(last_date)) + pd.Timedelta(days=1)
     start_date = datetime.datetime.strftime(start_date, "%Y-%m-%d")
@@ -338,17 +334,11 @@ def database_update_minute_data_to_questdb(kind: str) -> None:
     ts.date = ts.date.astype(int).astype(str)
     ts.num = ts.num.astype(int).astype(str)
     # 数据写入数据库
-    try:
-        qdb = Questdb()
-        qdb.write_via_csv(ts, f"minute_data_{kind}")
-    except Exception:
-        qdb = Questdb(web_port="9000")
-        qdb.write_via_csv(ts, f"minute_data_{kind}")
+    qdb.write_via_csv(ts, f"minute_data_{kind}")
     # 获取剩余使用额
     user2 = round(rqdatac.user.get_quota()["bytes_used"] / 1024 / 1024, 2)
     user12 = round(user2 - user1, 2)
     logger.info(f"今日已使用rqsdk流量{user2}MB，本项更新消耗流量{user12}MB")
-
 
 def database_update_minute_data_to_mysql(kind: str) -> None:
     """使用米筐更新分钟数据至mmysql中
