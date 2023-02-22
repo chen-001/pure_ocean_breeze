@@ -1,5 +1,8 @@
 ## 更新日志🗓 — v3
 
+* v3.7.4 — 2023.2.22
+> 1. Questdb的写入方式将原write_via_df改为write_via_df_old，新增了通过questdb.ingress.Sender写入的方式write_via_df，并将所有写入方式都改为了write_via_df
+> 1. 修复了使用分钟数据计算因子值时，单日数据重复写入的bug
 * v3.7.3 — 2023.2.21
 > 1. 删去了do_on_dfs装饰器对get_list_std函数的支持
 > 1. 修复了database_update_minute_data_to_clickhouse_and_questdb和database_update_minute_data_to_questdb在端口号为9000的设备上的写入bug，并增加了web_port参数，用于手动指定端口参数

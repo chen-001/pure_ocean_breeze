@@ -1,4 +1,4 @@
-__updated__ = "2023-02-03 10:41:21"
+__updated__ = "2023-02-22 20:16:11"
 
 import pandas as pd
 import pymysql
@@ -14,6 +14,7 @@ import os
 from typing import Union
 from psycopg2.extensions import register_adapter, AsIs
 from tenacity import retry, stop_after_attempt
+import questdb.ingress as qdbing
 from pure_ocean_breeze.state.states import STATES
 
 
@@ -822,7 +823,7 @@ class Questdb(DriverOfPostgre):
     def __addapt_numpy_int64(self, numpy_int64):
         return AsIs(numpy_int64)
 
-    def write_via_df(
+    def write_via_df_old(
         self,
         df: pd.DataFrame,
         table: str,
@@ -889,6 +890,30 @@ class Questdb(DriverOfPostgre):
                 conn.rollback()
                 cursor.close()
         cursor.close()
+
+    def write_via_df(
+        self,
+        df: pd.DataFrame,
+        table_name: str,
+        symbols: Union[str, bool, list[int], list[str]] = None,
+    ) -> None:
+        """通过questdb的python库直接将dataframe写入quested数据库
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            要写入的dataframe
+        table_name : str
+            questdb中该表的表名
+        symbols : Union[str, bool, list[int], list[str]], optional
+            为symbols的那些列的名称, by default None
+        """
+        if symbols is not None:
+            with qdbing.Sender(self.host, 9009) as sender:
+                sender.dataframe(df, table_name=table_name, symbols=symbols)
+        else:
+            with qdbing.Sender(self.host, 9009) as sender:
+                sender.dataframe(df, table_name=table_name)
 
     def write_via_csv(self, df: pd.DataFrame, table: str, index_id: str = None) -> None:
         """以csv中转的方式，将pd.DataFrame写入Questdb，这一方法的速度约为直接写入的20倍以上，建议使用此方法

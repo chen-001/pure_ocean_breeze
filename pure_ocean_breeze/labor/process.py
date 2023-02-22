@@ -1,4 +1,4 @@
-__updated__ = "2023-02-03 10:39:00"
+__updated__ = "2023-02-22 20:19:44"
 
 import warnings
 
@@ -3268,7 +3268,7 @@ class pure_fall_frequent(object):
         df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
         to_save = df.stack().reset_index()
         to_save.columns = ["date", "code", "fac"]
-        self.factor_steps.write_via_csv(to_save, self.factor_file_pinyin)
+        self.factor_steps.write_via_df(to_save, self.factor_file_pinyin)
         return df
 
     def select_many_calculate(
@@ -3298,9 +3298,6 @@ class pure_fall_frequent(object):
                 show_time=show_time,
             )
             factor_new.append(df_first)
-            to_save = df_first.stack().reset_index()
-            to_save.columns = ["date", "code", "fac"]
-            self.factor_steps.write_via_csv(to_save, self.factor_file_pinyin)
 
             if tqdm_inside == 1:
                 # 开始计算因子值
@@ -3328,7 +3325,7 @@ class pure_fall_frequent(object):
                     factor_new.append(df)
                     to_save = df.stack().reset_index()
                     to_save.columns = ["date", "code", "fac"]
-                    self.factor_steps.write_via_csv(to_save, self.factor_file_pinyin)
+                    self.factor_steps.write_via_df(to_save, self.factor_file_pinyin)
             else:
                 # 开始计算因子值
                 for date1, date2 in tqdm.auto.tqdm(cuts, desc="不知乘月几人归，落月摇情满江树。"):
@@ -3357,7 +3354,7 @@ class pure_fall_frequent(object):
                     factor_new.append(df)
                     to_save = df.stack().reset_index()
                     to_save.columns = ["date", "code", "fac"]
-                    self.factor_steps.write_via_csv(to_save, self.factor_file_pinyin)
+                    self.factor_steps.write_via_df(to_save, self.factor_file_pinyin)
         else:
             pairs = self.forward_dates(dates, many_days=many_days)
             for date1, date2 in tqdm.auto.tqdm(
@@ -3392,7 +3389,7 @@ class pure_fall_frequent(object):
                     factor_new.append(df)
                     to_save = df.stack().reset_index()
                     to_save.columns = ["date", "code", "fac"]
-                    self.factor_steps.write_via_csv(to_save, self.factor_file_pinyin)
+                    self.factor_steps.write_via_df(to_save, self.factor_file_pinyin)
         if len(factor_new) > 0:
             factor_new = pd.concat(factor_new)
             return factor_new

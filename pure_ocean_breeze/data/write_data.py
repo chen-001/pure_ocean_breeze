@@ -1,4 +1,4 @@
-__updated__ = "2023-02-19 22:46:25"
+__updated__ = "2023-02-22 20:19:10"
 
 import time
 
@@ -159,7 +159,7 @@ def database_update_minute_data_to_clickhouse_and_questdb(kind: str,web_port:str
     ts.date = ts.date.astype(int).astype(str)
     ts.num = ts.num.astype(int).astype(str)
     qdb = Questdb(web_port=web_port)
-    qdb.write_via_csv(ts, f"minute_data_{kind}")
+    qdb.write_via_df(ts, f"minute_data_{kind}")
     # 获取剩余使用额
     user2 = round(rqdatac.user.get_quota()["bytes_used"] / 1024 / 1024, 2)
     user12 = round(user2 - user1, 2)
@@ -334,7 +334,7 @@ def database_update_minute_data_to_questdb(kind: str,web_port:str='9001') -> Non
     ts.date = ts.date.astype(int).astype(str)
     ts.num = ts.num.astype(int).astype(str)
     # 数据写入数据库
-    qdb.write_via_csv(ts, f"minute_data_{kind}")
+    qdb.write_via_df(ts, f"minute_data_{kind}")
     # 获取剩余使用额
     user2 = round(rqdatac.user.get_quota()["bytes_used"] / 1024 / 1024, 2)
     user12 = round(user2 - user1, 2)
