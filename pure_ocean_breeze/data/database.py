@@ -1,4 +1,4 @@
-__updated__ = "2023-02-23 12:27:10"
+__updated__ = "2023-02-23 15:01:44"
 
 import pandas as pd
 import pymysql
@@ -16,6 +16,7 @@ from psycopg2.extensions import register_adapter, AsIs
 from tenacity import retry, stop_after_attempt
 import questdb.ingress as qdbing
 from pure_ocean_breeze.state.states import STATES
+from pure_ocean_breeze.state.homeplace import HomePlace
 
 
 class MetaSQLDriver(object):
@@ -948,11 +949,19 @@ class Questdb(DriverOfPostgre):
             读取到的数据
         """
         data = self.get_data(sql_order)
+
+        def eval_it(x):
+            if "," in x.iloc[0]:
+                x = pd.eval(x)
+            else:
+                x = x.astype(float)
+            return x
+
         if isinstance(tuple_col, str):
-            data[tuple_col] = pd.eval(data[tuple_col])
+            data[tuple_col] = eval_it(data[tuple_col])
         else:
             for t in tuple_col:
-                data[t] = pd.eval(data[t])
+                data[t] = eval_it(data[t])
         if "timestamp" in list(data.columns):
             if without_timestamp:
                 data = data.drop(columns=["timestamp"])
@@ -1036,3 +1045,40 @@ class Questdb(DriverOfPostgre):
             "date"
         )
         return list(df.date)
+
+    def copy_all_tables(self):
+        """下载某个questdb数据库下所有的表格"""
+        homeplace = HomePlace()
+        path = homeplace.update_data_file + self.host + "_copy/"
+        os.makedirs(path)
+        tables = [
+            i
+            for i in list(self.show_all_tables().table)
+            if i
+            not in [
+                "sys.column_versions_purge_log",
+                "telemetry_config",
+                "sys.telemetry_wal",
+                "telemetry",
+            ]
+        ]
+        logger.info(f"共{len(tables)}个表，分别为{tables}")
+        for table in tables:
+            logger.info(f"正在备份{table}表……")
+            down = self.get_data(f"select * from {table}")
+            down.to_parquet(f"{path}{self.host}_{table}.parquet")
+            logger.success(f"{table}表备份完成")
+        logger.success("所有表备份完成")
+
+    def upload_all_copies(self):
+        """上传之前备份在本地的questdb的所有表格"""
+        homeplace = HomePlace()
+        path = homeplace.update_data_file + self.host + "_copy/"
+        files = os.listdir(path)
+        files = [i.split(".parquet")[0] for i in files]
+        logger.info(f"共{len(files)}个表，分别为{files}")
+        for file in files:
+            logger.info(f"正在上传{file}表……")
+            self.write_via_df(pd.read_parquet(path + file + ".parquet"), file)
+            logger.success(f"{file}表上传完成")
+        logger.success("所有表上传完成")
