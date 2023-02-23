@@ -1,4 +1,4 @@
-__updated__ = "2023-01-17 14:38:45"
+__updated__ = "2023-02-23 11:36:59"
 
 from setuptools import setup
 import setuptools
@@ -53,6 +53,7 @@ setup(
         "clickhouse_sqlalchemy",
         "tradetime",
         "deprecation",
+        "questdb",
     ],
     python_requires=">=3",
     license="MIT",

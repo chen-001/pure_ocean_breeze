@@ -2,8 +2,8 @@
 一个量化多因子研究的框架，包含数据、回测、因子加工等方面的功能
 """
 
-__updated__ = "2023-02-22 18:05:27"
-__version__ = "3.7.4"
+__updated__ = "2023-02-23 12:42:59"
+__version__ = "3.7.5"
 __author__ = "chenzongwei"
 __author_email__ = "winterwinter999@163.com"
 __url__ = "https://github.com/chen-001/pure_ocean_breeze"
@@ -17,6 +17,20 @@ __all__ = [
     "future_version",
     "withs"
 ]
+
+import requests
+
+try:
+    response = requests.get("https://pypi.org/pypi/factor-reader/json", timeout=2)
+    latest_version = response.json()["info"]["version"]
+    now_version=__version__
+    if latest_version!=now_version:
+        logger.warning(f'''您当前使用的是{now_version}，最新版本为{latest_version}
+            建议您使用`pip install pure_ocean_breeze --upgrade`
+            或`pip install -i https://pypi.tuna.tsinghua.edu.cn/simple pure_ocean_breeze --upgrade`命令进行更新
+            ''')
+except Exception:
+    ...
 
 import warnings
 
@@ -36,7 +50,7 @@ try:
 
     from loguru import logger
 
-    import requests
+    
     import bs4
     from wrapt_timeout_decorator import timeout
     import pickledb
@@ -221,7 +235,8 @@ try:
 
     from pure_ocean_breeze.initialize.initialize import *
 
-except Exception:
+except Exception as e:
+    print(e)
     print('您可能正在初始化；如果不是在初始化，则路径设置文件已经清除，请检查。')
 
     

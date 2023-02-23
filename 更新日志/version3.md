@@ -1,5 +1,16 @@
 ## 更新日志🗓 — v3
 
+* v3.7.5 — 2023.2.23
+> 1. import pure_ocean_breeze时如遇到错误，增加显示了错误原因
+> 1. import pure_ocean_breeze时新增了自动检查更新功能
+> 1. Questdb的write_via_df方法新增了tuple_col参数，用于写入数值类型为元组或列表的列
+> 1. Questdb新增了get_data_with_tuple方法，用于读取数据类型包含元组或列表的表格
+> 1. database_read_primary_factors函数新增了name2参数，用于读取多个parquet文件存储的初级因子
+> 1. 删去和警告了pure_fall中冗余的方法
+> 1. 修正了pure_fall_frequent中，因备份写入方式变化导致的bug
+> 1. 移除了pure_fall_flexible的默认加载，转移至future_version中
+> 1. 补充了pure_snowstrain的说明文档
+> 1. 新增了依赖库questdb
 * v3.7.4 — 2023.2.22
 > 1. Questdb的写入方式将原write_via_df改为write_via_df_old，新增了通过questdb.ingress.Sender写入的方式write_via_df，并将所有写入方式都改为了write_via_df
 > 1. 修复了使用分钟数据计算因子值时，单日数据重复写入的bug

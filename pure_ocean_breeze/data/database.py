@@ -1,4 +1,4 @@
-__updated__ = "2023-02-22 20:16:11"
+__updated__ = "2023-02-23 12:27:10"
 
 import pandas as pd
 import pymysql
@@ -896,6 +896,7 @@ class Questdb(DriverOfPostgre):
         df: pd.DataFrame,
         table_name: str,
         symbols: Union[str, bool, list[int], list[str]] = None,
+        tuple_col: Union[str, list[str]] = None,
     ) -> None:
         """通过questdb的python库直接将dataframe写入quested数据库
 
@@ -907,13 +908,55 @@ class Questdb(DriverOfPostgre):
             questdb中该表的表名
         symbols : Union[str, bool, list[int], list[str]], optional
             为symbols的那些列的名称, by default None
+        tuple_col : Union[str, list[str]], optional
+            数据类型为tuple或list的列的名字, by default None
         """
+        if tuple_col is None:
+            ...
+        elif isinstance(tuple_col, str):
+            df[tuple_col] = df[tuple_col].apply(str)
+        else:
+            for t in tuple_col:
+                df[t] = df[t].apply(str)
         if symbols is not None:
             with qdbing.Sender(self.host, 9009) as sender:
                 sender.dataframe(df, table_name=table_name, symbols=symbols)
         else:
             with qdbing.Sender(self.host, 9009) as sender:
                 sender.dataframe(df, table_name=table_name)
+
+    def get_data_with_tuple(
+        self,
+        sql_order: str,
+        tuple_col: Union[str, list[str]] = "fac",
+        without_timestamp: bool = 1,
+    ) -> pd.DataFrame:
+        """从questdb数据库中，读取那些值中带有元组或列表的表格
+
+        Parameters
+        ----------
+        sql_order : str
+            读取的sql命令
+        tuple_col : Union[str, list[str]], optional
+            数值类型为元组或列表的那些列的名称, by default 'fac'
+        without_timestamp : bool, optional
+            读取时是否删去数据库自动加入的名为`timestamp`的列, by default 1
+
+        Returns
+        -------
+        pd.DataFrame
+            读取到的数据
+        """
+        data = self.get_data(sql_order)
+        if isinstance(tuple_col, str):
+            data[tuple_col] = pd.eval(data[tuple_col])
+        else:
+            for t in tuple_col:
+                data[t] = pd.eval(data[t])
+        if "timestamp" in list(data.columns):
+            if without_timestamp:
+                data = data.drop(columns=["timestamp"])
+        return data
 
     def write_via_csv(self, df: pd.DataFrame, table: str, index_id: str = None) -> None:
         """以csv中转的方式，将pd.DataFrame写入Questdb，这一方法的速度约为直接写入的20倍以上，建议使用此方法

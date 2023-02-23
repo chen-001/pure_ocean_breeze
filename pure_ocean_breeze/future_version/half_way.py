@@ -1,4 +1,4 @@
-__updated__ = "2022-11-04 21:51:36"
+__updated__ = "2023-02-23 12:36:54"
 
 import numpy as np
 import pandas as pd
@@ -9,7 +9,14 @@ plt.style.use(["science", "no-latex", "notebook"])
 plt.rcParams["axes.unicode_minus"] = False
 import plotly.express as pe
 import plotly.io as pio
-from functools import reduce
+import tqdm
+import os
+from loguru import logger
+import datetime
+from typing import Callable
+from functools import reduce,partial
+from pure_ocean_breeze.data.database import ClickHouseClient,Questdb
+from pure_ocean_breeze.data.tools import drop_duplicates_index
 from pure_ocean_breeze.labor.process import pure_moon, decap_industry
 from pure_ocean_breeze.data.read_data import read_daily
 from pure_ocean_breeze.state.homeplace import HomePlace
@@ -213,3 +220,223 @@ class pure_moonson(object):
         l = l[: df.shape[0]]
         df.insert(0, "group", l)
         return df
+
+
+class pure_fall_flexible(object):
+    def __init__(
+        self,
+        factor_file: str,
+        startdate: int = None,
+        enddate: int = None,
+        kind: str = "stock",
+        clickhouse: bool = 0,
+        questdb: bool = 0,
+    ) -> None:
+        """基于clickhouse的分钟数据，计算因子值，每天的因子值用到多日的数据，或者用到截面的数据
+        对一段时间的截面数据进行操作，在get_daily_factors的func函数中
+        请写入df=df.groupby([xxx]).apply(fff)之类的语句
+        然后单独定义一个函数，作为要apply的fff，可以在apply上加进度条
+
+        Parameters
+        ----------
+        factor_file : str
+            用于存储因子的文件名称，请以'.parquet'结尾
+        startdate : int, optional
+            计算因子的起始日期，形如20220816, by default None
+        enddate : int, optional
+            计算因子的终止日期，形如20220816, by default None
+        kind : str, optional
+            指定计算股票还是指数，指数则为'index', by default "stock"
+        clickhouse : bool, optional
+            使用clickhouse作为数据源，如果postgresql与本参数都为0，将依然从clickhouse中读取, by default 0
+        questdb : bool, optional
+            使用questdb作为数据源, by default 0
+        """
+        homeplace = HomePlace()
+        self.kind = kind
+        if clickhouse == 0 and questdb == 0:
+            clickhouse = 1
+        self.clickhouse = clickhouse
+        self.questdb = questdb
+        if clickhouse == 1:
+            # 连接clickhouse
+            self.chc = ClickHouseClient("minute_data")
+        elif questdb:
+            self.chc = Questdb()
+        # 完整的因子文件路径
+        factor_file = homeplace.factor_data_file + factor_file
+        self.factor_file = factor_file
+        # 读入之前的因子
+        if os.path.exists(factor_file):
+            factor_old = drop_duplicates_index(pd.read_parquet(self.factor_file))
+            self.factor_old = factor_old
+            # 已经算好的日子
+            dates_old = sorted(list(factor_old.index.strftime("%Y%m%d").astype(int)))
+            self.dates_old = dates_old
+        else:
+            self.factor_old = None
+            self.dates_old = []
+            logger.info("这个因子以前没有，正在重新计算")
+        # 读取当前所有的日子
+        dates_all = self.chc.show_all_dates(f"minute_data_{kind}")
+        if startdate is None:
+            ...
+        else:
+            dates_all = [i for i in dates_all if i >= startdate]
+        if enddate is None:
+            ...
+        else:
+            dates_all = [i for i in dates_all if i <= enddate]
+        self.dates_all = dates_all
+        # 需要新补充的日子
+        self.dates_new = sorted([i for i in dates_all if i not in dates_old])
+
+    def __call__(self) -> pd.DataFrame:
+        """直接返回因子值的pd.DataFrame
+
+        Returns
+        -------
+        `pd.DataFrame`
+            计算出的因子值
+        """
+        return self.factor.copy()
+
+    @kk.desktop_sender(title="嘿，分钟数据处理完啦～🎈")
+    def get_daily_factors(
+        self,
+        func: Callable,
+        fields: str = "*",
+        chunksize: int = 250,
+        show_time: bool = 0,
+        tqdm_inside: bool = 0,
+    ) -> None:
+        """每次抽取chunksize天的截面上全部股票的分钟数据
+        依照定义的函数计算因子值
+
+        Parameters
+        ----------
+        func : Callable
+            用于计算因子值的函数
+        fields : str, optional
+            股票数据涉及到哪些字段，排除不必要的字段，可以节约读取数据的时间，形如'date,code,num,close,amount,open'
+            提取出的数据，自动按照code,date,num排序，因此code,date,num是必不可少的字段, by default "*"
+        chunksize : int, optional
+            每次读取的截面上的天数, by default 10
+        show_time : bool, optional
+            展示每次读取数据所需要的时间, by default 0
+        tqdm_inside : bool, optional
+            将进度条加在内部，而非外部，建议仅chunksize较大时使用, by default 0
+        """
+        the_func = partial(func)
+        # 将需要更新的日子分块，每200天一组，一起运算
+        dates_new_len = len(self.dates_new)
+        if dates_new_len > 0:
+            cut_points = list(range(0, dates_new_len, chunksize)) + [dates_new_len - 1]
+            if cut_points[-1] == cut_points[-2]:
+                cut_points = cut_points[:-1]
+            self.cut_points = cut_points
+            self.factor_new = []
+            # 开始计算因子值
+            if tqdm_inside:
+                # 开始计算因子值
+                for date1, date2 in cut_points:
+                    if self.clickhouse == 1:
+                        sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{self.dates_new[date1]*100} and date<={self.dates_new[date2]*100} order by code,date,num"
+                    else:
+                        sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{self.dates_new[date1]} and date<={self.dates_new[date2]}"
+                    if show_time:
+                        df = self.chc.get_data_show_time(sql_order)
+                    else:
+                        df = self.chc.get_data(sql_order)
+                    if self.clickhouse == 1:
+                        df = ((df.set_index("code")) / 100).reset_index()
+                    tqdm.auto.tqdm.pandas()
+                    df = the_func(df)
+                    if isinstance(df, pd.Series):
+                        df = df.reset_index()
+                    df.columns = ["date", "code", "fac"]
+                    df = df.pivot(columns="code", index="date", values="fac")
+                    df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
+                    self.factor_new.append(df)
+            else:
+                # 开始计算因子值
+                for date1, date2 in tqdm.auto.tqdm(cut_points, desc="不知乘月几人归，落月摇情满江树。"):
+                    if self.clickhouse == 1:
+                        sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{self.dates_new[date1]*100} and date<={self.dates_new[date2]*100} order by code,date,num"
+                    else:
+                        sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{self.dates_new[date1]} and date<={self.dates_new[date2]} order by code,date,num"
+                    if show_time:
+                        df = self.chc.get_data_show_time(sql_order)
+                    else:
+                        df = self.chc.get_data(sql_order)
+                    if self.clickhouse == 1:
+                        df = ((df.set_index("code")) / 100).reset_index()
+                    df = the_func(df)
+                    if isinstance(df, pd.Series):
+                        df = df.reset_index()
+                    df.columns = ["date", "code", "fac"]
+                    df = df.pivot(columns="code", index="date", values="fac")
+                    df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
+                    self.factor_new.append(df)
+            self.factor_new = pd.concat(self.factor_new)
+            # 拼接新的和旧的
+            self.factor = pd.concat([self.factor_old, self.factor_new]).sort_index()
+            new_end_date = datetime.datetime.strftime(self.factor.index.max(), "%Y%m%d")
+            # 存入本地
+            self.factor.to_parquet(self.factor_file)
+            logger.info(f"截止到{new_end_date}的因子值计算完了")
+        elif dates_new_len == 1:
+            print("共1天")
+            if tqdm_inside:
+                # 开始计算因子值
+                if self.clickhouse == 1:
+                    sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date={self.dates_new[0]*100} order by code,date,num"
+                else:
+                    sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date={self.dates_new[0]} order by code,date,num"
+                if show_time:
+                    df = self.chc.get_data_show_time(sql_order)
+                else:
+                    df = self.chc.get_data(sql_order)
+                if self.clickhouse == 1:
+                    df = ((df.set_index("code")) / 100).reset_index()
+                tqdm.auto.tqdm.pandas()
+                df = the_func(df)
+                if isinstance(df, pd.Series):
+                    df = df.reset_index()
+                df.columns = ["date", "code", "fac"]
+                df = df.pivot(columns="code", index="date", values="fac")
+                df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
+            else:
+                # 开始计算因子值
+                if self.clickhouse == 1:
+                    sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date={self.dates_new[0]*100} order by code,date,num"
+                else:
+                    sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date={self.dates_new[0]} order by code,date,num"
+                if show_time:
+                    df = self.chc.get_data_show_time(sql_order)
+                else:
+                    df = self.chc.get_data(sql_order)
+                if self.clickhouse == 1:
+                    df = ((df.set_index("code")) / 100).reset_index()
+                df = the_func(df)
+                if isinstance(df, pd.Series):
+                    df = df.reset_index()
+                df.columns = ["date", "code", "fac"]
+                df = df.pivot(columns="code", index="date", values="fac")
+                df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
+                self.factor_new.append(df)
+            self.factor_new = df
+            # 拼接新的和旧的
+            self.factor = (
+                pd.concat([self.factor_old, self.factor_new])
+                .sort_index()
+                .drop_duplicates()
+            )
+            new_end_date = datetime.datetime.strftime(self.factor.index.max(), "%Y%m%d")
+            # 存入本地
+            self.factor.to_parquet(self.factor_file)
+            logger.info(f"补充{self.dates_new[0]}截止到{new_end_date}的因子值计算完了")
+        else:
+            self.factor = self.factor_old
+            new_end_date = datetime.datetime.strftime(self.factor.index.max(), "%Y%m%d")
+            logger.info(f"当前截止到{new_end_date}的因子值已经是最新的了")

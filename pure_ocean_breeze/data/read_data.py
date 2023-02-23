@@ -1,4 +1,4 @@
-__updated__ = "2023-01-20 20:22:18"
+__updated__ = "2023-02-22 23:29:34"
 
 import os
 import numpy as np
@@ -43,8 +43,8 @@ def read_daily(
     iret: bool = 0,
     ivol: bool = 0,
     illiquidity: bool = 0,
-    swindustry_ret: bool =0,
-    zxindustry_ret: bool =0,
+    swindustry_ret: bool = 0,
+    zxindustry_ret: bool = 0,
     start: int = STATES["START"],
 ) -> pd.DataFrame:
     """直接读取常用的量价读取日频数据，默认为复权价格，
@@ -207,9 +207,9 @@ def read_daily(
         elif illiquidity:
             df = pd.read_parquet(homeplace.daily_data_file + "illiquidity.parquet")
         elif swindustry_ret:
-            df = pd.read_parquet(homeplace.daily_data_file+'股票对应申万一级行业每日收益率.parquet')
+            df = pd.read_parquet(homeplace.daily_data_file + "股票对应申万一级行业每日收益率.parquet")
         elif zxindustry_ret:
-            df = pd.read_parquet(homeplace.daily_data_file+'股票对应中信一级行业每日收益率.parquet')
+            df = pd.read_parquet(homeplace.daily_data_file + "股票对应中信一级行业每日收益率.parquet")
         else:
             raise IOError("阁下总得读点什么吧？🤒")
     else:
@@ -285,7 +285,7 @@ def read_market(
                 f"select date,num,close,high,low from minute_data_index where code='{market_code}' and cast(date as int)>={start}"
             )
         except Exception:
-            qdb = Questdb(web_port='9000')
+            qdb = Questdb(web_port="9000")
             df = qdb.get_data(
                 f"select date,num,close,high,low from minute_data_index where code='{market_code}' and cast(date as int)>={start}"
             )
@@ -436,7 +436,7 @@ def read_index_single(code: str) -> pd.Series:
                 f"select date,num,close FROM 'minute_data_index' WHERE code='{code}'"
             )
         except Exception:
-            qdb = Questdb(web_port='9000')
+            qdb = Questdb(web_port="9000")
             hs300 = qdb.get_data(
                 f"select date,num,close FROM 'minute_data_index' WHERE code='{code}'"
             )
@@ -719,13 +719,15 @@ def database_read_final_factors(
         return df, ""
 
 
-def database_read_primary_factors(name: str = None) -> pd.DataFrame:
+def database_read_primary_factors(name: str, name2: str = None) -> pd.DataFrame:
     """根据因子名字，读取初级因子的因子值
 
     Parameters
     ----------
     name : str, optional
         因子的名字, by default None
+    name2 : str, optional
+        子因子的名字，当有多个分支因子，分别储存时，使用这个参数来指定具体的子因子, by default None
 
     Returns
     -------
@@ -733,7 +735,10 @@ def database_read_primary_factors(name: str = None) -> pd.DataFrame:
         初级因子的因子值
     """
     homeplace = HomePlace()
-    name = name + "_初级.parquet"
+    if name2 is None:
+        name = name + "/" + name + "_初级.parquet"
+    else:
+        name = name + "/" + name + "_初级_" + name2 + ".parquet"
     df = pd.read_parquet(homeplace.factor_data_file + name)
     df = df[sorted(list(df.columns))]
     return df
