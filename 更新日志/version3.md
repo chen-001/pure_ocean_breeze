@@ -1,5 +1,10 @@
 ## 更新日志🗓 — v3
 
+* v3.7.7 — 2023.2.23
+> 1. 修复了Questdb的get_data_with_tuple方法，读取数据异常的bug
+> 1. 对pure_fall_frequent的get_daily_factors方法新增了n_jobs参数，用于开启基于mpire的并行加速
+> 1. 删去了pure_fall_frequent的get_daily_factors方法中，tqdm_inside的参数，只能在外部添加总进度条
+> 1. 新增了mpire依赖库，暂时删去了numpy的依赖库
 * v3.7.6 — 2023.2.23
 > 1. 修复了pure_fall_frequent打断后重读备份表的bug
 > 1. Questdb新增了copy_all_tables和upload_all_copies方法，用于备份和恢复数据库

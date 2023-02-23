@@ -1,4 +1,4 @@
-__updated__ = "2023-02-23 11:36:59"
+__updated__ = "2023-02-23 22:44:04"
 
 from setuptools import setup
 import setuptools
@@ -27,7 +27,7 @@ setup(
     url="https://github.com/chen-001/pure_ocean_breeze.git",
     project_urls={"Documentation": "https://chen-001.github.io/pure_ocean_breeze/"},
     install_requires=[
-        "numpy",
+        # "numpy",
         "pandas",
         "scipy",
         "statsmodels",
@@ -54,6 +54,7 @@ setup(
         "tradetime",
         "deprecation",
         "questdb",
+        "mpire",
     ],
     python_requires=">=3",
     license="MIT",

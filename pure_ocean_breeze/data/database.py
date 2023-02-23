@@ -1,4 +1,4 @@
-__updated__ = "2023-02-23 15:01:44"
+__updated__ = "2023-02-23 16:16:34"
 
 import pandas as pd
 import pymysql
@@ -952,7 +952,7 @@ class Questdb(DriverOfPostgre):
 
         def eval_it(x):
             if "," in x.iloc[0]:
-                x = pd.eval(x)
+                x = x.apply(lambda y:[float(i) if y not in ['nan', ' nan'] else np.nan for i in y[1:-1].split(',')])
             else:
                 x = x.astype(float)
             return x
