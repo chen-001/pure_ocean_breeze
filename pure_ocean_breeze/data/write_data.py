@@ -1,4 +1,4 @@
-__updated__ = "2023-02-22 20:19:10"
+__updated__ = "2023-02-27 16:49:30"
 
 import time
 
@@ -82,7 +82,9 @@ from pure_ocean_breeze.data.tools import (
 from pure_ocean_breeze.labor.process import pure_fama
 
 
-def database_update_minute_data_to_clickhouse_and_questdb(kind: str,web_port:str='9001') -> None:
+def database_update_minute_data_to_clickhouse_and_questdb(
+    kind: str, web_port: str = "9001"
+) -> None:
     """使用米筐更新分钟数据至clickhouse和questdb中
 
     Parameters
@@ -133,136 +135,43 @@ def database_update_minute_data_to_clickhouse_and_questdb(kind: str,web_port:str
         market="cn",
         expect_df=True,
     )
-    # 调整数据格式
-    ts = ts.reset_index()
-    ts = ts.rename(
-        columns={
-            "order_book_id": "code",
-            "datetime": "date",
-            "volume": "amount",
-            "total_turnover": "money",
-        }
-    )
-    ts = ts.sort_values(["code", "date"])
-    ts.date = ts.date.dt.strftime("%Y%m%d").astype(int)
-    ts = ts.groupby(["code", "date"]).apply(
-        lambda x: x.assign(num=list(range(1, x.shape[0] + 1)))
-    )
-    ts = (np.around(ts.set_index("code"), 2) * 100).astype(int).reset_index()
-    ts.code = ts.code.str.replace(".XSHE", ".SZ")
-    ts.code = ts.code.str.replace(".XSHG", ".SH")
-    # 数据写入数据库
-    ts.to_sql(f"minute_data_{kind}", chc.engine, if_exists="append", index=False)
-    ts = ts.set_index("code")
-    ts = ts / 100
-    ts = ts.reset_index()
-    ts.date = ts.date.astype(int).astype(str)
-    ts.num = ts.num.astype(int).astype(str)
-    qdb = Questdb(web_port=web_port)
-    qdb.write_via_df(ts, f"minute_data_{kind}")
-    # 获取剩余使用额
-    user2 = round(rqdatac.user.get_quota()["bytes_used"] / 1024 / 1024, 2)
-    user12 = round(user2 - user1, 2)
-    logger.info(f"今日已使用rqsdk流量{user2}MB，本项更新消耗流量{user12}MB")
-
-
-def database_update_minute_data_to_postgresql(kind: str) -> None:
-    """使用米筐更新分钟数据至postgresql中
-
-    Parameters
-    ----------
-    kind : str
-        更新股票分钟数据或指数分钟数据，股票则'stock'，指数则'index'
-
-    Raises
-    ------
-    `IOError`
-        如果未指定股票还是指数，将报错
-    """
-    if kind == "stock":
-        code_type = "CS"
-    elif kind == "index":
-        code_type = "INDX"
+    if ts is not None:
+        # 调整数据格式
+        ts = ts.reset_index()
+        ts = ts.rename(
+            columns={
+                "order_book_id": "code",
+                "datetime": "date",
+                "volume": "amount",
+                "total_turnover": "money",
+            }
+        )
+        ts = ts.sort_values(["code", "date"])
+        ts.date = ts.date.dt.strftime("%Y%m%d").astype(int)
+        ts = ts.groupby(["code", "date"]).apply(
+            lambda x: x.assign(num=list(range(1, x.shape[0] + 1)))
+        )
+        ts = (np.around(ts.set_index("code"), 2) * 100).astype(int).reset_index()
+        ts.code = ts.code.str.replace(".XSHE", ".SZ")
+        ts.code = ts.code.str.replace(".XSHG", ".SH")
+        # 数据写入数据库
+        ts.to_sql(f"minute_data_{kind}", chc.engine, if_exists="append", index=False)
+        ts = ts.set_index("code")
+        ts = ts / 100
+        ts = ts.reset_index()
+        ts.date = ts.date.astype(int).astype(str)
+        ts.num = ts.num.astype(int).astype(str)
+        qdb = Questdb(web_port=web_port)
+        qdb.write_via_df(ts, f"minute_data_{kind}")
+        # 获取剩余使用额
+        user2 = round(rqdatac.user.get_quota()["bytes_used"] / 1024 / 1024, 2)
+        user12 = round(user2 - user1, 2)
+        logger.info(f"今日已使用rqsdk流量{user2}MB，本项更新消耗流量{user12}MB")
     else:
-        raise IOError("总得指定一种类型吧？请从stock和index中选一个")
-    # 获取剩余使用额
-    user1 = round(rqdatac.user.get_quota()["bytes_used"] / 1024 / 1024, 2)
-    logger.info(f"今日已使用rqsdk流量{user1}MB")
-    # 获取全部股票/指数代码
-    cs = rqdatac.all_instruments(type=code_type, market="cn", date=None)
-    codes = list(cs.order_book_id)
-    # 获取上次更新截止时间
-    try:
-        qdb = Questdb()
-        last_date = max(qdb.show_all_dates(f"minute_data_{kind}"))
-    except Exception:
-        qdb = Questdb(web_port="9000")
-        last_date = max(qdb.show_all_dates(f"minute_data_{kind}"))
-    # 本次更新起始日期
-    start_date = pd.Timestamp(str(last_date)) + pd.Timedelta(days=1)
-    start_date = datetime.datetime.strftime(start_date, "%Y-%m-%d")
-    # 本次更新终止日期
-    end_date = datetime.datetime.now()
-    if end_date.hour < 17:
-        end_date = end_date - pd.Timedelta(days=1)
-    end_date = datetime.datetime.strftime(end_date, "%Y-%m-%d")
-    logger.info(f"本次将下载从{start_date}到{end_date}的数据")
-    # 下载数据
-    ts = rqdatac.get_price(
-        codes,
-        start_date=start_date,
-        end_date=end_date,
-        frequency="1m",
-        fields=["volume", "total_turnover", "high", "low", "close", "open"],
-        adjust_type="none",
-        skip_suspended=False,
-        market="cn",
-        expect_df=True,
-        time_slice=None,
-    )
-    # 调整数据格式
-    ts = ts.reset_index()
-    ts = ts.rename(
-        columns={
-            "order_book_id": "code",
-            "datetime": "date",
-            "volume": "amount",
-            "total_turnover": "money",
-        }
-    )
-    ts = ts.sort_values(["code", "date"])
-    ts.date = ts.date.dt.strftime("%Y%m%d").astype(int)
-    ts = ts.groupby(["code", "date"]).apply(
-        lambda x: x.assign(num=list(range(1, x.shape[0] + 1)))
-    )
-    ts.code = ts.code.str.replace(".XSHE", ".SZ")
-    ts.code = ts.code.str.replace(".XSHG", ".SH")
-    # 数据写入数据库
-    pgdb = PostgreSQL("minute_data")
-    ts.to_sql(
-        f"minute_data_{kind}",
-        pgdb.engine,
-        if_exists="append",
-        index=False,
-        dtype={
-            "code": VARCHAR(9),
-            "date": INT,
-            "open": FLOAT,
-            "high": FLOAT,
-            "low": FLOAT,
-            "close": FLOAT,
-            "amount": FLOAT,
-            "money": FLOAT,
-            "num": INT,
-        },
-    )
-    # 获取剩余使用额
-    user2 = round(rqdatac.user.get_quota()["bytes_used"] / 1024 / 1024, 2)
-    user12 = round(user2 - user1, 2)
-    logger.info(f"今日已使用rqsdk流量{user2}MB，本项更新消耗流量{user12}MB")
+        logger.warning(f"从{start_date}到{end_date}暂无数据")
 
 
-def database_update_minute_data_to_questdb(kind: str,web_port:str='9001') -> None:
+def database_update_minute_data_to_questdb(kind: str, web_port: str = "9001") -> None:
     """使用米筐更新分钟数据至questdb中
 
     Parameters
@@ -313,199 +222,35 @@ def database_update_minute_data_to_questdb(kind: str,web_port:str='9001') -> Non
         market="cn",
         expect_df=True,
     )
-    # 调整数据格式
-    ts = ts.reset_index()
-    ts = ts.rename(
-        columns={
-            "order_book_id": "code",
-            "datetime": "date",
-            "volume": "amount",
-            "total_turnover": "money",
-        }
-    )
-    ts = ts.sort_values(["code", "date"])
-    ts.date = ts.date.dt.strftime("%Y%m%d").astype(int)
-    ts = ts.groupby(["code", "date"]).apply(
-        lambda x: x.assign(num=list(range(1, x.shape[0] + 1)))
-    )
-    ts = ts.ffill().dropna()
-    ts.code = ts.code.str.replace(".XSHE", ".SZ")
-    ts.code = ts.code.str.replace(".XSHG", ".SH")
-    ts.date = ts.date.astype(int).astype(str)
-    ts.num = ts.num.astype(int).astype(str)
-    # 数据写入数据库
-    qdb.write_via_df(ts, f"minute_data_{kind}")
-    # 获取剩余使用额
-    user2 = round(rqdatac.user.get_quota()["bytes_used"] / 1024 / 1024, 2)
-    user12 = round(user2 - user1, 2)
-    logger.info(f"今日已使用rqsdk流量{user2}MB，本项更新消耗流量{user12}MB")
-
-def database_update_minute_data_to_mysql(kind: str) -> None:
-    """使用米筐更新分钟数据至mmysql中
-
-    Parameters
-    ----------
-    kind : str
-        更新股票分钟数据或指数分钟数据，股票则'stock'，指数则'index'
-
-    Raises
-    ------
-    `IOError`
-        如果未指定股票还是指数，将报错
-    """
-    if kind == "stock":
-        code_type = "CS"
-    elif kind == "index":
-        code_type = "INDX"
+    if ts is not None:
+        # 调整数据格式
+        ts = ts.reset_index()
+        ts = ts.rename(
+            columns={
+                "order_book_id": "code",
+                "datetime": "date",
+                "volume": "amount",
+                "total_turnover": "money",
+            }
+        )
+        ts = ts.sort_values(["code", "date"])
+        ts.date = ts.date.dt.strftime("%Y%m%d").astype(int)
+        ts = ts.groupby(["code", "date"]).apply(
+            lambda x: x.assign(num=list(range(1, x.shape[0] + 1)))
+        )
+        ts = ts.ffill().dropna()
+        ts.code = ts.code.str.replace(".XSHE", ".SZ")
+        ts.code = ts.code.str.replace(".XSHG", ".SH")
+        ts.date = ts.date.astype(int).astype(str)
+        ts.num = ts.num.astype(int).astype(str)
+        # 数据写入数据库
+        qdb.write_via_df(ts, f"minute_data_{kind}")
+        # 获取剩余使用额
+        user2 = round(rqdatac.user.get_quota()["bytes_used"] / 1024 / 1024, 2)
+        user12 = round(user2 - user1, 2)
+        logger.info(f"今日已使用rqsdk流量{user2}MB，本项更新消耗流量{user12}MB")
     else:
-        raise IOError("总得指定一种类型吧？请从stock和index中选一个")
-    # 获取剩余使用额
-    user1 = round(rqdatac.user.get_quota()["bytes_used"] / 1024 / 1024, 2)
-    logger.info(f"今日已使用rqsdk流量{user1}MB")
-    # 获取全部股票/指数代码
-    cs = rqdatac.all_instruments(type=code_type, market="cn", date=None)
-    codes = list(cs.order_book_id)
-    # 获取上次更新截止时间
-    # 连接2个数据库
-    sqlsa = sqlConfig("minute_data_stock_alter")
-    sqlia = sqlConfig("minute_data_index_alter")
-    last_date = max(sqlsa.show_tables(full=False))
-    # 本次更新起始日期
-    start_date = pd.Timestamp(str(last_date)) + pd.Timedelta(days=1)
-    start_date = datetime.datetime.strftime(start_date, "%Y-%m-%d")
-    # 本次更新终止日期
-    end_date = datetime.datetime.now()
-    if end_date.hour < 17:
-        end_date = end_date - pd.Timedelta(days=1)
-    end_date = datetime.datetime.strftime(end_date, "%Y-%m-%d")
-    logger.info(f"本次将下载从{start_date}到{end_date}的数据")
-    # 下载数据
-    ts = rqdatac.get_price(
-        codes,
-        start_date=start_date,
-        end_date=end_date,
-        frequency="1m",
-        fields=["volume", "total_turnover", "high", "low", "close", "open"],
-        adjust_type="none",
-        skip_suspended=False,
-        market="cn",
-        expect_df=True,
-        time_slice=None,
-    )
-    # 调整数据格式
-    ts = ts.reset_index()
-    ts = ts.rename(
-        columns={
-            "order_book_id": "code",
-            "datetime": "date",
-            "volume": "amount",
-            "total_turnover": "money",
-        }
-    )
-    ts = ts.sort_values(["code", "date"])
-    ts.date = ts.date.dt.strftime("%Y%m%d").astype(int)
-    ts = ts.groupby(["code", "date"]).apply(
-        lambda x: x.assign(num=list(range(1, x.shape[0] + 1)))
-    )
-    ts.code = ts.code.str.replace(".XSHE", ".SZ")
-    ts.code = ts.code.str.replace(".XSHG", ".SH")
-    codes = list(set(ts.code))
-    dates = list(set(ts.date))
-    # 数据写入数据库
-    fails = []
-    # 股票
-    if kind == "stock":
-        # 把每天写入每天所有股票一张表
-        for date in dates:
-            dfi = ts[ts.date == date]
-            try:
-                dfi.drop(columns=["date"]).to_sql(
-                    name=str(date),
-                    con=sqlsa.engine,
-                    if_exists="append",
-                    index=False,
-                    dtype={
-                        "code": VARCHAR(9),
-                        "open": FLOAT,
-                        "high": FLOAT,
-                        "low": FLOAT,
-                        "close": FLOAT,
-                        "amount": FLOAT,
-                        "money": FLOAT,
-                        "num": INT,
-                    },
-                )
-            except Exception:
-                try:
-                    if sqlsa.get_data(date).shape[0] == 0:
-                        dfi.drop(columns=["date"]).to_sql(
-                            name=str(date),
-                            con=sqlsa.engine,
-                            if_exists="replace",
-                            index=False,
-                            dtype={
-                                "code": VARCHAR(9),
-                                "open": FLOAT,
-                                "high": FLOAT,
-                                "low": FLOAT,
-                                "close": FLOAT,
-                                "amount": FLOAT,
-                                "money": FLOAT,
-                                "num": INT,
-                            },
-                        )
-                except Exception:
-                    fails.append(date)
-                    logger.warning(f"股票{date}写入失败了，请检查")
-    # 指数
-    else:
-        # 把每天写入每天所有指数一张表
-        for date in dates:
-            dfi = ts[ts.date == date]
-            try:
-                dfi.drop(columns=["date"]).to_sql(
-                    name=str(date),
-                    con=sqlia.engine,
-                    if_exists="append",
-                    index=False,
-                    dtype={
-                        "code": VARCHAR(9),
-                        "open": FLOAT,
-                        "high": FLOAT,
-                        "low": FLOAT,
-                        "close": FLOAT,
-                        "amount": FLOAT,
-                        "money": FLOAT,
-                        "num": INT,
-                    },
-                )
-            except Exception:
-                try:
-                    if sqlia.get_data(date).shape[0] == 0:
-                        dfi.drop(columns=["date"]).to_sql(
-                            name=str(date),
-                            con=sqlia.engine,
-                            if_exists="replace",
-                            index=False,
-                            dtype={
-                                "code": VARCHAR(9),
-                                "open": FLOAT,
-                                "high": FLOAT,
-                                "low": FLOAT,
-                                "close": FLOAT,
-                                "amount": FLOAT,
-                                "money": FLOAT,
-                                "num": INT,
-                            },
-                        )
-                except Exception:
-                    fails.append(date)
-                    logger.warning(f"指数{date}写入失败了，请检查")
-
-    # 获取剩余使用额
-    user2 = round(rqdatac.user.get_quota()["bytes_used"] / 1024 / 1024, 2)
-    user12 = round(user2 - user1, 2)
-    logger.info(f"今日已使用rqsdk流量{user2}MB，本项更新消耗流量{user12}MB")
+        logger.warning(f"从{start_date}到{end_date}暂无数据")
 
 
 @retry
@@ -864,31 +609,34 @@ def database_update_barra_files():
         "nonlinearsize",
     ]
     ds = {k: [] for k in style_names}
-    for t in tqdm.auto.tqdm(tradedates):
-        style = download_single_day_style(t)
-        style.columns = style.columns.str.lower()
-        style = style.rename(
-            columns={
-                "earnyild": "earningsyield",
-                "tradedate": "date",
-                "ticker": "code",
-                "resvol": "residualvolatility",
-                "btop": "booktoprice",
-                "sizenl": "nonlinearsize",
-                "liquidty": "liquidity",
-            }
-        )
-        style.date = pd.to_datetime(style.date, format="%Y%m%d")
-        style.code = style.code.apply(add_suffix)
-        sts = list(style.columns)[2:]
-        for s in sts:
-            ds[s].append(style.pivot(columns="code", index="date", values=s))
-    for k, v in ds.items():
-        old = pd.read_parquet(homeplace.barra_data_file + k + ".parquet")
-        new = pd.concat(v)
-        new = pd.concat([old, new])
-        new.to_parquet(homeplace.barra_data_file + k + ".parquet")
-    logger.success(f"风格暴露数据已经更新到{now}")
+    if len(tradedates) >= 1:
+        for t in tqdm.auto.tqdm(tradedates):
+            style = download_single_day_style(t)
+            style.columns = style.columns.str.lower()
+            style = style.rename(
+                columns={
+                    "earnyild": "earningsyield",
+                    "tradedate": "date",
+                    "ticker": "code",
+                    "resvol": "residualvolatility",
+                    "btop": "booktoprice",
+                    "sizenl": "nonlinearsize",
+                    "liquidty": "liquidity",
+                }
+            )
+            style.date = pd.to_datetime(style.date, format="%Y%m%d")
+            style.code = style.code.apply(add_suffix)
+            sts = list(style.columns)[2:]
+            for s in sts:
+                ds[s].append(style.pivot(columns="code", index="date", values=s))
+        for k, v in ds.items():
+            old = pd.read_parquet(homeplace.barra_data_file + k + ".parquet")
+            new = pd.concat(v)
+            new = pd.concat([old, new])
+            new.to_parquet(homeplace.barra_data_file + k + ".parquet")
+        logger.success(f"风格暴露数据已经更新到{now}")
+    else:
+        logger.info("从上次更新到这次更新，还没有经过交易日。放假就好好休息吧，别跑代码了🤒")
 
 
 """更新300、500、1000行情数据"""
@@ -1226,17 +974,21 @@ def database_update_money_flow():
             code=code, start_date=start_date_str, end_date=now_str
         )
         dfs.append(df)
-    dfs = pd.concat(dfs)
-    dfs = dfs.rename(columns={"trade_dt": "date"})
-    dfs.date = pd.to_datetime(dfs.date, format="%Y%m%d")
-    ws = [i for i in list(dfs.columns) if i not in ["date", "code"]]
-    for w in ws:
-        old = pd.read_parquet(homeplace.daily_data_file + w[:-6] + ".parquet")
-        new = dfs.pivot(index="date", columns="code", values=w)
-        new = pd.concat([old, new])
-        new = new[sorted(list(new.columns))]
-        new.to_parquet(homeplace.daily_data_file + w[:-6] + ".parquet")
-    logger.success(f"已经将资金流数据更新到{now_str}")
+    dfs = [i for i in dfs if i is not None]
+    if len(dfs) > 0:
+        dfs = pd.concat(dfs)
+        dfs = dfs.rename(columns={"trade_dt": "date"})
+        dfs.date = pd.to_datetime(dfs.date, format="%Y%m%d")
+        ws = [i for i in list(dfs.columns) if i not in ["date", "code"]]
+        for w in ws:
+            old = pd.read_parquet(homeplace.daily_data_file + w[:-6] + ".parquet")
+            new = dfs.pivot(index="date", columns="code", values=w)
+            new = pd.concat([old, new])
+            new = new[sorted(list(new.columns))]
+            new.to_parquet(homeplace.daily_data_file + w[:-6] + ".parquet")
+        logger.success(f"已经将资金流数据更新到{now_str}")
+    else:
+        logger.warning(f"从{start_date_str}到{now_str}暂无数据")
 
 
 def database_update_zxindustry_member():
@@ -1249,6 +1001,7 @@ def database_update_zxindustry_member():
     now_str = datetime.datetime.strftime(now, "%Y%m%d")
     logger.info(f"中信一级行业数据，上次更新到了{old_enddate_str}，本次将更新至{now_str}")
     start_date = old_enddate + pd.Timedelta(days=1)
+    start_date = datetime.datetime.strftime(start_date, "%Y%m%d")
     codes = list(
         set(rqdatac.all_instruments(type="CS", market="cn", date=None).order_book_id)
     )
@@ -1257,46 +1010,49 @@ def database_update_zxindustry_member():
     dates = list(trs.index)
     dfs_codes = []
     dfs_names = []
-    for date in tqdm.auto.tqdm(dates):
-        df = rqdatac.get_instrument_industry(
-            codes, source="citics_2019", date=date, level=1
-        )
-        if df.shape[0] > 0:
-            df_code = df.first_industry_code.to_frame(date)
-            df_name = df.first_industry_name.to_frame(date)
-            dfs_codes.append(df_code)
-            dfs_names.append(df_name)
-    dfs_codes = pd.concat(dfs_codes, axis=1)
-    dfs_names = pd.concat(dfs_names, axis=1)
+    if len(dates) >= 1:
+        for date in tqdm.auto.tqdm(dates):
+            df = rqdatac.get_instrument_industry(
+                codes, source="citics_2019", date=date, level=1
+            )
+            if df.shape[0] > 0:
+                df_code = df.first_industry_code.to_frame(date)
+                df_name = df.first_industry_name.to_frame(date)
+                dfs_codes.append(df_code)
+                dfs_names.append(df_name)
+        dfs_codes = pd.concat(dfs_codes, axis=1)
+        dfs_names = pd.concat(dfs_names, axis=1)
 
-    def new_get_dummies(df):
-        dums = []
-        for col in tqdm.auto.tqdm(list(df.columns)):
-            series = df[col]
-            dum = pd.get_dummies(series)
-            dum = dum.reset_index()
-            dum = dum.assign(date=col)
-            dums.append(dum)
-        dums = pd.concat(dums)
-        return dums
+        def new_get_dummies(df):
+            dums = []
+            for col in tqdm.auto.tqdm(list(df.columns)):
+                series = df[col]
+                dum = pd.get_dummies(series)
+                dum = dum.reset_index()
+                dum = dum.assign(date=col)
+                dums.append(dum)
+            dums = pd.concat(dums)
+            return dums
 
-    dfs_codes = new_get_dummies(dfs_codes)
-    dfs_names = new_get_dummies(dfs_names)
+        dfs_codes = new_get_dummies(dfs_codes)
+        dfs_names = new_get_dummies(dfs_names)
 
-    a = read_daily(tr=1, start=20100101)
+        a = read_daily(tr=1, start=20100101)
 
-    def save(df, old, file):
-        df = df.rename(columns={"order_book_id": "code"})
-        df = df[["date", "code"] + sorted(list(df.columns)[1:-1])]
-        df.code = df.code.apply(lambda x: convert_code(x)[0])
-        df = pd.concat([old, df], ignore_index=True)
-        df = df[df.date.isin(list(a.index))]
-        df.reset_index(drop=True).to_parquet(homeplace.daily_data_file + file)
-        return df
+        def save(df, old, file):
+            df = df.rename(columns={"order_book_id": "code"})
+            df = df[["date", "code"] + sorted(list(df.columns)[1:-1])]
+            df.code = df.code.apply(lambda x: convert_code(x)[0])
+            df = pd.concat([old, df], ignore_index=True)
+            df = df[df.date.isin(list(a.index))]
+            df.reset_index(drop=True).to_parquet(homeplace.daily_data_file + file)
+            return df
 
-    dfs_codes = save(dfs_codes, old_codes, "中信一级行业哑变量代码版.parquet")
-    dfs_names = save(dfs_names, old_names, "中信一级行业哑变量名称版.parquet")
-    logger.success(f"中信一级行业数据已经更新至{now_str}了")
+        dfs_codes = save(dfs_codes, old_codes, "中信一级行业哑变量代码版.parquet")
+        dfs_names = save(dfs_names, old_names, "中信一级行业哑变量名称版.parquet")
+        logger.success(f"中信一级行业数据已经更新至{now_str}了")
+    else:
+        logger.warning(f"从{start_date}到{now_str}暂无数据")
 
 
 def database_update_idiosyncratic_ret():

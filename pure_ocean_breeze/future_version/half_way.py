@@ -1,7 +1,9 @@
-__updated__ = "2023-02-23 12:36:54"
+__updated__ = "2023-02-27 15:22:19"
 
 import numpy as np
 import pandas as pd
+import time
+from sqlalchemy import FLOAT, INT, VARCHAR, BIGINT
 import knockknock as kk
 import matplotlib.pyplot as plt
 
@@ -20,6 +22,43 @@ from pure_ocean_breeze.data.tools import drop_duplicates_index
 from pure_ocean_breeze.labor.process import pure_moon, decap_industry
 from pure_ocean_breeze.data.read_data import read_daily
 from pure_ocean_breeze.state.homeplace import HomePlace
+from pure_ocean_breeze.data.database import PostgreSQL
+
+try:
+    import rqdatac
+
+    rqdatac.init()
+except Exception as e:
+    print(e)
+    desicion = input("米筐连接暂时有错误，是否等待并继续连接，等待请输入y，不等待则输入n")
+    if desicion == "y":
+        print("连接米筐暂时有错误，将等待30秒后重试")
+        time.sleep(30)
+        try:
+            import rqdatac
+
+            rqdatac.init()
+        except Exception as e:
+            print(e)
+            print("连接米筐暂时有错误，将等待60秒后重试")
+            time.sleep(60)
+            try:
+                import rqdatac
+
+                rqdatac.init()
+            except Exception as e:
+                print(e)
+                print("连接米筐暂时有错误，将等待60秒后重试")
+                time.sleep(60)
+                try:
+                    import rqdatac
+
+                    rqdatac.init()
+                except Exception as e:
+                    print(e)
+                    print("暂时未连接米筐")
+    else:
+        print("暂时未连接米筐")
 
 
 class pure_cloud(object):
@@ -440,3 +479,99 @@ class pure_fall_flexible(object):
             self.factor = self.factor_old
             new_end_date = datetime.datetime.strftime(self.factor.index.max(), "%Y%m%d")
             logger.info(f"当前截止到{new_end_date}的因子值已经是最新的了")
+            
+            
+def database_update_minute_data_to_postgresql(kind: str) -> None:
+    """使用米筐更新分钟数据至postgresql中
+
+    Parameters
+    ----------
+    kind : str
+        更新股票分钟数据或指数分钟数据，股票则'stock'，指数则'index'
+
+    Raises
+    ------
+    `IOError`
+        如果未指定股票还是指数，将报错
+    """
+    if kind == "stock":
+        code_type = "CS"
+    elif kind == "index":
+        code_type = "INDX"
+    else:
+        raise IOError("总得指定一种类型吧？请从stock和index中选一个")
+    # 获取剩余使用额
+    user1 = round(rqdatac.user.get_quota()["bytes_used"] / 1024 / 1024, 2)
+    logger.info(f"今日已使用rqsdk流量{user1}MB")
+    # 获取全部股票/指数代码
+    cs = rqdatac.all_instruments(type=code_type, market="cn", date=None)
+    codes = list(cs.order_book_id)
+    # 获取上次更新截止时间
+    try:
+        qdb = Questdb()
+        last_date = max(qdb.show_all_dates(f"minute_data_{kind}"))
+    except Exception:
+        qdb = Questdb(web_port="9000")
+        last_date = max(qdb.show_all_dates(f"minute_data_{kind}"))
+    # 本次更新起始日期
+    start_date = pd.Timestamp(str(last_date)) + pd.Timedelta(days=1)
+    start_date = datetime.datetime.strftime(start_date, "%Y-%m-%d")
+    # 本次更新终止日期
+    end_date = datetime.datetime.now()
+    if end_date.hour < 17:
+        end_date = end_date - pd.Timedelta(days=1)
+    end_date = datetime.datetime.strftime(end_date, "%Y-%m-%d")
+    logger.info(f"本次将下载从{start_date}到{end_date}的数据")
+    # 下载数据
+    ts = rqdatac.get_price(
+        codes,
+        start_date=start_date,
+        end_date=end_date,
+        frequency="1m",
+        fields=["volume", "total_turnover", "high", "low", "close", "open"],
+        adjust_type="none",
+        skip_suspended=False,
+        market="cn",
+        expect_df=True,
+        time_slice=None,
+    )
+    # 调整数据格式
+    ts = ts.reset_index()
+    ts = ts.rename(
+        columns={
+            "order_book_id": "code",
+            "datetime": "date",
+            "volume": "amount",
+            "total_turnover": "money",
+        }
+    )
+    ts = ts.sort_values(["code", "date"])
+    ts.date = ts.date.dt.strftime("%Y%m%d").astype(int)
+    ts = ts.groupby(["code", "date"]).apply(
+        lambda x: x.assign(num=list(range(1, x.shape[0] + 1)))
+    )
+    ts.code = ts.code.str.replace(".XSHE", ".SZ")
+    ts.code = ts.code.str.replace(".XSHG", ".SH")
+    # 数据写入数据库
+    pgdb = PostgreSQL("minute_data")
+    ts.to_sql(
+        f"minute_data_{kind}",
+        pgdb.engine,
+        if_exists="append",
+        index=False,
+        dtype={
+            "code": VARCHAR(9),
+            "date": INT,
+            "open": FLOAT,
+            "high": FLOAT,
+            "low": FLOAT,
+            "close": FLOAT,
+            "amount": FLOAT,
+            "money": FLOAT,
+            "num": INT,
+        },
+    )
+    # 获取剩余使用额
+    user2 = round(rqdatac.user.get_quota()["bytes_used"] / 1024 / 1024, 2)
+    user12 = round(user2 - user1, 2)
+    logger.info(f"今日已使用rqsdk流量{user2}MB，本项更新消耗流量{user12}MB")

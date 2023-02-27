@@ -1,5 +1,9 @@
 ## 更新日志🗓 — v3
 
+* v3.7.8 — 2023.2.27
+> 1. 给pure_fall_frequent的读取questdb备份表时增加了去除重复行的功能
+> 1. 将database_update_minute_data_to_postgresql移至future_version模块中，删去了其默认加载
+> 1. 优化了database_update_minute_data_to_clickhouse_and_questdb、database_update_minute_data_to_questdb、database_update_barra_files、database_update_money_flow、database_update_zxindustry_member在无更新数据或重复更新时的警告提示
 * v3.7.7 — 2023.2.23
 > 1. 修复了Questdb的get_data_with_tuple方法，读取数据异常的bug
 > 1. 对pure_fall_frequent的get_daily_factors方法新增了n_jobs参数，用于开启基于mpire的并行加速

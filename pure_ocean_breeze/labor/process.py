@@ -1,4 +1,4 @@
-__updated__ = "2023-02-23 22:46:58"
+__updated__ = "2023-02-23 23:22:52"
 
 import warnings
 
@@ -2999,7 +2999,7 @@ class pure_fall_frequent(object):
             )
             factor_old = self.factor_steps.get_data_with_tuple(
                 f"select * from '{self.factor_file_pinyin}'"
-            )
+            ).drop_duplicates()
             factor_old = factor_old.pivot(index="date", columns="code", values="fac")
             factor_old = factor_old.sort_index()
             self.factor_old = factor_old
