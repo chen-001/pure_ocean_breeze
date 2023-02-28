@@ -1,4 +1,4 @@
-__updated__ = "2023-02-23 23:22:52"
+__updated__ = "2023-02-27 21:31:18"
 
 import warnings
 
@@ -3829,38 +3829,179 @@ class pure_dawn(object):
         start_day = tradedays[start_day_index]
         return start_day
 
-    def make_monthly_factors_single_code(self, df, func):
+    def make_monthly_factors_single_code(self, df, func, daily):
         """
         对单一股票来计算月度因子
         func为单月执行的函数，返回值应为月度因子，如一个float或一个list
         df为一个股票的四列表，包含时间、代码、因子1和因子2
         """
         res = {}
-        for start, end in zip(self.month_starts, self.month_ends):
+        if daily:
+            ones = [self.find_begin(i) for i in self.tradedays[self.backsee - 1 :]]
+            twos = self.tradedays[self.backsee - 1 :]
+        else:
+            ones = self.month_starts
+            twos = self.month_ends
+        for start, end in zip(ones, twos):
             this_month = df[(df.date >= start) & (df.date <= end)]
             res[end] = func(this_month)
         dates = list(res.keys())
         corrs = list(res.values())
         part = pd.DataFrame({"date": dates, "corr": corrs})
         return part
+    
+    @staticmethod
+    def for_cross_via_zip(func):
+        """返回值为多个pd.Series，每个pd.Series的index为股票代码，values为单个因子值
+        例如
+        ```python
+        return (
+                    pd.Series([1.54,8.77,9.99……],index=['000001.SZ','000002.SZ','000004.SZ'……]),
+                    pd.Series([3.54,6.98,9.01……],index=['000001.SZ','000002.SZ','000004.SZ'……]),
+                )
+        ```
+        上例中，每个股票一天返回两个因子值，每个pd.Series对应一个因子值
+        """
 
-    def get_monthly_factor(self, func):
+        def full_run(df, *args, **kwargs):
+            res = func(df, *args, **kwargs)
+            if isinstance(res, pd.Series):
+                return res
+            else:
+                res = pd.concat(res, axis=1)
+                res.columns = [f"fac{i}" for i in range(len(res.columns))]
+                res = res.assign(fac=list(zip(*[res[i] for i in list(res.columns)])))
+                return res.fac
+
+        return full_run
+
+    def get_monthly_factor(
+        self, func, whole_cross: bool = 0, daily: bool = 0, history_file: str = None
+    ):
         """运行自己写的函数，获得月度因子"""
-        tqdm.auto.tqdm.pandas(desc="when the dawn comes, tonight will be a memory too.")
-        self.fac = self.fac.groupby(["code"]).progress_apply(
-            lambda x: self.make_monthly_factors_single_code(x, func)
-        )
-        self.fac = (
-            self.fac.reset_index(level=1, drop=True)
-            .reset_index()
-            .set_index(["date", "code"])
-            .unstack()
-        )
-        self.fac.columns = [i[1] for i in list(self.fac.columns)]
-        self.fac = self.fac.resample("M").last()
+        if daily:
+            iter_item = self.tradedays[self.backsee - 1 :]
+        else:
+            iter_item = self.month_ends
+        res = []
+        if history_file is not None:
+            if os.path.exists(homeplace.update_data_file + history_file):
+                old = pd.read_parquet(homeplace.update_data_file + history_file)
+                old_date = old.index.max()
+                if old_date == self.fac.date.max():
+                    logger.info(f"本地文件已经是最新的了，无需计算")
+                else:
+                    new_date = self.find_begin(self.tradedays, old_date, self.backsee)
+                    fac = self.fac[self.fac.date > new_date]
+                    iter_item = [i for i in iter_item if i > new_date]
+                    if whole_cross:
+                        for end_date in tqdm.auto.tqdm(iter_item):
+                            start_date = self.find_begin(
+                                self.tradedays, end_date, self.backsee
+                            )
+                            df = fac[(fac.date >= start_date) & (fac.date <= end_date)]
+                            df = func(df)
+                            df = df.to_frame().T
+                            df.index = [end_date]
+                            res.append(df)
+                        fac = pd.concat(res).resample("M").last()
+                        self.fac = pd.concat([old, fac])
+                    else:
+                        tqdm.auto.tqdm.pandas(
+                            desc="when the dawn comes, tonight will be a memory too."
+                        )
+                        fac = fac.groupby(["code"]).progress_apply(
+                            lambda x: self.make_monthly_factors_single_code(
+                                x, func, daily=daily
+                            )
+                        )
+                        fac = (
+                            fac.reset_index(level=1, drop=True)
+                            .reset_index()
+                            .set_index(["date", "code"])
+                            .unstack()
+                        )
+                        fac.columns = [i[1] for i in list(fac.columns)]
+                        fac = fac.resample("M").last()
+                        self.fac = pd.concat([old, fac])
+                    self.fac.to_parquet(homeplace.update_data_file + history_file)
+                    logger.success(f"本地文件已经更新完成")
+            else:
+                logger.info("第一次计算，请耐心等待……")
+                if whole_cross:
+                    for end_date in tqdm.auto.tqdm(iter_item):
+                        start_date = self.find_begin(
+                            self.tradedays, end_date, self.backsee
+                        )
+                        df = self.fac[
+                            (self.fac.date >= start_date) & (self.fac.date <= end_date)
+                        ]
+                        df = func(df)
+                        df = df.to_frame().T
+                        df.index = [end_date]
+                        res.append(df)
+                    self.fac = pd.concat(res).resample("M").last()
+                else:
+                    tqdm.auto.tqdm.pandas(
+                        desc="when the dawn comes, tonight will be a memory too."
+                    )
+                    self.fac = self.fac.groupby(["code"]).progress_apply(
+                        lambda x: self.make_monthly_factors_single_code(
+                            x, func, daily=daily
+                        )
+                    )
+                    self.fac = (
+                        self.fac.reset_index(level=1, drop=True)
+                        .reset_index()
+                        .set_index(["date", "code"])
+                        .unstack()
+                    )
+                    self.fac.columns = [i[1] for i in list(self.fac.columns)]
+                    self.fac = self.fac.resample("M").last()
+                self.fac.to_parquet(homeplace.update_data_file + history_file)
+                logger.success(f"本地文件已经写入完成")
+        else:
+            logger.warning("您本次计算没有指定任何本地文件路径，这很可能会导致大量的重复计算和不必要的时间浪费，请注意！")
+            if daily:
+                logger.warning("您指定的是日频计算，非月频计算，因此强烈建议您指定history_file参数！！")
+            if whole_cross:
+                for end_date in tqdm.auto.tqdm(iter_item):
+                    start_date = self.find_begin(self.tradedays, end_date, self.backsee)
+                    df = self.fac[
+                        (self.fac.date >= start_date) & (self.fac.date <= end_date)
+                    ]
+                    df = func(df)
+                    df = df.to_frame().T
+                    df.index = [end_date]
+                    res.append(df)
+                self.fac = pd.concat(res).resample("M").last()
+            else:
+                tqdm.auto.tqdm.pandas(
+                    desc="when the dawn comes, tonight will be a memory too."
+                )
+                self.fac = self.fac.groupby(["code"]).progress_apply(
+                    lambda x: self.make_monthly_factors_single_code(
+                        x, func, daily=daily
+                    )
+                )
+                self.fac = (
+                    self.fac.reset_index(level=1, drop=True)
+                    .reset_index()
+                    .set_index(["date", "code"])
+                    .unstack()
+                )
+                self.fac.columns = [i[1] for i in list(self.fac.columns)]
+                self.fac = self.fac.resample("M").last()
 
     @kk.desktop_sender(title="嘿，切割完成啦🛁")
-    def run(self, func: Callable, backsee: int = 20) -> None:
+    def run(
+        self,
+        func: Callable,
+        backsee: int = 20,
+        whole_cross: bool = 0,
+        daily: bool = 0,
+        history_file: str = None,
+    ) -> None:
         """执行计算的框架，产生因子值
 
         Parameters
@@ -3869,10 +4010,19 @@ class pure_dawn(object):
             每个月要进行的操作
         backsee : int, optional
             回看期，即每个月月底对过去多少天进行计算, by default 20
+        whole_cross : bool, optional
+            是否同时取横截面上所有股票进行计算, by default 20
+        daily : bool, optional
+            是否每日计算, by default 20
+        history_file : str, optional
+            存储历史数据的文件名, by default None
         """
+        self.backsee = backsee
         self.get_fac_long_and_tradedays()
         self.get_month_starts_and_ends(backsee=backsee)
-        self.get_monthly_factor(func)
+        self.get_monthly_factor(
+            func, whole_cross=whole_cross, daily=daily, history_file=history_file
+        )
 
 
 @do_on_dfs

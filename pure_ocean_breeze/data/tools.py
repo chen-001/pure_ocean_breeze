@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2023-02-23 12:30:03"
+__updated__ = "2023-02-27 20:39:34"
 
 import os
 import pandas as pd
@@ -590,6 +590,19 @@ def func_two_daily(
                 new_end = datetime.datetime.strftime(cors.index.max(), "%Y%m%d")
                 logger.info(f"已经更新至{new_end}")
             return cors
+    else:
+        logger.warning("您本次计算没有指定任何本地文件路径，这很可能会导致大量的重复计算和不必要的时间浪费，请注意！")
+        twins = merge_many([df1, df2])
+        tqdm.auto.tqdm.pandas()
+        corrs = twins.groupby(["code"]).progress_apply(func_rolling)
+        cor = []
+        for i in range(len(corrs)):
+            df = pd.DataFrame(corrs.iloc[i]).dropna().assign(code=corrs.index[i])
+            cor.append(df)
+        cors = pd.concat(cor)
+        cors.columns = ["date", "corr", "code"]
+        cors = cors.pivot(index="date", columns="code", values="corr")
+        return cors
 
 
 @do_on_dfs
