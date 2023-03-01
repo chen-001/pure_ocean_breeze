@@ -1,5 +1,9 @@
 ## 更新日志🗓 — v3
 
+* v3.8.0 — 2023.3.1
+> 1. 修复了同一host下的questdb多次备份的bug
+> 1. 修复了Questdb恢复备份的名称不同的bug
+> 1. 修复了pure_fall_frequent被打断继续后，读取备份表格异常的bug
 * v3.7.9 — 2023.2.28
 > 1. 修复了func_two_daily的history参数为None时，无法计算的bug
 > 1. 给pure_dawn的run方法新增了history、daily和whole_cross参数，分别用于指定历史文件、是否每日计算、是否使用横截面全部股票一起计算

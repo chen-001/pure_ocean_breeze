@@ -1,4 +1,4 @@
-__updated__ = "2023-02-23 16:16:34"
+__updated__ = "2023-03-01 02:22:56"
 
 import pandas as pd
 import pymysql
@@ -952,7 +952,12 @@ class Questdb(DriverOfPostgre):
 
         def eval_it(x):
             if "," in x.iloc[0]:
-                x = x.apply(lambda y:[float(i) if y not in ['nan', ' nan'] else np.nan for i in y[1:-1].split(',')])
+                x = x.apply(
+                    lambda y: [
+                        float(i) if y not in ["nan", " nan"] else np.nan
+                        for i in y[1:-1].split(",")
+                    ]
+                )
             else:
                 x = x.astype(float)
             return x
@@ -1050,7 +1055,8 @@ class Questdb(DriverOfPostgre):
         """下载某个questdb数据库下所有的表格"""
         homeplace = HomePlace()
         path = homeplace.update_data_file + self.host + "_copy/"
-        os.makedirs(path)
+        if not os.path.exists(path):
+            os.makedirs(path)
         tables = [
             i
             for i in list(self.show_all_tables().table)
@@ -1079,6 +1085,9 @@ class Questdb(DriverOfPostgre):
         logger.info(f"共{len(files)}个表，分别为{files}")
         for file in files:
             logger.info(f"正在上传{file}表……")
-            self.write_via_df(pd.read_parquet(path + file + ".parquet"), file)
+            self.write_via_df(
+                pd.read_parquet(path + file + ".parquet"),
+                file.split(self.host + "_")[-1],
+            )
             logger.success(f"{file}表上传完成")
         logger.success("所有表上传完成")
