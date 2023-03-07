@@ -1,5 +1,8 @@
 ## 更新日志🗓 — v3
 
+* v3.8.1 — 2023.3.8
+> 1. 修复了get_fac_via_corr和get_fac_cross_via_func更新时使用数据错误的问题
+> 1. 新增了FactorReader模块，可向云端数据库写入新数据，功能与factor_reader==0.3.3的写入部分一致
 * v3.8.0 — 2023.3.1
 > 1. 修复了同一host下的questdb多次备份的bug
 > 1. 修复了Questdb恢复备份的名称不同的bug

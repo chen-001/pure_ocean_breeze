@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2023-02-27 20:39:34"
+__updated__ = "2023-03-06 11:22:03"
 
 import os
 import pandas as pd
@@ -619,7 +619,7 @@ def drop_duplicates_index(new: pd.DataFrame) -> pd.DataFrame:
     pd.DataFrame
         去重后的dataframe
     """
-    pri_name=new.index.name
+    pri_name = new.index.name
     new = new.reset_index()
     new = new.rename(
         columns={
@@ -630,10 +630,10 @@ def drop_duplicates_index(new: pd.DataFrame) -> pd.DataFrame:
         subset=["tmp_name_for_this_function_never_same_to_others"], keep="first"
     )
     new = new.set_index("tmp_name_for_this_function_never_same_to_others")
-    if pri_name=="tmp_name_for_this_function_never_same_to_others":
-        new.index.name='date'
+    if pri_name == "tmp_name_for_this_function_never_same_to_others":
+        new.index.name = "date"
     else:
-        new.index.name=pri_name
+        new.index.name = pri_name
     return new
 
 
@@ -1029,7 +1029,6 @@ def same_columns(dfs: list[pd.DataFrame]) -> list[pd.DataFrame]:
     dfs = [i.T for i in dfs]
     res = []
     for i, df in enumerate(dfs):
-
         others = dfs[:i] + dfs[i + 1 :]
 
         for other in others:
@@ -1053,7 +1052,6 @@ def same_index(dfs: list[pd.DataFrame]) -> list[pd.DataFrame]:
     """
     res = []
     for i, df in enumerate(dfs):
-
         others = dfs[:i] + dfs[i + 1 :]
 
         for other in others:
@@ -1183,8 +1181,9 @@ def get_fac_via_corr(
     else:
         old = None
     if old is not None:
-        old_tail = old.tail(backsee - 1)
         old_end = old.index.max()
+        pastpart = df[df.index <= old_end]
+        old_tail = pastpart.tail(backsee - 1)
         old_end_str = datetime.datetime.strftime(old_end, "%Y%m%d")
         logger.info(f"上次计算到了{old_end_str}")
         df = df[df.index > old_end]
@@ -1308,8 +1307,9 @@ def get_fac_cross_via_func(
     else:
         old = None
     if old is not None:
-        old_tail = old.tail(backsee - 1)
         old_end = old.index.max()
+        pastpart = df[df.index <= old_end]
+        old_tail = pastpart.tail(backsee - 1)
         old_end_str = datetime.datetime.strftime(old_end, "%Y%m%d")
         logger.info(f"上次计算到了{old_end_str}")
         df = df[df.index > old_end]

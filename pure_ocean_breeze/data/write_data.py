@@ -1,4 +1,4 @@
-__updated__ = "2023-02-27 16:49:30"
+__updated__ = "2023-03-07 18:08:00"
 
 import time
 
@@ -44,6 +44,7 @@ import time
 import datetime
 import numpy as np
 import pandas as pd
+import psycopg2 as pg
 import scipy.io as scio
 from sqlalchemy import FLOAT, INT, VARCHAR, BIGINT
 from tenacity import retry
@@ -51,6 +52,8 @@ import pickledb
 import tqdm.auto
 from functools import reduce
 import dcube as dc
+from tenacity import retry, stop_after_attempt
+import questdb.ingress as qdbing
 from pure_ocean_breeze.state.homeplace import HomePlace
 
 homeplace = HomePlace()
@@ -1103,3 +1106,123 @@ def database_update_industry_rets_for_stock():
     ).replace(-1000, np.nan)
     res.to_parquet(homeplace.daily_data_file + "股票对应申万一级行业每日收益率.parquet")
     logger.success("股票对应申万一级行业每日收益率已经更新完")
+
+
+
+class FactorReader():
+    
+    def __init__(
+        self,
+        user: str = "admin",
+        password: str = "quest",
+        host: str = "127.0.0.1",
+        port: str = "8812",
+        database: str = "qdb",
+    ) -> None:
+        """通过postgre的psycopg2驱动连接questdb数据库
+
+        Parameters
+        ----------
+        user : str, optional
+            用户名, by default "admin"
+        password : str, optional
+            密码, by default "quest"
+        host : str, optional
+            地址, by default "43.143.223.158"
+        port : str, optional
+            端口, by default "8812"
+        database : str, optional
+            数据库, by default "qdb"
+        """
+        self.user = user
+        self.password = password
+        self.host = host
+        self.port = port
+        self.database = database
+        infos=self.show_all_factors_information()
+        self.keys=list(infos.数据键名)
+        self.names=list(infos.因子名称)
+        self.keys_names = {k: v for k, v in zip(self.keys, self.names)}
+        self.names_keys = {k: v for k, v in zip(self.names, self.keys)}
+        
+    def __connect(self):
+        conn = pg.connect(
+            user=self.user,
+            password=self.password,
+            host=self.host,
+            port=self.port,
+            database=self.database,
+        )
+        return conn
+    
+    def __update_factor(self,table_name:str,df:pd.DataFrame):
+        tables=self.__get_data("show tables").table.tolist()
+        if table_name in tables:
+            logger.info(f'{table_name}已经存在了，即将更新')
+            old_end=self.__get_data(f"select max(date) from {table_name}").iloc[0,0]
+            new=df[df.index>old_end]
+            new=new.stack().reset_index()
+            new.columns=['date','code','fac']
+        else:
+            logger.info(f'{table_name}第一次上传')
+            new=df.stack().reset_index()
+            new.columns=['date','code','fac']
+        self.__write_via_df(new,table_name)
+        
+    def __write_via_df(
+        self,
+        df: pd.DataFrame,
+        table_name: str,
+        symbols= None,
+        tuple_col= None,
+    ) -> None:
+        """通过questdb的python库直接将dataframe写入quested数据库
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            要写入的dataframe
+        table_name : str
+            questdb中该表的表名
+        symbols : Union[str, bool, list[int], list[str]], optional
+            为symbols的那些列的名称, by default None
+        tuple_col : Union[str, list[str]], optional
+            数据类型为tuple或list的列的名字, by default None
+        """
+        if tuple_col is None:
+            ...
+        elif isinstance(tuple_col, str):
+            df[tuple_col] = df[tuple_col].apply(str)
+        else:
+            for t in tuple_col:
+                df[t] = df[t].apply(str)
+        if symbols is not None:
+            with qdbing.Sender(self.host, 9009) as sender:
+                sender.dataframe(df, table_name=table_name, symbols=symbols)
+        else:
+            with qdbing.Sender(self.host, 9009) as sender:
+                sender.dataframe(df, table_name=table_name)
+                
+    @retry(stop=stop_after_attempt(10))
+    def __get_data(
+        self, sql_order: str
+    ) -> pd.DataFrame:
+        """以sql命令的方式，从数据库中读取数据
+
+        Parameters
+        ----------
+        sql_order : str
+            sql命令
+
+        Returns
+        -------
+        pd.DataFrame
+            读取的结果
+        """
+        conn = self.__connect()
+        cursor = conn.cursor()
+        cursor.execute(sql_order)
+        df_data = cursor.fetchall()
+        columns = [i[0] for i in cursor.description]
+        df = pd.DataFrame(df_data, columns=columns)
+        return df
