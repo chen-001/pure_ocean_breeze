@@ -1,4 +1,4 @@
-__updated__ = "2023-03-07 18:08:00"
+__updated__ = "2023-03-10 12:14:50"
 
 import time
 
@@ -51,6 +51,7 @@ from tenacity import retry
 import pickledb
 import tqdm.auto
 from functools import reduce
+from typing import Union
 import dcube as dc
 from tenacity import retry, stop_after_attempt
 import questdb.ingress as qdbing
@@ -1108,9 +1109,7 @@ def database_update_industry_rets_for_stock():
     logger.success("股票对应申万一级行业每日收益率已经更新完")
 
 
-
-class FactorReader():
-    
+class FactorReader:
     def __init__(
         self,
         user: str = "admin",
@@ -1139,12 +1138,7 @@ class FactorReader():
         self.host = host
         self.port = port
         self.database = database
-        infos=self.show_all_factors_information()
-        self.keys=list(infos.数据键名)
-        self.names=list(infos.因子名称)
-        self.keys_names = {k: v for k, v in zip(self.keys, self.names)}
-        self.names_keys = {k: v for k, v in zip(self.names, self.keys)}
-        
+
     def __connect(self):
         conn = pg.connect(
             user=self.user,
@@ -1154,27 +1148,27 @@ class FactorReader():
             database=self.database,
         )
         return conn
-    
-    def __update_factor(self,table_name:str,df:pd.DataFrame):
-        tables=self.__get_data("show tables").table.tolist()
+
+    def update_factor(self, table_name: str, df: pd.DataFrame):
+        tables = self.__get_data("show tables").table.tolist()
         if table_name in tables:
-            logger.info(f'{table_name}已经存在了，即将更新')
-            old_end=self.__get_data(f"select max(date) from {table_name}").iloc[0,0]
-            new=df[df.index>old_end]
-            new=new.stack().reset_index()
-            new.columns=['date','code','fac']
+            logger.info(f"{table_name}已经存在了，即将更新")
+            old_end = self.__get_data(f"select max(date) from {table_name}").iloc[0, 0]
+            new = df[df.index > old_end]
+            new = new.stack().reset_index()
+            new.columns = ["date", "code", "fac"]
         else:
-            logger.info(f'{table_name}第一次上传')
-            new=df.stack().reset_index()
-            new.columns=['date','code','fac']
-        self.__write_via_df(new,table_name)
-        
+            logger.info(f"{table_name}第一次上传")
+            new = df.stack().reset_index()
+            new.columns = ["date", "code", "fac"]
+        self.__write_via_df(new, table_name)
+
     def __write_via_df(
         self,
         df: pd.DataFrame,
         table_name: str,
-        symbols= None,
-        tuple_col= None,
+        symbols=None,
+        tuple_col=None,
     ) -> None:
         """通过questdb的python库直接将dataframe写入quested数据库
 
@@ -1202,11 +1196,9 @@ class FactorReader():
         else:
             with qdbing.Sender(self.host, 9009) as sender:
                 sender.dataframe(df, table_name=table_name)
-                
+
     @retry(stop=stop_after_attempt(10))
-    def __get_data(
-        self, sql_order: str
-    ) -> pd.DataFrame:
+    def __get_data(self, sql_order: str) -> pd.DataFrame:
         """以sql命令的方式，从数据库中读取数据
 
         Parameters
@@ -1226,3 +1218,7 @@ class FactorReader():
         columns = [i[0] for i in cursor.description]
         df = pd.DataFrame(df_data, columns=columns)
         return df
+
+    def add_token(self, tokens: list[str], users: list[str]):
+        tus = pd.DataFrame({"token": tokens, "user": users})
+        self.__write_via_df(tus, "tokenlines")

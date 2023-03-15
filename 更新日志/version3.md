@@ -1,6 +1,19 @@
 ## 更新日志🗓 — v3
 
+* v3.8.2 — 2023.3.15
+> 1. 新增了get_list_std_weighted，用来计算多个df的加权标准差
+> 2. 调整了get_fac_via_corr、show_corr、pure_moon的spearman相关系数的计算方法
+> 3. 修复了FactorReader初始化的bug
+> 4. 将FactorReader的update_factor方法改为了可以在外部调用
+> 5. 给FactorReader新增了add_token方法
+> 6. 调整了make_relative_comments和make_relative_comments_plot的综合指数的走势的计算方法
+> 7. 去除了show_covs中的冗余参数
+> 8. 给show_corrs_with_old新增了only_new参数，默认仅测试新因子与其余旧因子之间的相关性
+> 9. 给pure_snowtrain新增了show_corr方法，用来更好展示因子与风格因子之间的相关性
+> 10. 修复了test_on_300500和test_on_index_four方法中分组数量不为10的bug
+
 * v3.8.1 — 2023.3.8
+
 > 1. 修复了get_fac_via_corr和get_fac_cross_via_func更新时使用数据错误的问题
 > 1. 新增了FactorReader模块，可向云端数据库写入新数据，功能与factor_reader==0.3.3的写入部分一致
 * v3.8.0 — 2023.3.1

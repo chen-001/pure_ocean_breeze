@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2023-03-06 11:22:03"
+__updated__ = "2023-03-12 11:54:26"
 
 import os
 import pandas as pd
@@ -993,6 +993,28 @@ def get_list_std(delta_sts: list[pd.DataFrame]) -> pd.DataFrame:
     return delta_sts_std
 
 
+def get_list_std_weighted(delta_sts: list[pd.DataFrame], weights: list) -> pd.DataFrame:
+    """对多个df对应位置上的值求加权标准差
+
+    Parameters
+    ----------
+    delta_sts : list[pd.DataFrame]
+        多个dataframe
+    weights : list
+        权重序列
+
+    Returns
+    -------
+    pd.DataFrame
+        标准差序列
+    """    
+    weights = [i / sum(weights) for i in weights]
+    delta_sts_mean = sum(delta_sts) / len(delta_sts)
+    delta_sts_std = [(i - delta_sts_mean) ** 2 for i in delta_sts]
+    delta_sts_std = sum([i * j for i, j in zip(delta_sts_std, weights)])
+    return delta_sts_std**0.5
+
+
 @do_on_dfs
 def to_group(df: pd.DataFrame, group: int = 10) -> pd.DataFrame:
     """把一个index为时间，code为时间的df，每个截面上的值，按照排序分为group组，将值改为组号，从0开始
@@ -1215,7 +1237,10 @@ def get_fac_via_corr(
                         .fillna(method=fillna_method)
                         .dropna(axis=1)
                     )
-                corr = df0.corr(method=corr_method)
+                if corr_method == "spearman":
+                    corr = df0.rank().corr()
+                else:
+                    corr = df0.corr(method=corr_method)
                 if abs:
                     corr = corr.abs()
                 df0 = corr.mean().to_frame(end)
@@ -1254,7 +1279,10 @@ def get_fac_via_corr(
                     .fillna(method=fillna_method)
                     .dropna(axis=1)
                 )
-            corr = df0.corr(method=corr_method)
+            if corr_method == "spearman":
+                corr = df0.rank().corr()
+            else:
+                corr = df0.corr(method=corr_method)
             if abs:
                 corr = corr.abs()
             df0 = corr.mean().to_frame(end)

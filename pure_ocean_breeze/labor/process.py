@@ -1,4 +1,4 @@
-__updated__ = "2023-03-01 02:35:21"
+__updated__ = "2023-03-10 15:37:44"
 
 import warnings
 
@@ -994,7 +994,10 @@ def show_corr(
     `float`
         平均截面相关系数
     """
-    corr = show_x_with_func(fac1, fac2, lambda x: x.corr(method=method).iloc[0, 1])
+    if method == "spearman":
+        corr = show_x_with_func(fac1, fac2, lambda x: x.rank().corr().iloc[0, 1])
+    else:
+        corr = show_x_with_func(fac1, fac2, lambda x: x.corr(method=method).iloc[0, 1])
     if show_series:
         return corr
     else:
@@ -1124,7 +1127,6 @@ def show_covs(
     factor_names: list[str] = None,
     print_bool: bool = True,
     show_percent: bool = True,
-    method: str = "spearman",
 ) -> pd.DataFrame:
     """展示很多因子两两之间的截面相关性
 
@@ -1138,8 +1140,6 @@ def show_covs(
         是否打印出两两之间相关系数的表格, by default True
     show_percent : bool, optional
         是否以百分数的形式展示, by default True
-    method : str, optional
-        计算相关系数的方法, by default "spearman"
 
     Returns
     -------
@@ -1192,7 +1192,7 @@ def de_cross(
 
 @do_on_dfs
 def show_corrs_with_old(
-    df: pd.DataFrame = None, method: str = "spearman"
+    df: pd.DataFrame = None, method: str = "spearman", only_new: bool = 1
 ) -> pd.DataFrame:
     """计算新因子和已有因子的相关系数
 
@@ -1202,6 +1202,8 @@ def show_corrs_with_old(
         新因子, by default None
     method : str, optional
         求相关系数的方法, by default 'spearman'
+    only_new : bool, optional
+        仅计算新因子与旧因子之间的相关系数, by default 1
 
     Returns
     -------
@@ -1235,8 +1237,13 @@ def show_corrs_with_old(
         except Exception:
             break
     if df is not None:
-        olds = [df] + olds
-        corrs = show_corrs(olds, ["new"] + [f"old{i}" for i in nums], method=method)
+        if only_new:
+            corrs = [to_percent(show_corr(df, i, plt_plot=0)) for i in olds]
+            corrs = pd.Series(corrs, index=[f"old{i}" for i in nums])
+            corrs = corrs.to_frame(f"{method}相关系数").T
+        else:
+            olds = [df] + olds
+            corrs = show_corrs(olds, ["new"] + [f"old{i}" for i in nums], method=method)
     else:
         corrs = show_corrs(olds, [f"old{i}" for i in nums], method=method)
     return corrs
@@ -1754,7 +1761,7 @@ class pure_moon(object):
         """计算IC和RankIC"""
         df1 = df[["ret", "fac"]]
         ic = df1.corr(method="pearson").iloc[0, 1]
-        rankic = df1.corr(method="spearman").iloc[0, 1]
+        rankic = df1.rank().corr().iloc[0, 1]
         df2 = pd.DataFrame({"ic": [ic], "rankic": [rankic]})
         return df2
 
@@ -2999,7 +3006,7 @@ class pure_fall_frequent(object):
             )
             factor_old = self.factor_steps.get_data_with_tuple(
                 f"select * from '{self.factor_file_pinyin}'"
-            ).drop_duplicates(subset=['date','code'])
+            ).drop_duplicates(subset=["date", "code"])
             factor_old = factor_old.pivot(index="date", columns="code", values="fac")
             factor_old = factor_old.sort_index()
             self.factor_old = factor_old
@@ -3681,6 +3688,16 @@ class pure_snowtrain(object):
         """
         return self.winter.snow_fac.copy()
 
+    def show_corr(self) -> pd.DataFrame:
+        """展示因子与barra风格因子的相关系数
+
+        Returns
+        -------
+        pd.DataFrame
+            相关系数表格
+        """
+        return self.corr.T.applymap(lambda x: to_percent(x))
+
 
 class pure_newyear(object):
     """转为生成25分组和百分组的收益矩阵而封装"""
@@ -3849,7 +3866,7 @@ class pure_dawn(object):
         corrs = list(res.values())
         part = pd.DataFrame({"date": dates, "corr": corrs})
         return part
-    
+
     @staticmethod
     def for_cross_via_zip(func):
         """返回值为多个pd.Series，每个pd.Series的index为股票代码，values为单个因子值
@@ -4646,7 +4663,7 @@ def test_on_300500(
     shen = pure_moonnight(fi300, groups_num=group_num, iplot=iplot)
     if (
         shen.shen.group_net_values.group1.iloc[-1]
-        > shen.shen.group_net_values.group10.iloc[-1]
+        > shen.shen.group_net_values[f"group{group_num}"].iloc[-1]
     ):
         print(
             make_relative_comments(
@@ -4668,7 +4685,7 @@ def test_on_300500(
     else:
         print(
             make_relative_comments(
-                shen.shen.group_rets.group10,
+                shen.shen.group_rets[f"group{group_num}"],
                 hs300=hs300,
                 zz500=zz500,
                 zz1000=zz1000,
@@ -4676,7 +4693,7 @@ def test_on_300500(
             )
         )
         abrets = make_relative_comments_plot(
-            shen.shen.group_rets.group10,
+            shen.shen.group_rets[f"group{group_num}"],
             hs300=hs300,
             zz500=zz500,
             zz1000=zz1000,
@@ -4717,7 +4734,7 @@ def test_on_index_four(
     shen = pure_moonnight(fi300, groups_num=group_num, iplot=iplot, boxcox=boxcox)
     if (
         shen.shen.group_net_values.group1.iloc[-1]
-        > shen.shen.group_net_values.group10.iloc[-1]
+        > shen.shen.group_net_values[f"group{group_num}"].iloc[-1]
     ):
         com300, net300 = make_relative_comments(
             shen.shen.group_rets.group1, hs300=1, show_nets=1
@@ -4740,23 +4757,23 @@ def test_on_index_four(
             )
     else:
         com300, net300 = make_relative_comments(
-            shen.shen.group_rets.group10, hs300=1, show_nets=1
+            shen.shen.group_rets[f"group{group_num}"], hs300=1, show_nets=1
         )
         fi500 = daily_factor_on300500(df, zz500=1)
         shen = pure_moonnight(fi500, iplot=iplot, boxcox=boxcox)
         com500, net500 = make_relative_comments(
-            shen.shen.group_rets.group10, zz500=1, show_nets=1
+            shen.shen.group_rets[f"group{group_num}"], zz500=1, show_nets=1
         )
         fi1000 = daily_factor_on300500(df, zz1000=1)
         shen = pure_moonnight(fi1000, iplot=iplot, boxcox=boxcox)
         com1000, net1000 = make_relative_comments(
-            shen.shen.group_rets.group10, zz1000=1, show_nets=1
+            shen.shen.group_rets[f"group{group_num}"], zz1000=1, show_nets=1
         )
         if gz2000:
             fi2000 = daily_factor_on300500(df, gz2000=1)
             shen = pure_moonnight(fi2000, iplot=iplot, boxcox=boxcox)
             com2000, net2000 = make_relative_comments(
-                shen.shen.group_rets.group10, gz2000=1, show_nets=1
+                shen.shen.group_rets[f"group{group_num}"], gz2000=1, show_nets=1
             )
     com300 = com300.to_frame("300超额")
     com500 = com500.to_frame("500超额")

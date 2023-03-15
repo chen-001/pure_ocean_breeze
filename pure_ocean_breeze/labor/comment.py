@@ -1,4 +1,4 @@
-__updated__ = "2023-02-03 10:41:10"
+__updated__ = "2023-03-10 15:41:06"
 
 import numpy as np
 import pandas as pd
@@ -178,28 +178,35 @@ def make_relative_comments(
         如果没指定任何一个指数，将报错
     """
 
-    if hs300 and zz500:
+    if hs300 == 1 and zz500 == 1 and zz1000 == 0 and gz2000 == 0:
         net_index = read_index_single("000906.SH").resample("M").last()
     else:
         net_indexs = []
+        weights = []
         if hs300:
             net_index = read_index_single("000300.SH").resample("M").last()
             net_indexs.append(net_index)
+            weights.append(300)
         if zz500:
             net_index = read_index_single("000905.SH").resample("M").last()
             net_indexs.append(net_index)
+            weights.append(500)
         if zz1000:
             net_index = read_index_single("000852.SH").resample("M").last()
             net_indexs.append(net_index)
+            weights.append(1000)
         if gz2000:
             net_index = read_index_single("399303.SZ").resample("M").last()
             net_indexs.append(net_index)
+            weights.append(2000)
         if (hs300 + zz500 + zz1000 + gz2000) == 0:
             raise IOError("你总得指定一个股票池吧？")
         net_index = pd.concat(net_indexs, axis=1)
     ret_index = net_index.pct_change()
     if isinstance(ret_index, pd.DataFrame):
-        ret_index = ret_index.mean(axis=1)
+        ret_index = sum(
+            [ret_index.iloc[:, i] * weights[i] for i in range(len(weights))]
+        ) / sum(weights)
     if day is not None:
         ret_index = ret_index[ret_index.index >= pd.Timestamp(day)]
     ret = ret_fac - ret_index
@@ -252,28 +259,35 @@ def make_relative_comments_plot(
     `IOError`
         如果没指定任何一个指数，将报错
     """
-    if hs300 and zz500:
+    if hs300 == 1 and zz500 == 1 and zz1000 == 0 and gz2000 == 0:
         net_index = read_index_single("000906.SH").resample("M").last()
     else:
         net_indexs = []
+        weights = []
         if hs300:
             net_index = read_index_single("000300.SH").resample("M").last()
             net_indexs.append(net_index)
+            weights.append(300)
         if zz500:
             net_index = read_index_single("000905.SH").resample("M").last()
             net_indexs.append(net_index)
+            weights.append(500)
         if zz1000:
             net_index = read_index_single("000852.SH").resample("M").last()
             net_indexs.append(net_index)
+            weights.append(1000)
         if gz2000:
             net_index = read_index_single("399303.SZ").resample("M").last()
             net_indexs.append(net_index)
+            weights.append(2000)
         if (hs300 + zz500 + zz1000 + gz2000) == 0:
             raise IOError("你总得指定一个股票池吧？")
         net_index = pd.concat(net_indexs, axis=1)
     ret_index = net_index.pct_change()
     if isinstance(ret_index, pd.DataFrame):
-        ret_index = ret_index.mean(axis=1)
+        ret_index = sum(
+            [ret_index.iloc[:, i] * weights[i] for i in range(len(weights))]
+        ) / sum(weights)
     if day is not None:
         ret_index = ret_index[ret_index.index >= pd.Timestamp(day)]
     ret = ret_fac - ret_index
