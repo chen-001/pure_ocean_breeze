@@ -1,4 +1,4 @@
-__updated__ = "2023-03-16 11:21:21"
+__updated__ = "2023-03-16 18:51:33"
 
 import pandas as pd
 import pymysql
@@ -11,7 +11,7 @@ import psycopg2.extras as extras
 import numpy as np
 import requests
 import os
-from typing import Union,Dict
+from typing import Union,Dict,List
 from psycopg2.extensions import register_adapter, AsIs
 from tenacity import retry, stop_after_attempt
 import questdb.ingress as qdbing
@@ -828,9 +828,9 @@ class Questdb(DriverOfPostgre):
         self,
         df: pd.DataFrame,
         table: str,
-        str_col: list[str] = None,
-        date_col: list[str] = None,
-        time_col: list[str] = None,
+        str_col: List[str] = None,
+        date_col: List[str] = None,
+        time_col: List[str] = None,
         data_dict: Dict = None,
     ) -> None:
         """通过postgre的方式，直接将pd.Dataframe写入Questdb数据库，此函数不必提前单独创建table，在本函数中会自动检测表是否存在并创建
@@ -841,11 +841,11 @@ class Questdb(DriverOfPostgre):
             要写入的数据
         table : str
             要写入的表名
-        str_col : list[str], optional
+        str_col : List[str], optional
             类型为str的列的列名, by default None
-        date_col : list[str], optional
+        date_col : List[str], optional
             类型为date的列的列名, by default None
-        time_col : list[str], optional
+        time_col : List[str], optional
             类型为timestamp的列的列名, by default None
         data_dict : Dict, optional
             如果不指定上述参数，也可以通过这一参数，指定所有参数类型，传入字典形式，且value应为字符串，如`'FLOAT'`, by default None
@@ -896,8 +896,8 @@ class Questdb(DriverOfPostgre):
         self,
         df: pd.DataFrame,
         table_name: str,
-        symbols: Union[str, bool, list[int], list[str]] = None,
-        tuple_col: Union[str, list[str]] = None,
+        symbols: Union[str, bool, List[int], List[str]] = None,
+        tuple_col: Union[str, List[str]] = None,
     ) -> None:
         """通过questdb的python库直接将dataframe写入quested数据库
 
@@ -907,9 +907,9 @@ class Questdb(DriverOfPostgre):
             要写入的dataframe
         table_name : str
             questdb中该表的表名
-        symbols : Union[str, bool, list[int], list[str]], optional
+        symbols : Union[str, bool, List[int], List[str]], optional
             为symbols的那些列的名称, by default None
-        tuple_col : Union[str, list[str]], optional
+        tuple_col : Union[str, List[str]], optional
             数据类型为tuple或list的列的名字, by default None
         """
         if tuple_col is None:
@@ -929,7 +929,7 @@ class Questdb(DriverOfPostgre):
     def get_data_with_tuple(
         self,
         sql_order: str,
-        tuple_col: Union[str, list[str]] = "fac",
+        tuple_col: Union[str, List[str]] = "fac",
         without_timestamp: bool = 1,
     ) -> pd.DataFrame:
         """从questdb数据库中，读取那些值中带有元组或列表的表格
@@ -938,7 +938,7 @@ class Questdb(DriverOfPostgre):
         ----------
         sql_order : str
             读取的sql命令
-        tuple_col : Union[str, list[str]], optional
+        tuple_col : Union[str, List[str]], optional
             数值类型为元组或列表的那些列的名称, by default 'fac'
         without_timestamp : bool, optional
             读取时是否删去数据库自动加入的名为`timestamp`的列, by default 1

@@ -1,4 +1,4 @@
-__updated__ = "2023-03-10 15:41:06"
+__updated__ = "2023-03-16 18:52:29"
 
 import numpy as np
 import pandas as pd
@@ -8,6 +8,7 @@ mpl.rcParams.update(mpl.rcParamsDefault)
 import matplotlib.pyplot as plt
 
 plt.rcParams["axes.unicode_minus"] = False
+from typing import Tuple
 from pure_ocean_breeze.data.read_data import (
     read_index_three,
     read_daily,
@@ -308,7 +309,7 @@ def other_periods_comments_nets(
     nets_writer: pd.ExcelWriter = None,
     sheetname: str = None,
     group_num: int = 10,
-) -> tuple[pd.Series]:
+) -> Tuple[pd.Series]:
     """小型回测框架，不同频率下的评价指标，请输入行业市值中性化后的因子值
 
     Parameters
@@ -330,7 +331,7 @@ def other_periods_comments_nets(
 
     Returns
     -------
-    `tuple[pd.Series]`
+    `Tuple[pd.Series]`
         绩效和净值
     """
     import alphalens as al

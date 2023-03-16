@@ -1,4 +1,4 @@
-__updated__ = "2023-03-16 11:23:50"
+__updated__ = "2023-03-16 18:52:02"
 
 import time
 
@@ -51,7 +51,7 @@ from tenacity import retry
 import pickledb
 import tqdm.auto
 from functools import reduce
-from typing import Union
+from typing import Union,List
 import dcube as dc
 from tenacity import retry, stop_after_attempt
 import questdb.ingress as qdbing
@@ -1181,9 +1181,9 @@ class FactorReader:
             要写入的dataframe
         table_name : str
             questdb中该表的表名
-        symbols : Union[str, bool, list[int], list[str]], optional
+        symbols : Union[str, bool, List[int], List[str]], optional
             为symbols的那些列的名称, by default None
-        tuple_col : Union[str, list[str]], optional
+        tuple_col : Union[str, List[str]], optional
             数据类型为tuple或list的列的名字, by default None
         """
         if tuple_col is None:
@@ -1222,6 +1222,6 @@ class FactorReader:
         df = pd.DataFrame(df_data, columns=columns)
         return df
 
-    def add_token(self, tokens: list[str], users: list[str]):
+    def add_token(self, tokens: List[str], users: List[str]):
         tus = pd.DataFrame({"token": tokens, "user": users})
         self.__write_via_df(tus, "tokenlines")

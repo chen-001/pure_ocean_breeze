@@ -1,4 +1,4 @@
-__updated__ = "2023-03-16 11:24:12"
+__updated__ = "2023-03-16 18:52:44"
 
 import warnings
 
@@ -37,7 +37,7 @@ from mpire import WorkerPool
 from pure_ocean_breeze import __version__
 
 cf.set_config_file(offline=True)
-from typing import Callable, Union,Dict
+from typing import Callable, Union,Dict,List,Tuple
 from pure_ocean_breeze.data.read_data import (
     read_daily,
     read_market,
@@ -345,7 +345,7 @@ def long_test_on_industry(
     save_stock_list: bool = 0,
     swindustry: bool = 0,
     zxindustry: bool = 0,
-) -> list[dict]:
+) -> List[dict]:
     """对每个申万/中信一级行业成分股，使用某因子挑选出最多头的n值股票，考察其超额收益绩效、每月超额收益、每月每个行业的多头名单
 
     Parameters
@@ -366,7 +366,7 @@ def long_test_on_industry(
         在中信一级行业上测试, by default 0
     Returns
     -------
-    list[dict]
+    List[dict]
         超额收益绩效、每月超额收益、每月每个行业的多头名单
 
     Raises
@@ -544,7 +544,7 @@ def long_test_on_swindustry(
     pos: bool = 0,
     neg: bool = 0,
     save_stock_list: bool = 0,
-) -> list[dict]:
+) -> List[dict]:
     """对每个申万一级行业成分股，使用某因子挑选出最多头的n值股票，考察其超额收益绩效、每月超额收益、每月每个行业的多头名单
 
     Parameters
@@ -561,7 +561,7 @@ def long_test_on_swindustry(
         是否保存每月每个行业的多头名单，会降低运行速度, by default 0
     Returns
     -------
-    list[dict]
+    List[dict]
         超额收益绩效、每月超额收益、每月每个行业的多头名单
 
     Raises
@@ -587,7 +587,7 @@ def long_test_on_zxindustry(
     pos: bool = 0,
     neg: bool = 0,
     save_stock_list: bool = 0,
-) -> list[dict]:
+) -> List[dict]:
     """对每个中信一级行业成分股，使用某因子挑选出最多头的n值股票，考察其超额收益绩效、每月超额收益、每月每个行业的多头名单
 
     Parameters
@@ -604,7 +604,7 @@ def long_test_on_zxindustry(
         是否保存每月每个行业的多头名单，会降低运行速度, by default 0
     Returns
     -------
-    list[dict]
+    List[dict]
         超额收益绩效、每月超额收益、每月每个行业的多头名单
 
     Raises
@@ -808,7 +808,7 @@ def deboth(df: pd.DataFrame) -> pd.DataFrame:
 @do_on_dfs
 def boom_four(
     df: pd.DataFrame, backsee: int = 20, daily: bool = 0, min_periods: int = None
-) -> tuple[pd.DataFrame]:
+) -> Tuple[pd.DataFrame]:
     """生成20天均值，20天标准差，及二者正向z-score合成，正向排序合成，负向z-score合成，负向排序合成这6个因子
 
     Parameters
@@ -824,7 +824,7 @@ def boom_four(
 
     Returns
     -------
-    `tuple[pd.DataFrame]`
+    `Tuple[pd.DataFrame]`
         6个因子的元组
     """
     if min_periods is None:
@@ -849,27 +849,27 @@ def boom_four(
 
 
 def boom_fours(
-    dfs: list[pd.DataFrame],
-    backsee: Union[int, list[int]] = 20,
-    daily: Union[bool, list[bool]] = 0,
-    min_periods: Union[int, list[int]] = None,
-) -> list[list[pd.DataFrame]]:
+    dfs: List[pd.DataFrame],
+    backsee: Union[int, List[int]] = 20,
+    daily: Union[bool, List[bool]] = 0,
+    min_periods: Union[int, List[int]] = None,
+) -> List[List[pd.DataFrame]]:
     """对多个因子，每个因子都进行boom_four的操作
 
     Parameters
     ----------
-    dfs : list[pd.DataFrame]
+    dfs : List[pd.DataFrame]
         多个因子的dataframe组成的list
-    backsee : Union[int,list[int]], optional
+    backsee : Union[int,List[int]], optional
         每个因子回看期数, by default 20
-    daily : Union[bool,list[bool]], optional
+    daily : Union[bool,List[bool]], optional
         每个因子是否逐日计算, by default 0
-    min_periods : Union[int,list[int]], optional
+    min_periods : Union[int,List[int]], optional
         每个因子计算的最小期, by default None
 
     Returns
     -------
-    list[list[pd.DataFrame]]
+    List[List[pd.DataFrame]]
         每个因子进行boom_four后的结果
     """
     return boom_four(df=dfs, backsee=backsee, daily=daily, min_periods=min_periods)
@@ -1011,8 +1011,8 @@ def show_corr(
 
 
 def show_corrs(
-    factors: list[pd.DataFrame],
-    factor_names: list[str] = None,
+    factors: List[pd.DataFrame],
+    factor_names: List[str] = None,
     print_bool: bool = True,
     show_percent: bool = True,
     method: str = "spearman",
@@ -1021,9 +1021,9 @@ def show_corrs(
 
     Parameters
     ----------
-    factors : list[pd.DataFrame]
+    factors : List[pd.DataFrame]
         所有因子构成的列表, by default None
-    factor_names : list[str], optional
+    factor_names : List[str], optional
         上述因子依次的名字, by default None
     print_bool : bool, optional
         是否打印出两两之间相关系数的表格, by default True
@@ -1126,8 +1126,8 @@ def show_x_with_func(
 
 
 def show_covs(
-    factors: list[pd.DataFrame],
-    factor_names: list[str] = None,
+    factors: List[pd.DataFrame],
+    factor_names: List[str] = None,
     print_bool: bool = True,
     show_percent: bool = True,
 ) -> pd.DataFrame:
@@ -1135,9 +1135,9 @@ def show_covs(
 
     Parameters
     ----------
-    factors : list[pd.DataFrame]
+    factors : List[pd.DataFrame]
         所有因子构成的列表, by default None
-    factor_names : list[str], optional
+    factor_names : List[str], optional
         上述因子依次的名字, by default None
     print_bool : bool, optional
         是否打印出两两之间相关系数的表格, by default True
@@ -1170,7 +1170,7 @@ def show_covs(
 
 
 def de_cross(
-    y: pd.DataFrame, xs: Union[list[pd.DataFrame], pd.DataFrame]
+    y: pd.DataFrame, xs: Union[List[pd.DataFrame], pd.DataFrame]
 ) -> pd.DataFrame:
     """使用若干因子对某个因子进行正交化处理
 
@@ -1178,7 +1178,7 @@ def de_cross(
     ----------
     y : pd.DataFrame
         研究的目标，回归中的y
-    xs : Union[list[pd.DataFrame],pd.DataFrame]
+    xs : Union[List[pd.DataFrame],pd.DataFrame]
         用于正交化的若干因子，回归中的x
 
     Returns
@@ -3136,7 +3136,7 @@ class pure_fall_frequent(object):
 
     def select_many_calculate(
         self,
-        dates: list[pd.Timestamp],
+        dates: List[pd.Timestamp],
         func: Callable,
         fields: str = "*",
         chunksize: int = 10,
@@ -3257,7 +3257,7 @@ class pure_fall_frequent(object):
 
     def select_any_calculate(
         self,
-        dates: list[pd.Timestamp],
+        dates: List[pd.Timestamp],
         func: Callable,
         fields: str = "*",
         chunksize: int = 10,
@@ -4054,7 +4054,7 @@ def follow_tests(
     neg: bool = 0,
     swindustry: bool = 0,
     zxindustry: bool = 0,
-    nums: list[int] = [3],
+    nums: List[int] = [3],
 ):
     """因子完成全A测试后，进行的一些必要的后续测试，包括各个分组表现、相关系数与纯净化、3510的多空和多头、各个行业Rank IC、各个行业买3只超额表现
 
@@ -4074,7 +4074,7 @@ def follow_tests(
         使用申万一级行业, by default 0
     zxindustry : bool, optional
         使用中信一级行业, by default 0
-    nums : list[int], optional
+    nums : List[int], optional
         各个行业买几只股票, by default [3]
 
     Raises
@@ -4291,7 +4291,7 @@ class pure_fama(object):
     # @lru_cache(maxsize=None)
     def __init__(
         self,
-        factors: list[pd.DataFrame],
+        factors: List[pd.DataFrame],
         minus_group: Union[list, float] = 3,
         backsee: int = 20,
         rets: pd.DataFrame = None,
@@ -4306,7 +4306,7 @@ class pure_fama(object):
 
         Parameters
         ----------
-        factors : list[pd.DataFrame]
+        factors : List[pd.DataFrame]
             用于解释收益的各个因子值，每一个都是index为时间，columns为股票代码，values为因子值的dataframe
         minus_group : Union[list, float], optional
             每一个因子将截面上的股票分为几组, by default 3
@@ -4512,9 +4512,9 @@ class pure_rollingols(object):
     def __init__(
         self,
         y: pd.DataFrame,
-        xs: Union[list[pd.DataFrame], pd.DataFrame],
+        xs: Union[List[pd.DataFrame], pd.DataFrame],
         backsee: int = 20,
-        factors_names: list[str] = None,
+        factors_names: List[str] = None,
     ) -> None:
         """使用若干个dataframe，对应的股票进行指定窗口的时序滚动回归
 
@@ -4522,11 +4522,11 @@ class pure_rollingols(object):
         ----------
         y : pd.DataFrame
             滚动回归中的因变量y，index是时间，columns是股票代码
-        xs : Union[list[pd.DataFrame], pd.DataFrame]
+        xs : Union[List[pd.DataFrame], pd.DataFrame]
             滚动回归中的自变量xi，每一个dataframe，index是时间，columns是股票代码
         backsee : int, optional
             滚动回归的时间窗口, by default 20
-        factors_names : list[str], optional
+        factors_names : List[str], optional
             xs中，每个因子的名字, by default None
         """
         self.backsee = backsee

@@ -1,10 +1,10 @@
-__updated__ = "2023-03-16 11:23:39"
+__updated__ = "2023-03-16 18:51:07"
 
 import os
 import numpy as np
 import pandas as pd
 import datetime
-from typing import Union,Dict
+from typing import Union,Dict,Tuple
 from loguru import logger
 
 from pure_ocean_breeze.state.states import STATES
@@ -455,7 +455,7 @@ def read_index_single(code: str) -> pd.Series:
         return hs300
 
 
-def read_index_three(day: int = None) -> tuple[pd.DataFrame]:
+def read_index_three(day: int = None) -> Tuple[pd.DataFrame]:
     """读取三大指数的原始行情数据，返回并保存在本地
 
     Parameters
@@ -465,7 +465,7 @@ def read_index_three(day: int = None) -> tuple[pd.DataFrame]:
 
     Returns
     -------
-    `tuple[pd.DataFrame]`
+    `Tuple[pd.DataFrame]`
         分别返回沪深300、中证500、中证1000的行情数据
     """
     if day is None:
@@ -606,7 +606,7 @@ def database_read_final_factors(
     freq: str = "月",
     output: bool = 0,
     new: bool = 0,
-) -> tuple[pd.DataFrame, str]:
+) -> Tuple[pd.DataFrame, str]:
     """根据因子名字，或因子序号，读取最终因子的因子值
 
     Parameters
@@ -624,7 +624,7 @@ def database_read_final_factors(
 
     Returns
     -------
-    `tuple[pd.DataFrame,str]`
+    `Tuple[pd.DataFrame,str]`
         最终因子值和文件路径
     """
     homeplace = HomePlace()

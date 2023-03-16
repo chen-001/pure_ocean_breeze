@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2023-03-16 11:22:12"
+__updated__ = "2023-03-16 18:55:20"
 
 import os
 import pandas as pd
@@ -14,7 +14,7 @@ import numpy_ext as npext
 import scipy.stats as ss
 from functools import reduce, partial
 from loguru import logger
-from typing import Callable, Union,Dict
+from typing import Callable, Union, Dict,List,Tuple
 
 try:
     import rqdatac
@@ -120,7 +120,7 @@ def read_mat(path: str) -> pd.DataFrame:
 
 
 @do_on_dfs
-def convert_code(x: str) -> tuple[str, str]:
+def convert_code(x: str) -> Tuple[str, str]:
     """将米筐代码转换为wind代码，并识别其是股票还是指数
 
     Parameters
@@ -130,7 +130,7 @@ def convert_code(x: str) -> tuple[str, str]:
 
     Returns
     -------
-    `tuple[str,str]`
+    `Tuple[str,str]`
         转换后的股票/指数代码，以及该代码属于股票还是指数
     """
     x1 = x.split("/")[-1].split(".")[0]
@@ -378,13 +378,13 @@ def set_index_first(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def merge_many(
-    dfs: list[pd.DataFrame], names: list = None, how: str = "outer"
+    dfs: List[pd.DataFrame], names: list = None, how: str = "outer"
 ) -> pd.DataFrame:
     """将多个宽dataframe依据columns和index，拼接在一起，拼成一个长dataframe
 
     Parameters
     ----------
-    dfs : list[pd.DataFrame]
+    dfs : List[pd.DataFrame]
         将所有要拼接的宽表放在一个列表里
     names : list, optional
         拼接后，每一列宽表对应的名字, by default None
@@ -973,12 +973,12 @@ def calcWeightedStd(series: pd.Series, weights: Union[pd.Series, np.ndarray]) ->
     return np.sqrt(np.sum((series - np.mean(series)) ** 2 * weights))
 
 
-def get_list_std(delta_sts: list[pd.DataFrame]) -> pd.DataFrame:
+def get_list_std(delta_sts: List[pd.DataFrame]) -> pd.DataFrame:
     """同一天多个因子，计算这些因子在当天的标准差
 
     Parameters
     ----------
-    delta_sts : list[pd.DataFrame]
+    delta_sts : List[pd.DataFrame]
         多个因子构成的list，每个因子index为时间，columns为股票代码
 
     Returns
@@ -993,12 +993,12 @@ def get_list_std(delta_sts: list[pd.DataFrame]) -> pd.DataFrame:
     return delta_sts_std
 
 
-def get_list_std_weighted(delta_sts: list[pd.DataFrame], weights: list) -> pd.DataFrame:
+def get_list_std_weighted(delta_sts: List[pd.DataFrame], weights: list) -> pd.DataFrame:
     """对多个df对应位置上的值求加权标准差
 
     Parameters
     ----------
-    delta_sts : list[pd.DataFrame]
+    delta_sts : List[pd.DataFrame]
         多个dataframe
     weights : list
         权重序列
@@ -1007,7 +1007,7 @@ def get_list_std_weighted(delta_sts: list[pd.DataFrame], weights: list) -> pd.Da
     -------
     pd.DataFrame
         标准差序列
-    """    
+    """
     weights = [i / sum(weights) for i in weights]
     delta_sts_mean = sum(delta_sts) / len(delta_sts)
     delta_sts_std = [(i - delta_sts_mean) ** 2 for i in delta_sts]
@@ -1035,17 +1035,17 @@ def to_group(df: pd.DataFrame, group: int = 10) -> pd.DataFrame:
     return df
 
 
-def same_columns(dfs: list[pd.DataFrame]) -> list[pd.DataFrame]:
+def same_columns(dfs: List[pd.DataFrame]) -> List[pd.DataFrame]:
     """保留多个dataframe共同columns的部分
 
     Parameters
     ----------
-    dfs : list[pd.DataFrame]
+    dfs : List[pd.DataFrame]
         多个dataframe
 
     Returns
     -------
-    list[pd.DataFrame]
+    List[pd.DataFrame]
         保留共同部分后的结果
     """
     dfs = [i.T for i in dfs]
@@ -1059,17 +1059,17 @@ def same_columns(dfs: list[pd.DataFrame]) -> list[pd.DataFrame]:
     return res
 
 
-def same_index(dfs: list[pd.DataFrame]) -> list[pd.DataFrame]:
+def same_index(dfs: List[pd.DataFrame]) -> List[pd.DataFrame]:
     """保留多个dataframe共同index的部分
 
     Parameters
     ----------
-    dfs : list[pd.DataFrame]
+    dfs : List[pd.DataFrame]
         多个dataframe
 
     Returns
     -------
-    list[pd.DataFrame]
+    List[pd.DataFrame]
         保留共同部分后的结果
     """
     res = []
@@ -1116,13 +1116,13 @@ def feather_to_parquet_all():
     logger.success("数据库中的feather文件全部被转化为了parquet文件，您可以手动删除所有的feather文件了")
 
 
-def zip_many_dfs(dfs: list[pd.DataFrame]) -> pd.DataFrame:
+def zip_many_dfs(dfs: List[pd.DataFrame]) -> pd.DataFrame:
     """将多个dataframe，拼在一起，相同index和columns指向的那个values，变为多个dataframe的值的列表
     通常用于存储整合分钟数据计算的因子值
 
     Parameters
     ----------
-    dfs : list[pd.DataFrame]
+    dfs : List[pd.DataFrame]
         多个dataframe，每一个的values都是float形式
 
     Returns
@@ -1137,7 +1137,7 @@ def zip_many_dfs(dfs: list[pd.DataFrame]) -> pd.DataFrame:
     return df
 
 
-def get_values(df: pd.DataFrame) -> list[pd.DataFrame]:
+def get_values(df: pd.DataFrame) -> List[pd.DataFrame]:
     """从一个values为列表的dataframe中，一次性取出所有值，分别设置为一个dataframe，并依照顺序存储在列表中
 
     Parameters
@@ -1147,7 +1147,7 @@ def get_values(df: pd.DataFrame) -> list[pd.DataFrame]:
 
     Returns
     -------
-    list[pd.DataFrame]
+    List[pd.DataFrame]
         多个dataframe，每一个的values都是float形式
     """
     d = df.dropna(how="all", axis=1)
@@ -1166,6 +1166,8 @@ def get_fac_via_corr(
     corr_method: str = "pearson",
     daily: bool = 0,
     abs: bool = 0,
+    riskmetrics: bool = 0,
+    rishmetrics_lambda: float = 0.94,
 ) -> pd.DataFrame:
     """对一个日频因子，对其滚动时间窗口进行因子月度化计算。
     具体操作为每天（或每月月底）计算过去20天因子值的相关性矩阵，
@@ -1187,6 +1189,10 @@ def get_fac_via_corr(
         是否每天滚动, by default 0
     abs : bool, optional
         是否要对相关系数矩阵取绝对值, by default 0
+    riskmetrics : bool, optional
+        使用RiskMetrics方法，对相关性进行调整，增加临近交易日的权重, by default 0
+    riskmetrics_lambda : float, optional
+        使用RiskMetrics方法时的lambda参数, by default 0.94
 
     Returns
     -------
@@ -1237,6 +1243,17 @@ def get_fac_via_corr(
                         .fillna(method=fillna_method)
                         .dropna(axis=1)
                     )
+                if riskmetrics:
+                    df0 = (
+                        (df0 - df0.mean()).T
+                        * pd.Series(
+                            [
+                                rishmetrics_lambda ** (backsee - i)
+                                for i in range(df0.shape[0])
+                            ],
+                            index=df0.index,
+                        )
+                    ).T
                 if corr_method == "spearman":
                     corr = df0.rank().corr()
                 else:
@@ -1279,6 +1296,17 @@ def get_fac_via_corr(
                     .fillna(method=fillna_method)
                     .dropna(axis=1)
                 )
+            if riskmetrics:
+                df0 = (
+                    (df0 - df0.mean()).T
+                    * pd.Series(
+                        [
+                            rishmetrics_lambda ** (backsee - i)
+                            for i in range(df0.shape[0])
+                        ],
+                        index=df0.index,
+                    )
+                ).T
             if corr_method == "spearman":
                 corr = df0.rank().corr()
             else:
