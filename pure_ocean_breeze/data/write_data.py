@@ -1,4 +1,4 @@
-__updated__ = "2023-03-10 12:14:50"
+__updated__ = "2023-03-16 11:23:50"
 
 import time
 
@@ -57,7 +57,10 @@ from tenacity import retry, stop_after_attempt
 import questdb.ingress as qdbing
 from pure_ocean_breeze.state.homeplace import HomePlace
 
-homeplace = HomePlace()
+try:
+    homeplace = HomePlace()
+except Exception:
+    print('您暂未初始化，功能将受限')
 try:
     pro = dc.pro_api(homeplace.api_token)
 except Exception:

@@ -1,4 +1,4 @@
-__updated__ = "2023-03-10 15:37:44"
+__updated__ = "2023-03-16 11:24:12"
 
 import warnings
 
@@ -37,7 +37,7 @@ from mpire import WorkerPool
 from pure_ocean_breeze import __version__
 
 cf.set_config_file(offline=True)
-from typing import Callable, Union
+from typing import Callable, Union,Dict
 from pure_ocean_breeze.data.read_data import (
     read_daily,
     read_market,
@@ -48,7 +48,10 @@ from pure_ocean_breeze.data.read_data import (
 )
 from pure_ocean_breeze.state.homeplace import HomePlace
 
-homeplace = HomePlace()
+try:
+    homeplace = HomePlace()
+except Exception:
+    print('您暂未初始化，功能将受限')
 from pure_ocean_breeze.state.states import STATES
 from pure_ocean_breeze.state.decorators import do_on_dfs
 from pure_ocean_breeze.data.database import *
@@ -3412,7 +3415,7 @@ class pure_coldwinter(object):
 
     def __init__(
         self,
-        facs_dict: dict = None,
+        facs_dict: Dict = None,
         momentum: bool = 1,
         earningsyield: bool = 1,
         growth: bool = 1,
@@ -3428,7 +3431,7 @@ class pure_coldwinter(object):
 
         Parameters
         ----------
-        facs_dict : dict, optional
+        facs_dict : Dict, optional
             额外加入的因子，名字为key，因子矩阵为value，形如`{'反转': ret20, '换手': tr20}`, by default None
         momentum : bool, optional
             是否删去动量因子, by default 1
@@ -3620,7 +3623,7 @@ class pure_snowtrain(object):
     def __init__(
         self,
         factors: pd.DataFrame,
-        facs_dict: dict = None,
+        facs_dict: Dict = None,
         momentum: bool = 1,
         earningsyield: bool = 1,
         growth: bool = 1,
@@ -3638,7 +3641,7 @@ class pure_snowtrain(object):
         ----------
         factors : pd.DataFrame
             要考察的因子值，index为时间，columns为股票代码，values为因子值
-        facs_dict : dict, optional
+        facs_dict : Dict, optional
             额外加入的因子，名字为key，因子矩阵为value，形如`{'反转': ret20, '换手': tr20}`, by default None
         momentum : bool, optional
             是否删去动量因子, by default 1

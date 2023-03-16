@@ -1,4 +1,4 @@
-__updated__ = "2023-03-13 13:10:01"
+__updated__ = "2023-03-16 11:21:21"
 
 import pandas as pd
 import pymysql
@@ -11,7 +11,7 @@ import psycopg2.extras as extras
 import numpy as np
 import requests
 import os
-from typing import Union
+from typing import Union,Dict
 from psycopg2.extensions import register_adapter, AsIs
 from tenacity import retry, stop_after_attempt
 import questdb.ingress as qdbing
@@ -831,7 +831,7 @@ class Questdb(DriverOfPostgre):
         str_col: list[str] = None,
         date_col: list[str] = None,
         time_col: list[str] = None,
-        data_dict: dict = None,
+        data_dict: Dict = None,
     ) -> None:
         """通过postgre的方式，直接将pd.Dataframe写入Questdb数据库，此函数不必提前单独创建table，在本函数中会自动检测表是否存在并创建
 
@@ -847,7 +847,7 @@ class Questdb(DriverOfPostgre):
             类型为date的列的列名, by default None
         time_col : list[str], optional
             类型为timestamp的列的列名, by default None
-        data_dict : dict, optional
+        data_dict : Dict, optional
             如果不指定上述参数，也可以通过这一参数，指定所有参数类型，传入字典形式，且value应为字符串，如`'FLOAT'`, by default None
         """
         register_adapter(np.float64, self.__addapt_numpy_float64)

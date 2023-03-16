@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2023-03-12 11:54:26"
+__updated__ = "2023-03-16 11:22:12"
 
 import os
 import pandas as pd
@@ -14,7 +14,7 @@ import numpy_ext as npext
 import scipy.stats as ss
 from functools import reduce, partial
 from loguru import logger
-from typing import Callable, Union
+from typing import Callable, Union,Dict
 
 try:
     import rqdatac
@@ -48,7 +48,7 @@ def is_notebook() -> bool:
     current_version=__version__,
     details="考虑到h5文件的多样性，4.0版本开始将不再支持一键读入h5文件",
 )
-def read_h5(path: str) -> dict:
+def read_h5(path: str) -> Dict:
     """
     Reads a HDF5 file into a dictionary of pandas DataFrames.
 
@@ -59,7 +59,7 @@ def read_h5(path: str) -> dict:
 
     Returns
     -------
-    `dict`
+    `Dict`
         A dictionary of pandas DataFrames.
     """
     res = {}

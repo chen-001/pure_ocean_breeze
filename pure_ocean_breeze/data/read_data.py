@@ -1,10 +1,10 @@
-__updated__ = "2023-02-22 23:29:34"
+__updated__ = "2023-03-16 11:23:39"
 
 import os
 import numpy as np
 import pandas as pd
 import datetime
-from typing import Union
+from typing import Union,Dict
 from loguru import logger
 
 from pure_ocean_breeze.state.states import STATES
@@ -12,7 +12,10 @@ from pure_ocean_breeze.state.homeplace import HomePlace
 from pure_ocean_breeze.state.decorators import *
 from pure_ocean_breeze.data.database import ClickHouseClient, Questdb
 
-homeplace = HomePlace()
+try:
+    homeplace = HomePlace()
+except Exception:
+    print('您暂未初始化，功能将受限')
 
 
 def read_daily(
@@ -540,7 +543,7 @@ def get_industry_dummies(
     start: int = STATES["START"],
     swindustry: bool = 0,
     zxindustry: bool = 0,
-) -> dict:
+) -> Dict:
     """生成30/31个行业的哑变量矩阵，返回一个字典
 
     Parameters
@@ -558,7 +561,7 @@ def get_industry_dummies(
 
     Returns
     -------
-    `dict`
+    `Dict`
         各个行业及其哑变量构成的字典
 
     Raises
