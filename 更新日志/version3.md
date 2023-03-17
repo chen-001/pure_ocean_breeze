@@ -1,6 +1,15 @@
 ## 更新日志🗓 — v3
 
+* v3.8.6 — 2023.3.17
+
+> 1. 修正了get_fac_via_corr中riskmetrics方法的权重值
+> 2. 将get_fac_via_corr的非daily状态下的返回值index改到了月底
+> 3. 新增了boom_one函数，仅计算20天均值
+> 4. 修复了show_corrs_with_old指定new=1时，method参数失效的bug
+> 5. 将依赖库中numpy版本限制在1.23.5以下
+
 * v3.8.5 — 2023.3.16
+
 > 1. 自动识别操作系统，并安装对应库
 
 * v3.8.4 — 2023.3.16

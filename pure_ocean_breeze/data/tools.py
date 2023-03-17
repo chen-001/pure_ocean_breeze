@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2023-03-16 18:55:20"
+__updated__ = "2023-03-17 14:15:34"
 
 import os
 import pandas as pd
@@ -14,7 +14,7 @@ import numpy_ext as npext
 import scipy.stats as ss
 from functools import reduce, partial
 from loguru import logger
-from typing import Callable, Union, Dict,List,Tuple
+from typing import Callable, Union, Dict, List, Tuple
 
 try:
     import rqdatac
@@ -1167,7 +1167,7 @@ def get_fac_via_corr(
     daily: bool = 0,
     abs: bool = 0,
     riskmetrics: bool = 0,
-    rishmetrics_lambda: float = 0.94,
+    riskmetrics_lambda: float = 0.94,
 ) -> pd.DataFrame:
     """对一个日频因子，对其滚动时间窗口进行因子月度化计算。
     具体操作为每天（或每月月底）计算过去20天因子值的相关性矩阵，
@@ -1246,12 +1246,15 @@ def get_fac_via_corr(
                 if riskmetrics:
                     df0 = (
                         (df0 - df0.mean()).T
-                        * pd.Series(
-                            [
-                                rishmetrics_lambda ** (backsee - i)
-                                for i in range(df0.shape[0])
-                            ],
-                            index=df0.index,
+                        * (
+                            pd.Series(
+                                [
+                                    riskmetrics_lambda ** (backsee - i)
+                                    for i in range(df0.shape[0])
+                                ],
+                                index=df0.index,
+                            )
+                            ** 0.5
                         )
                     ).T
                 if corr_method == "spearman":
@@ -1265,7 +1268,10 @@ def get_fac_via_corr(
             dfs = pd.concat(dfs, axis=1).T
             dfs = drop_duplicates_index(pd.concat([old, dfs]))
             dfs.to_parquet(homeplace.update_data_file + history_file)
-            return dfs
+            if daily:
+                return dfs
+            else:
+                return dfs.resample('M').last()
         else:
             logger.info("已经是最新的了")
             return old
@@ -1299,12 +1305,15 @@ def get_fac_via_corr(
             if riskmetrics:
                 df0 = (
                     (df0 - df0.mean()).T
-                    * pd.Series(
-                        [
-                            rishmetrics_lambda ** (backsee - i)
-                            for i in range(df0.shape[0])
-                        ],
-                        index=df0.index,
+                    * (
+                        pd.Series(
+                            [
+                                riskmetrics_lambda ** (backsee - i)
+                                for i in range(df0.shape[0])
+                            ],
+                            index=df0.index,
+                        )
+                        ** 0.5
                     )
                 ).T
             if corr_method == "spearman":
@@ -1318,7 +1327,10 @@ def get_fac_via_corr(
         dfs = pd.concat(dfs, axis=1).T
         if history_file is not None:
             dfs.to_parquet(homeplace.update_data_file + history_file)
-        return dfs
+        if daily:
+            return dfs
+        else:
+            return dfs.resample('M').last()
 
 
 @do_on_dfs

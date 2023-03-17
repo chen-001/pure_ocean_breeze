@@ -1,4 +1,4 @@
-__updated__ = "2023-03-16 18:52:44"
+__updated__ = "2023-03-17 14:13:35"
 
 import warnings
 
@@ -37,7 +37,7 @@ from mpire import WorkerPool
 from pure_ocean_breeze import __version__
 
 cf.set_config_file(offline=True)
-from typing import Callable, Union,Dict,List,Tuple
+from typing import Callable, Union, Dict, List, Tuple
 from pure_ocean_breeze.data.read_data import (
     read_daily,
     read_market,
@@ -51,7 +51,7 @@ from pure_ocean_breeze.state.homeplace import HomePlace
 try:
     homeplace = HomePlace()
 except Exception:
-    print('您暂未初始化，功能将受限')
+    print("您暂未初始化，功能将受限")
 from pure_ocean_breeze.state.states import STATES
 from pure_ocean_breeze.state.decorators import do_on_dfs
 from pure_ocean_breeze.data.database import *
@@ -806,6 +806,21 @@ def deboth(df: pd.DataFrame) -> pd.DataFrame:
 
 
 @do_on_dfs
+def boom_one(
+    df: pd.DataFrame, backsee: int = 20, daily: bool = 0, min_periods: int = None
+) -> pd.DataFrame:
+    if min_periods is None:
+        min_periods = int(backsee * 0.5)
+    if not daily:
+        df_mean = (
+            df.rolling(backsee, min_periods=min_periods).mean().resample("M").last()
+        )
+    else:
+        df_mean = df.rolling(backsee, min_periods=min_periods).mean()
+    return df_mean
+
+
+@do_on_dfs
 def boom_four(
     df: pd.DataFrame, backsee: int = 20, daily: bool = 0, min_periods: int = None
 ) -> Tuple[pd.DataFrame]:
@@ -1241,7 +1256,9 @@ def show_corrs_with_old(
             break
     if df is not None:
         if only_new:
-            corrs = [to_percent(show_corr(df, i, plt_plot=0)) for i in olds]
+            corrs = [
+                to_percent(show_corr(df, i, plt_plot=0, method=method)) for i in olds
+            ]
             corrs = pd.Series(corrs, index=[f"old{i}" for i in nums])
             corrs = corrs.to_frame(f"{method}相关系数").T
         else:
