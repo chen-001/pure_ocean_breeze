@@ -1,4 +1,4 @@
-__updated__ = "2023-03-17 14:13:35"
+__updated__ = "2023-03-23 02:23:55"
 
 import warnings
 
@@ -9,6 +9,7 @@ import knockknock as kk
 import os
 import tqdm.auto
 import scipy.stats as ss
+from scipy.optimize import linprog
 import statsmodels.formula.api as smf
 import matplotlib as mpl
 
@@ -45,6 +46,7 @@ from pure_ocean_breeze.data.read_data import (
     read_swindustry_prices,
     read_zxindustry_prices,
     database_read_final_factors,
+    read_index_single,
 )
 from pure_ocean_breeze.state.homeplace import HomePlace
 
@@ -61,6 +63,9 @@ from pure_ocean_breeze.data.tools import (
     drop_duplicates_index,
     to_percent,
     to_group,
+    standardlize,
+    select_max,
+    select_min,
 )
 from pure_ocean_breeze.labor.comment import (
     comments_on_twins,
@@ -241,6 +246,7 @@ def daily_factor_on_industry(
 def group_test_on_industry(
     df: pd.DataFrame,
     group_num: int = 10,
+    trade_cost_double_side: float = 0,
     net_values_writer: pd.ExcelWriter = None,
     swindustry: bool = 0,
     zxindustry: bool = 0,
@@ -253,6 +259,8 @@ def group_test_on_industry(
         全市场的因子值，index是时间，columns是股票代码
     group_num : int, optional
         分组数量, by default 10
+    trade_cost_double_side : float, optional
+        交易的双边手续费率, by default 0
     net_values_writer : pd.ExcelWriter, optional
         用于存储各个行业分组及多空对冲净值序列的excel文件, by default None
     swindustry : bool, optional
@@ -274,6 +282,7 @@ def group_test_on_industry(
             shen = pure_moonnight(
                 v,
                 groups_num=group_num,
+                trade_cost_double_side=trade_cost_double_side,
                 net_values_writer=net_values_writer,
                 sheetname=INDUS_DICT[k],
                 plt_plot=0,
@@ -287,6 +296,7 @@ def group_test_on_industry(
             shen = pure_moonnight(
                 v,
                 groups_num=group_num,
+                trade_cost_double_side=trade_cost_double_side,
                 net_values_writer=net_values_writer,
                 sheetname=k,
                 plt_plot=0,
@@ -1493,6 +1503,7 @@ class pure_moon(object):
         opens: pd.DataFrame = None,
         closes: pd.DataFrame = None,
         capitals: pd.DataFrame = None,
+        opens_average_first_day: bool = 0,
     ):
         if ages is None:
             ages = read_daily(age=1, start=20100101)
@@ -1501,7 +1512,10 @@ class pure_moon(object):
         if states is None:
             states = read_daily(state=1, start=20100101)
         if opens is None:
-            opens = read_daily(open=1, start=20100101)
+            if opens_average_first_day:
+                opens = read_daily(vwap=1, start=20100101)
+            else:
+                opens = read_daily(open=1, start=20100101)
         if closes is None:
             closes = read_daily(close=1, start=20100101)
         if capitals is None:
@@ -1642,9 +1656,9 @@ class pure_moon(object):
     def get_rets_month(cls):
         """计算每月的收益率，并根据每月做出交易状态，做出删减"""
         # week_here
-        cls.opens_monthly = cls.opens.resample(cls.freq).first().ffill(limit=2)
+        cls.opens_monthly = cls.opens.resample(cls.freq).first()
         # week_here
-        cls.closes_monthly = cls.closes.resample(cls.freq).last().ffill(limit=2)
+        cls.closes_monthly = cls.closes.resample(cls.freq).last()
         cls.rets_monthly = (cls.closes_monthly - cls.opens_monthly) / cls.opens_monthly
         cls.rets_monthly = cls.rets_monthly * cls.tris_monthly
         cls.rets_monthly = cls.rets_monthly.stack().reset_index()
@@ -1861,11 +1875,17 @@ class pure_moon(object):
         self.factor_turnover_rates = self.data.pivot(
             index="date", columns="code", values="group"
         )
-        self.factor_turnover_rates = self.factor_turnover_rates.diff()
-        change = ((np.abs(np.sign(self.factor_turnover_rates)) == 1) + 0).sum(axis=1)
-        still = ((self.factor_turnover_rates == 0) + 0).sum(axis=1)
-        self.factor_turnover_rates = change / (change + still)
-        self.factor_turnover_rate = self.factor_turnover_rates.mean()
+        rates = []
+        for i in range(1, 11):
+            son = (self.factor_turnover_rates == i) + 0
+            son1 = son.diff()
+            # self.factor_turnover_rates = self.factor_turnover_rates.diff()
+            change = ((np.abs(np.sign(son1)) == 1) + 0).sum(axis=1)
+            still = (((son1 == 0) + 0) * son).sum(axis=1)
+            rate = change / (change + still)
+            rates.append(rate.to_frame(f"group{i}"))
+        rates = pd.concat(rates, axis=1).fillna(0)
+        self.factor_turnover_rates = rates
         self.data = self.data.reset_index(drop=True)
         limit_ups_object = self.limit_old_to_new(self.limit_ups, self.data)
         limit_downs_object = self.limit_old_to_new(self.limit_downs, self.data)
@@ -1889,7 +1909,9 @@ class pure_moon(object):
         ret = l[-1] ** (self.freq_ctrl.counts_one_year / len(l)) - 1
         return ret
 
-    def get_group_rets_net_values(self, groups_num=10, value_weighted=False):
+    def get_group_rets_net_values(
+        self, groups_num=10, value_weighted=False, trade_cost_double_side=0
+    ):
         """计算组内每一期的平均收益，生成每日收益率序列和净值序列"""
         if value_weighted:
             cap_value = self.capital.copy()
@@ -1923,6 +1945,9 @@ class pure_moon(object):
         ]
         self.group_rets.columns = list(map(str, list(self.group_rets.columns)))
         self.group_rets = self.group_rets.add_prefix("group")
+        self.group_rets = (
+            self.group_rets - self.factor_turnover_rates * trade_cost_double_side
+        )
         self.long_short_rets = (
             self.group_rets["group1"] - self.group_rets["group" + str(groups_num)]
         )
@@ -2016,12 +2041,18 @@ class pure_moon(object):
                 ],
             )
 
-    def get_total_comments(self):
+    def get_total_comments(self, groups_num):
         """综合IC、ICIR、RankIC、RankICIR,年化收益率、年化波动率、信息比率、胜率、最大回撤率"""
         rankic = self.rankics.mean()
         rankic_win = self.rankics[self.rankics * rankic > 0]
         rankic_win_ratio = rankic_win.dropna().shape[0] / self.rankics.dropna().shape[0]
         self.factor_cross_skew_after_neu = self.__factors_out.skew(axis=1).mean()
+        if self.ic_icir_and_rank.iloc[2, 0] > 0:
+            self.factor_turnover_rate = self.factor_turnover_rates[
+                f"group{groups_num}"
+            ].mean()
+        else:
+            self.factor_turnover_rate = self.factor_turnover_rates["group1"].mean()
         self.total_comments = pd.concat(
             [
                 self.ic_icir_and_rank,
@@ -2044,7 +2075,7 @@ class pure_moon(object):
                         ]
                     },
                     index=[
-                        f"{self.freq_ctrl.comment_name}均换手率",
+                        f"多头{self.freq_ctrl.comment_name}均换手",
                         "因子覆盖率",
                         "因子正值占比",
                         "因子截面偏度",
@@ -2203,6 +2234,7 @@ class pure_moon(object):
         groups_num=10,
         neutralize=False,
         boxcox=False,
+        trade_cost_double_side=0,
         value_weighted=False,
         y2=False,
         plt_plot=True,
@@ -2251,10 +2283,12 @@ class pure_moon(object):
         self.get_limit_ups_downs()
         self.get_data(groups_num)
         self.get_group_rets_net_values(
-            groups_num=groups_num, value_weighted=value_weighted
+            groups_num=groups_num,
+            value_weighted=value_weighted,
+            trade_cost_double_side=trade_cost_double_side,
         )
         self.get_long_short_comments(on_paper=on_paper)
-        self.get_total_comments()
+        self.get_total_comments(groups_num=groups_num)
         if on_paper:
             group1_ttest = ss.ttest_1samp(self.group_rets.group1, 0).pvalue
             group10_ttest = ss.ttest_1samp(
@@ -2431,6 +2465,7 @@ class pure_moonnight(object):
         freq: str = "M",
         neutralize: bool = 0,
         boxcox: bool = 1,
+        trade_cost_double_side: float = 0,
         value_weighted: bool = 0,
         y2: bool = 0,
         plt_plot: bool = 1,
@@ -2462,6 +2497,7 @@ class pure_moonnight(object):
         iplot: bool = 1,
         ilegend: bool = 0,
         without_breakpoint: bool = 0,
+        opens_average_first_day: bool = 0,
     ) -> None:
         """一键回测框架，测试单因子的月频调仓的分组表现
         每月月底计算因子值，月初第一天开盘时买入，月末收盘最后一天收盘时卖出
@@ -2481,6 +2517,8 @@ class pure_moonnight(object):
             对流通市值取自然对数，以完成行业市值中性化, by default 0
         boxcox : bool, optional
             对流通市值做截面boxcox变换，以完成行业市值中性化, by default 1
+        trade_cost_double_side : float, optional
+            交易的双边手续费率, by default 0
         value_weighted : bool, optional
             是否用流通市值加权, by default 0
         y2 : bool, optional
@@ -2545,6 +2583,8 @@ class pure_moonnight(object):
             使用cufflinks绘图时，是否显示图例, by default 1
         without_breakpoint : bool, optional
             画图的时候是否去除间断点, by default 0
+        opens_average_first_day : bool, optional
+            买入时使用第一天的平均价格, by default 0
         """
 
         if not isinstance(factors, pd.DataFrame):
@@ -2581,22 +2621,40 @@ class pure_moonnight(object):
             only_cap = no_read_indu = 1
         if iplot:
             print_comments = 0
-        if freq == "M":
-            self.shen = pure_moon(
-                freq=freq,
-                no_read_indu=no_read_indu,
-                swindustry_dummy=swindustry_dummy,
-                zxindustry_dummy=zxindustry_dummy,
-                read_in_swindustry_dummy=swindustry_dummies,
-            )
-        elif freq == "W":
-            self.shen = pure_week(
-                freq=freq,
-                no_read_indu=no_read_indu,
-                swindustry_dummy=swindustry_dummy,
-                zxindustry_dummy=zxindustry_dummy,
-                read_in_swindustry_dummy=swindustry_dummies,
-            )
+        if opens_average_first_day:
+            if freq == "M":
+                self.shen = pure_moon(
+                    freq=freq,
+                    no_read_indu=no_read_indu,
+                    swindustry_dummy=swindustry_dummy,
+                    zxindustry_dummy=zxindustry_dummy,
+                    read_in_swindustry_dummy=swindustry_dummies,
+                )
+            elif freq == "W":
+                self.shen = pure_week(
+                    freq=freq,
+                    no_read_indu=no_read_indu,
+                    swindustry_dummy=swindustry_dummy,
+                    zxindustry_dummy=zxindustry_dummy,
+                    read_in_swindustry_dummy=swindustry_dummies,
+                )
+        else:
+            if freq == "M":
+                self.shen = pure_moon_a(
+                    freq=freq,
+                    no_read_indu=no_read_indu,
+                    swindustry_dummy=swindustry_dummy,
+                    zxindustry_dummy=zxindustry_dummy,
+                    read_in_swindustry_dummy=swindustry_dummies,
+                )
+            elif freq == "W":
+                self.shen = pure_week_a(
+                    freq=freq,
+                    no_read_indu=no_read_indu,
+                    swindustry_dummy=swindustry_dummy,
+                    zxindustry_dummy=zxindustry_dummy,
+                    read_in_swindustry_dummy=swindustry_dummies,
+                )
         self.shen.set_basic_data(
             ages=ages,
             sts=sts,
@@ -2604,6 +2662,7 @@ class pure_moonnight(object):
             opens=opens,
             closes=closes,
             capitals=capitals,
+            opens_average_first_day=opens_average_first_day,
         )
         self.shen.set_factor_df_date_as_index(factors)
         self.shen.prerpare()
@@ -2611,6 +2670,7 @@ class pure_moonnight(object):
             groups_num=groups_num,
             neutralize=neutralize,
             boxcox=boxcox,
+            trade_cost_double_side=trade_cost_double_side,
             value_weighted=value_weighted,
             y2=y2,
             plt_plot=plt_plot,
@@ -2663,8 +2723,28 @@ class pure_moonnight(object):
         df = pd.concat(coms, axis=1)
         return df.T
 
+    def comment_yearly(self) -> pd.DataFrame:
+        """对回测的每年表现给出评价
+
+        Returns
+        -------
+        pd.DataFrame
+            各年度的收益率
+        """
+        df = self.shen.group_net_values.resample("M").last().pct_change()
+        df.index = df.index.year
+        return df
+
 
 class pure_week(pure_moon):
+    ...
+
+
+class pure_moon_a(pure_moon):
+    ...
+
+
+class pure_week_a(pure_moon):
     ...
 
 
@@ -3727,6 +3807,7 @@ class pure_newyear(object):
         facx: pd.DataFrame,
         facy: pd.DataFrame,
         group_num_single: int,
+        trade_cost_double_side: float = 0,
         namex: str = "主",
         namey: str = "次",
     ) -> None:
@@ -3743,6 +3824,8 @@ class pure_newyear(object):
             index为时间，columns为股票代码，values为因子值
         group_num_single : int
             单个因子分成几组，通常为5或10
+        trade_cost_double_side : float, optional
+            交易的双边手续费率, by default 0
         namex : str, optional
             facx这一因子的名字, by default "主"
         namey : str, optional
@@ -3755,7 +3838,11 @@ class pure_newyear(object):
         elif group_num_single == 10:
             homexy = homex >> homey
         shen = pure_moonnight(
-            homexy(), group_num_single**2, plt_plot=False, print_comments=False
+            homexy(),
+            group_num_single**2,
+            trade_cost_double_side=trade_cost_double_side,
+            plt_plot=False,
+            print_comments=False,
         )
         sq = shen.shen.square_rets.copy()
         sq.index = [namex + str(i) for i in list(sq.index)]
@@ -4065,6 +4152,7 @@ class pure_dawn(object):
 @do_on_dfs
 def follow_tests(
     fac: pd.DataFrame,
+    trade_cost_double_side_list: float = [0.001, 0.002, 0.003, 0.004, 0.005],
     comments_writer: pd.ExcelWriter = None,
     net_values_writer: pd.ExcelWriter = None,
     pos: bool = 0,
@@ -4072,6 +4160,7 @@ def follow_tests(
     swindustry: bool = 0,
     zxindustry: bool = 0,
     nums: List[int] = [3],
+    opens_average_first_day: bool = 0,
 ):
     """因子完成全A测试后，进行的一些必要的后续测试，包括各个分组表现、相关系数与纯净化、3510的多空和多头、各个行业Rank IC、各个行业买3只超额表现
 
@@ -4079,6 +4168,8 @@ def follow_tests(
     ----------
     fac : pd.DataFrame
         要进行后续测试的因子值，index是时间，columns是股票代码，values是因子值
+    trade_cost_double_side : float, optional
+        交易的双边手续费率, by default 0
     comments_writer : pd.ExcelWriter, optional
         写入评价指标的excel, by default None
     net_values_writer : pd.ExcelWriter, optional
@@ -4093,6 +4184,8 @@ def follow_tests(
         使用中信一级行业, by default 0
     nums : List[int], optional
         各个行业买几只股票, by default [3]
+    opens_average_first_day : bool, optional
+        买入时使用第一天的平均价格, by default 0
 
     Raises
     ------
@@ -4108,7 +4201,10 @@ def follow_tests(
 
         net_values_writer = NET_VALUES_WRITER
 
-    shen = pure_moonnight(fac)
+    shen = pure_moonnight(
+        fac,
+        opens_average_first_day=opens_average_first_day,
+    )
     if (
         shen.shen.group_net_values.group1.iloc[-1]
         > shen.shen.group_net_values.group10.iloc[-1]
@@ -4129,6 +4225,7 @@ def follow_tests(
         comments_writer=comments_writer,
         net_values_writer=net_values_writer,
         sheetname="纯净",
+        opens_average_first_day=opens_average_first_day,
     )
     """3510多空和多头"""
     # 300
@@ -4138,18 +4235,31 @@ def follow_tests(
         comments_writer=comments_writer,
         net_values_writer=net_values_writer,
         sheetname="300多空",
+        opens_average_first_day=opens_average_first_day,
     )
     if pos:
         if comments_writer is not None:
             make_relative_comments(shen.shen.group_rets.group10, hs300=1).to_excel(
                 comments_writer, sheet_name="300超额"
             )
+            for i in trade_cost_double_side_list:
+                make_relative_comments(
+                    shen.shen.group_rets.group10
+                    - shen.shen.factor_turnover_rates.group10 * i,
+                    hs300=1,
+                ).to_excel(comments_writer, sheet_name=f"300超额双边费率{i}")
         else:
             make_relative_comments(shen.shen.group_rets.group10, hs300=1)
         if net_values_writer is not None:
             make_relative_comments_plot(shen.shen.group_rets.group10, hs300=1).to_excel(
                 net_values_writer, sheet_name="300超额"
             )
+            for i in trade_cost_double_side_list:
+                make_relative_comments_plot(
+                    shen.shen.group_rets.group10
+                    - shen.shen.factor_turnover_rates.group10 * i,
+                    hs300=1,
+                ).to_excel(comments_writer, sheet_name=f"300超额双边费率{i}")
         else:
             make_relative_comments_plot(shen.shen.group_rets.group10, hs300=1)
     elif neg:
@@ -4157,12 +4267,24 @@ def follow_tests(
             make_relative_comments(shen.shen.group_rets.group1, hs300=1).to_excel(
                 comments_writer, sheet_name="300超额"
             )
+            for i in trade_cost_double_side_list:
+                make_relative_comments(
+                    shen.shen.group_rets.group1
+                    - shen.shen.factor_turnover_rates.group1 * i,
+                    hs300=1,
+                ).to_excel(comments_writer, sheet_name=f"300超额双边费率{i}")
         else:
             make_relative_comments(shen.shen.group_rets.group1, hs300=1)
         if net_values_writer is not None:
             make_relative_comments_plot(shen.shen.group_rets.group1, hs300=1).to_excel(
                 net_values_writer, sheet_name="300超额"
             )
+            for i in trade_cost_double_side_list:
+                make_relative_comments_plot(
+                    shen.shen.group_rets.group1
+                    - shen.shen.factor_turnover_rates.group1 * i,
+                    hs300=1,
+                ).to_excel(comments_writer, sheet_name=f"300超额双边费率{i}")
         else:
             make_relative_comments_plot(shen.shen.group_rets.group1, hs300=1)
     else:
@@ -4174,18 +4296,31 @@ def follow_tests(
         comments_writer=comments_writer,
         net_values_writer=net_values_writer,
         sheetname="500多空",
+        opens_average_first_day=opens_average_first_day,
     )
     if pos:
         if comments_writer is not None:
             make_relative_comments(shen.shen.group_rets.group10, zz500=1).to_excel(
                 comments_writer, sheet_name="500超额"
             )
+            for i in trade_cost_double_side_list:
+                make_relative_comments(
+                    shen.shen.group_rets.group10
+                    - shen.shen.factor_turnover_rates.group10 * i,
+                    zz500=1,
+                ).to_excel(comments_writer, sheet_name=f"500超额双边费率{i}")
         else:
             make_relative_comments(shen.shen.group_rets.group10, zz500=1)
         if net_values_writer is not None:
             make_relative_comments_plot(shen.shen.group_rets.group10, zz500=1).to_excel(
                 net_values_writer, sheet_name="500超额"
             )
+            for i in trade_cost_double_side_list:
+                make_relative_comments_plot(
+                    shen.shen.group_rets.group10
+                    - shen.shen.factor_turnover_rates.group10 * i,
+                    zz500=1,
+                ).to_excel(comments_writer, sheet_name=f"500超额双边费率{i}")
         else:
             make_relative_comments_plot(shen.shen.group_rets.group10, zz500=1)
     else:
@@ -4193,12 +4328,24 @@ def follow_tests(
             make_relative_comments(shen.shen.group_rets.group1, zz500=1).to_excel(
                 comments_writer, sheet_name="500超额"
             )
+            for i in trade_cost_double_side_list:
+                make_relative_comments(
+                    shen.shen.group_rets.group1
+                    - shen.shen.factor_turnover_rates.group1 * i,
+                    zz500=1,
+                ).to_excel(comments_writer, sheet_name=f"500超额双边费率{i}")
         else:
             make_relative_comments(shen.shen.group_rets.group1, zz500=1)
         if net_values_writer is not None:
             make_relative_comments_plot(shen.shen.group_rets.group1, zz500=1).to_excel(
                 net_values_writer, sheet_name="500超额"
             )
+            for i in trade_cost_double_side_list:
+                make_relative_comments_plot(
+                    shen.shen.group_rets.group1
+                    - shen.shen.factor_turnover_rates.group1 * i,
+                    zz500=1,
+                ).to_excel(comments_writer, sheet_name=f"500超额双边费率{i}")
         else:
             make_relative_comments_plot(shen.shen.group_rets.group1, zz500=1)
     # 1000
@@ -4208,18 +4355,31 @@ def follow_tests(
         comments_writer=comments_writer,
         net_values_writer=net_values_writer,
         sheetname="1000多空",
+        opens_average_first_day=opens_average_first_day,
     )
     if pos:
         if comments_writer is not None:
             make_relative_comments(shen.shen.group_rets.group10, zz1000=1).to_excel(
                 comments_writer, sheet_name="1000超额"
             )
+            for i in trade_cost_double_side_list:
+                make_relative_comments(
+                    shen.shen.group_rets.group10
+                    - shen.shen.factor_turnover_rates.group10 * i,
+                    zz1000=1,
+                ).to_excel(comments_writer, sheet_name=f"1000超额双边费率{i}")
         else:
             make_relative_comments(shen.shen.group_rets.group10, zz1000=1)
         if net_values_writer is not None:
             make_relative_comments_plot(
                 shen.shen.group_rets.group10, zz1000=1
             ).to_excel(net_values_writer, sheet_name="1000超额")
+            for i in trade_cost_double_side_list:
+                make_relative_comments_plot(
+                    shen.shen.group_rets.group10
+                    - shen.shen.factor_turnover_rates.group10 * i,
+                    zz1000=1,
+                ).to_excel(comments_writer, sheet_name=f"1000超额双边费率{i}")
         else:
             make_relative_comments_plot(shen.shen.group_rets.group10, zz1000=1)
     else:
@@ -4227,12 +4387,24 @@ def follow_tests(
             make_relative_comments(shen.shen.group_rets.group1, zz1000=1).to_excel(
                 comments_writer, sheet_name="1000超额"
             )
+            for i in trade_cost_double_side_list:
+                make_relative_comments(
+                    shen.shen.group_rets.group1
+                    - shen.shen.factor_turnover_rates.group1 * i,
+                    zz1000=1,
+                ).to_excel(comments_writer, sheet_name=f"1000超额双边费率{i}")
         else:
             make_relative_comments(shen.shen.group_rets.group1, zz1000=1)
         if net_values_writer is not None:
             make_relative_comments_plot(shen.shen.group_rets.group1, zz1000=1).to_excel(
                 net_values_writer, sheet_name="1000超额"
             )
+            for i in trade_cost_double_side_list:
+                make_relative_comments_plot(
+                    shen.shen.group_rets.group1
+                    - shen.shen.factor_turnover_rates.group1 * i,
+                    zz1000=1,
+                ).to_excel(comments_writer, sheet_name=f"1000超额双边费率{i}")
         else:
             make_relative_comments_plot(shen.shen.group_rets.group1, zz1000=1)
     # 各行业Rank IC
@@ -4646,12 +4818,14 @@ class pure_rollingols(object):
 @do_on_dfs
 def test_on_300500(
     df: pd.DataFrame,
+    trade_cost_double_side: float = 0,
     group_num: int = 10,
     hs300: bool = 0,
     zz500: bool = 0,
     zz1000: bool = 0,
     gz2000: bool = 0,
     iplot: bool = 1,
+    opens_average_first_day: bool = 0,
 ) -> pd.Series:
     """对因子在指数成分股内进行多空和多头测试
 
@@ -4659,6 +4833,8 @@ def test_on_300500(
     ----------
     df : pd.DataFrame
         因子值，index为时间，columns为股票代码
+    trade_cost_double_side : float, optional
+        交易的双边手续费率, by default 0
     group_num : int
         分组数量, by default 10
     hs300 : bool, optional
@@ -4671,6 +4847,8 @@ def test_on_300500(
         在国证2000成分股内测试, by default 0
     iplot : bol,optional
         多空回测的时候，是否使用cufflinks绘画
+    opens_average_first_day : bool, optional
+        买入时使用第一天的平均价格, by default 0
 
     Returns
     -------
@@ -4680,7 +4858,13 @@ def test_on_300500(
     fi300 = daily_factor_on300500(
         df, hs300=hs300, zz500=zz500, zz1000=zz1000, gz2000=gz2000
     )
-    shen = pure_moonnight(fi300, groups_num=group_num, iplot=iplot)
+    shen = pure_moonnight(
+        fi300,
+        groups_num=group_num,
+        trade_cost_double_side=trade_cost_double_side,
+        iplot=iplot,
+        opens_average_first_day=opens_average_first_day,
+    )
     if (
         shen.shen.group_net_values.group1.iloc[-1]
         > shen.shen.group_net_values[f"group{group_num}"].iloc[-1]
@@ -4726,9 +4910,11 @@ def test_on_300500(
 def test_on_index_four(
     df: pd.DataFrame,
     group_num: int = 10,
+    trade_cost_double_side: float = 0,
     iplot: bool = 1,
     gz2000: bool = 0,
     boxcox: bool = 1,
+    opens_average_first_day: bool = 0,
 ) -> pd.DataFrame:
     """对因子同时在沪深300、中证500、中证1000、国证2000这4个指数成分股内进行多空和多头超额测试
 
@@ -4738,12 +4924,16 @@ def test_on_index_four(
         因子值，index为时间，columns为股票代码
     group_num : int
         分组数量, by default 10
+    trade_cost_double_side : float, optional
+        交易的双边手续费率, by default 0
     iplot : bol,optional
         多空回测的时候，是否使用cufflinks绘画
     gz2000 : bool, optional
         是否进行国证2000上的测试, by default 0
     boxcox : bool, optional
         是否进行行业市值中性化处理, by default 1
+    opens_average_first_day : bool, optional
+        买入时使用第一天的平均价格, by default 0
 
     Returns
     -------
@@ -4751,7 +4941,14 @@ def test_on_index_four(
         多头组在各个指数上的超额收益序列
     """
     fi300 = daily_factor_on300500(df, hs300=1)
-    shen = pure_moonnight(fi300, groups_num=group_num, iplot=iplot, boxcox=boxcox)
+    shen = pure_moonnight(
+        fi300,
+        groups_num=group_num,
+        trade_cost_double_side=trade_cost_double_side,
+        iplot=iplot,
+        boxcox=boxcox,
+        opens_average_first_day=opens_average_first_day,
+    )
     if (
         shen.shen.group_net_values.group1.iloc[-1]
         > shen.shen.group_net_values[f"group{group_num}"].iloc[-1]
@@ -4760,18 +4957,39 @@ def test_on_index_four(
             shen.shen.group_rets.group1, hs300=1, show_nets=1
         )
         fi500 = daily_factor_on300500(df, zz500=1)
-        shen = pure_moonnight(fi500, iplot=iplot, boxcox=boxcox)
+        shen = pure_moonnight(
+            fi500,
+            groups_num=group_num,
+            trade_cost_double_side=trade_cost_double_side,
+            iplot=iplot,
+            boxcox=boxcox,
+            opens_average_first_day=opens_average_first_day,
+        )
         com500, net500 = make_relative_comments(
             shen.shen.group_rets.group1, zz500=1, show_nets=1
         )
         fi1000 = daily_factor_on300500(df, zz1000=1)
-        shen = pure_moonnight(fi1000, iplot=iplot, boxcox=boxcox)
+        shen = pure_moonnight(
+            fi1000,
+            groups_num=group_num,
+            trade_cost_double_side=trade_cost_double_side,
+            iplot=iplot,
+            boxcox=boxcox,
+            opens_average_first_day=opens_average_first_day,
+        )
         com1000, net1000 = make_relative_comments(
             shen.shen.group_rets.group1, zz1000=1, show_nets=1
         )
         if gz2000:
             fi2000 = daily_factor_on300500(df, gz2000=1)
-            shen = pure_moonnight(fi2000, iplot=iplot, boxcox=boxcox)
+            shen = pure_moonnight(
+                fi2000,
+                groups_num=group_num,
+                trade_cost_double_side=trade_cost_double_side,
+                iplot=iplot,
+                boxcox=boxcox,
+                opens_average_first_day=opens_average_first_day,
+            )
             com2000, net2000 = make_relative_comments(
                 shen.shen.group_rets.group1, gz2000=1, show_nets=1
             )
@@ -4780,18 +4998,39 @@ def test_on_index_four(
             shen.shen.group_rets[f"group{group_num}"], hs300=1, show_nets=1
         )
         fi500 = daily_factor_on300500(df, zz500=1)
-        shen = pure_moonnight(fi500, iplot=iplot, boxcox=boxcox)
+        shen = pure_moonnight(
+            fi500,
+            groups_num=group_num,
+            trade_cost_double_side=trade_cost_double_side,
+            iplot=iplot,
+            boxcox=boxcox,
+            opens_average_first_day=opens_average_first_day,
+        )
         com500, net500 = make_relative_comments(
             shen.shen.group_rets[f"group{group_num}"], zz500=1, show_nets=1
         )
         fi1000 = daily_factor_on300500(df, zz1000=1)
-        shen = pure_moonnight(fi1000, iplot=iplot, boxcox=boxcox)
+        shen = pure_moonnight(
+            fi1000,
+            groups_num=group_num,
+            trade_cost_double_side=trade_cost_double_side,
+            iplot=iplot,
+            boxcox=boxcox,
+            opens_average_first_day=opens_average_first_day,
+        )
         com1000, net1000 = make_relative_comments(
             shen.shen.group_rets[f"group{group_num}"], zz1000=1, show_nets=1
         )
         if gz2000:
             fi2000 = daily_factor_on300500(df, gz2000=1)
-            shen = pure_moonnight(fi2000, iplot=iplot, boxcox=boxcox)
+            shen = pure_moonnight(
+                fi2000,
+                groups_num=group_num,
+                trade_cost_double_side=trade_cost_double_side,
+                iplot=iplot,
+                boxcox=boxcox,
+                opens_average_first_day=opens_average_first_day,
+            )
             com2000, net2000 = make_relative_comments(
                 shen.shen.group_rets[f"group{group_num}"], gz2000=1, show_nets=1
             )
@@ -5088,3 +5327,268 @@ def get_group(df: pd.DataFrame, group_num: int = 10) -> pd.DataFrame:
     df.columns = ["date", "code", "fac"]
     df = a.get_groups(df, group_num).pivot(index="date", columns="code", values="group")
     return df
+
+
+class pure_linprog(object):
+    def __init__(
+        self,
+        facs: pd.DataFrame,
+        total_caps: pd.DataFrame = None,
+        indu_dummys: pd.DataFrame = None,
+        index_weights_hs300: pd.DataFrame = None,
+        index_weights_zz500: pd.DataFrame = None,
+        index_weights_zz1000: pd.DataFrame = None,
+        opens: pd.DataFrame = None,
+        closes: pd.DataFrame = None,
+        hs300_closes: pd.DataFrame = None,
+        zz500_closes: pd.DataFrame = None,
+        zz1000_closes: pd.DataFrame = None,
+    ) -> None:
+        """线性规划求解，目标为预期收益率最大（即因子方向为负时，组合因子值最小）
+        条件为，严格控制市值中性（数据：总市值的对数；含义：组合在市值上的暴露与指数在市值上的暴露相等）
+        严格控制行业中性（数据：使用中信一级行业哑变量），个股偏离在1%以内，成分股权重之和在80%以上
+        分别在沪深300、中证500、中证1000上优化求解
+
+        Parameters
+        ----------
+        facs : pd.DataFrame
+            因子值，index为时间，columns为股票代码，values为因子值
+        total_caps : pd.DataFrame, optional
+            总市值数据，index为时间，columns为股票代码，values为总市值, by default None
+        indu_dummys : pd.DataFrame, optional
+            行业哑变量，包含两列名为date的时间和code的股票代码，以及30+列行业哑变量, by default None
+        index_weights_hs300 : pd.DataFrame, optional
+            沪深300指数成分股权重，月频数据, by default None
+        index_weights_zz500 : pd.DataFrame, optional
+            中证500指数成分股权重，月频数据, by default None
+        index_weights_zz1000 : pd.DataFrame, optional
+            中证1000指数成分股权重，月频数据, by default None
+        opens : pd.DataFrame, optional
+            每月月初开盘价数据, by default None
+        closes : pd.DataFrame, optional
+            每月月末收盘价数据, by default None
+        hs300_closes : pd.DataFrame, optional
+            沪深300每月收盘价数据, by default None
+        zz500_closes : pd.DataFrame, optional
+            中证500每月收盘价数据,, by default None
+        zz1000_closes : pd.DataFrame, optional
+            中证1000每月收盘价数据,, by default None
+        """
+        self.facs = facs.resample("M").last()
+        if total_caps is None:
+            total_caps = standardlize(
+                np.log(read_daily(total_cap=1).resample("M").last())
+            )
+        if indu_dummys is None:
+            indu_dummys = read_daily(zxindustry_dummy_code=1)
+        if index_weights_hs300 is None:
+            index_weights_hs300 = read_daily(hs300_member_weight=1)
+        if index_weights_zz500 is None:
+            index_weights_zz500 = read_daily(zz500_member_weight=1)
+        if index_weights_zz1000 is None:
+            index_weights_zz1000 = read_daily(zz1000_member_weight=1)
+        if opens is None:
+            opens = read_daily(open=1).resample("M").first()
+        if closes is None:
+            closes = read_daily(close=1).resample("M").last()
+        if hs300_closes is None:
+            hs300_closes = read_index_single("000300.SH").resample("M").last()
+        if zz500_closes is None:
+            zz500_closes = read_index_single("000905.SH").resample("M").last()
+        if zz1000_closes is None:
+            zz1000_closes = read_index_single("000852.SH").resample("M").last()
+        self.total_caps = total_caps
+        self.indu_dummys = indu_dummys
+        self.index_weights_hs300 = index_weights_hs300
+        self.index_weights_zz500 = index_weights_zz500
+        self.index_weights_zz1000 = index_weights_zz1000
+        self.hs300_weights = []
+        self.zz500_weights = []
+        self.zz1000_weights = []
+        self.ret_next = closes / opens - 1
+        self.ret_hs300 = hs300_closes.pct_change()
+        self.ret_zz500 = zz500_closes.pct_change()
+        self.ret_zz1000 = zz1000_closes.pct_change()
+
+    def optimize_one_day(
+        self,
+        fac: pd.DataFrame,
+        flow_cap: pd.DataFrame,
+        indu_dummy: pd.DataFrame,
+        index_weight: pd.DataFrame,
+        name: str,
+    ) -> pd.DataFrame:
+        """优化单期求解
+
+        Parameters
+        ----------
+        fac : pd.DataFrame
+            单期因子值，index为code，columns为date，values为因子值
+        flow_cap : pd.DataFrame
+            流通市值，index为code，columns为date，values为截面标准化的流通市值
+        indu_dummy : pd.DataFrame
+            行业哑变量，index为code，columns为行业代码，values为哑变量
+        index_weight : pd.DataFrame
+            指数成分股权重，index为code，columns为date，values为权重
+
+        Returns
+        -------
+        pd.DataFrame
+            当期最佳权重
+        """
+        if fac.shape[0] > 0 and index_weight.shape[1] > 0:
+            date = fac.columns.tolist()[0]
+            codes = list(
+                set(fac.index)
+                | set(flow_cap.index)
+                | set(indu_dummy.index)
+                | set(index_weight.index)
+            )
+            fac, flow_cap, indu_dummy, index_weight = list(
+                map(
+                    lambda x: x.reindex(codes).fillna(0).to_numpy(),
+                    [fac, flow_cap, indu_dummy, index_weight],
+                )
+            )
+            sign_index_weight = np.sign(index_weight)
+            # 个股权重大于零、偏离1%
+            bounds = list(
+                zip(
+                    select_max(index_weight - 0.01, 0).flatten(),
+                    select_min(index_weight + 0.01, 1).flatten(),
+                )
+            )
+            # 市值中性+行业中性+权重和为1
+            huge = np.vstack([flow_cap.T, indu_dummy.T, np.array([1] * len(codes))])
+            target = (
+                list(flow_cap.T @ index_weight.flatten())
+                + list((indu_dummy.T @ index_weight).flatten())
+                + [np.sum(index_weight)]
+            )
+            # 写线性条件
+            c = fac.T.flatten().tolist()
+            a = sign_index_weight.reshape((1, -1)).tolist()
+            b = [0.8]
+            # 优化求解
+            res = linprog(c, a, b, huge, target, bounds)
+            if res.success:
+                return pd.DataFrame({date: res.x.tolist()}, index=codes)
+            else:
+                # raise NotImplementedError(f"{date}这一期的优化失败，请检查")
+                logger.warning(f"{name}在{date}这一期的优化失败，请检查")
+                return None
+        else:
+            return None
+
+    def optimize_many_days(self, startdate: int = 20130101):
+        dates = [i for i in self.facs.index if i >= pd.Timestamp(str(startdate))]
+        for date in tqdm.auto.tqdm(dates):
+            fac = self.facs[self.facs.index == date].T.dropna()
+            total_cap = self.total_caps[self.total_caps.index == date].T.dropna()
+            indu_dummy = self.indu_dummys[self.indu_dummys.date <= date]
+            indu_dummy = (
+                indu_dummy[indu_dummy.date == indu_dummy.date.max()]
+                .drop(columns=["date"])
+                .set_index("code")
+            )
+            index_weight_hs300 = self.index_weights_hs300[
+                self.index_weights_hs300.index == date
+            ].T.dropna()
+            index_weight_zz500 = self.index_weights_zz500[
+                self.index_weights_zz500.index == date
+            ].T.dropna()
+            index_weight_zz1000 = self.index_weights_zz1000[
+                self.index_weights_zz1000.index == date
+            ].T.dropna()
+            weight_hs300 = self.optimize_one_day(
+                fac, total_cap, indu_dummy, index_weight_hs300, "hs300"
+            )
+            weight_zz500 = self.optimize_one_day(
+                fac, total_cap, indu_dummy, index_weight_zz500, "zz500"
+            )
+            weight_zz1000 = self.optimize_one_day(
+                fac, total_cap, indu_dummy, index_weight_zz1000, "zz1000"
+            )
+            self.hs300_weights.append(weight_hs300)
+            self.zz500_weights.append(weight_zz500)
+            self.zz1000_weights.append(weight_zz1000)
+        self.hs300_weights = pd.concat(self.hs300_weights, axis=1).T
+        self.zz500_weights = pd.concat(self.zz500_weights, axis=1).T
+        self.zz1000_weights = pd.concat(self.zz1000_weights, axis=1).T
+
+    def make_contrast(self, weight, index, name) -> list[pd.DataFrame]:
+        ret = (weight.shift(1) * self.ret_next).sum(axis=1)
+        abret = ret - index
+        rets = pd.concat([ret, index, abret], axis=1).dropna()
+        rets.columns = [f"{name}增强组合净值", f"{name}指数净值", f"{name}增强组合超额净值"]
+        rets = (rets + 1).cumprod()
+        rets = rets.apply(lambda x: x / x.iloc[0])
+        comments = comments_on_twins(rets[f"{name}增强组合超额净值"], abret.dropna())
+        return comments, rets
+
+    def run(self, startdate: int = 20130101) -> pd.DataFrame:
+        """运行规划求解
+
+        Parameters
+        ----------
+        startdate : int, optional
+            起始日期, by default 20130101
+
+        Returns
+        -------
+        pd.DataFrame
+            超额绩效指标
+        """
+        self.optimize_many_days(startdate=startdate)
+        self.hs300_comments, self.hs300_nets = self.make_contrast(
+            self.hs300_weights, self.ret_hs300, "沪深300"
+        )
+        self.zz500_comments, self.zz500_nets = self.make_contrast(
+            self.zz500_weights, self.ret_zz500, "中证500"
+        )
+        self.zz1000_comments, self.zz1000_nets = self.make_contrast(
+            self.zz1000_weights, self.ret_zz1000, "中证1000"
+        )
+
+        figs = cf.figures(
+            pd.concat([self.hs300_nets, self.zz500_nets, self.zz1000_nets]),
+            [
+                dict(kind="line", y=list(self.hs300_nets.columns)),
+                dict(kind="line", y=list(self.zz500_nets.columns)),
+                dict(kind="line", y=list(self.zz1000_nets.columns)),
+            ],
+            asList=True,
+        )
+        base_layout = cf.tools.get_base_layout(figs)
+
+        sp = cf.subplots(
+            figs,
+            shape=(1, 3),
+            base_layout=base_layout,
+            vertical_spacing=0.15,
+            horizontal_spacing=0.03,
+            shared_yaxes=False,
+            subplot_titles=["沪深300增强", "中证500增强", "中证1000增强"],
+        )
+        sp["layout"].update(showlegend=True)
+        cf.iplot(sp)
+
+        self.comments = pd.concat(
+            [self.hs300_comments, self.zz500_comments, self.zz1000_comments], axis=1
+        )
+        self.comments.columns = ["沪深300超额", "中证500超额", "中证1000超额"]
+
+        from pure_ocean_breeze.state.states import COMMENTS_WRITER, NET_VALUES_WRITER
+
+        comments_writer = COMMENTS_WRITER
+        net_values_writer = NET_VALUES_WRITER
+        if comments_writer is not None:
+            self.hs300_comments.to_excel(comments_writer, sheet_name="沪深300组合优化超额绩效")
+            self.zz500_comments.to_excel(comments_writer, sheet_name="中证500组合优化超额绩效")
+            self.zz1000_comments.to_excel(comments_writer, sheet_name="中证1000组合优化超额绩效")
+        if net_values_writer is not None:
+            self.hs300_nets.to_excel(net_values_writer, sheet_name="沪深300组合优化净值")
+            self.zz500_nets.to_excel(net_values_writer, sheet_name="中证500组合优化净值")
+            self.zz1000_nets.to_excel(net_values_writer, sheet_name="中证1000组合优化净值")
+
+        return self.comments.T

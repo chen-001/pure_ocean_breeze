@@ -1,4 +1,4 @@
-__updated__ = "2023-03-16 18:52:02"
+__updated__ = "2023-03-23 02:33:15"
 
 import time
 
@@ -51,7 +51,7 @@ from tenacity import retry
 import pickledb
 import tqdm.auto
 from functools import reduce
-from typing import Union,List
+from typing import Union, List
 import dcube as dc
 from tenacity import retry, stop_after_attempt
 import questdb.ingress as qdbing
@@ -60,7 +60,7 @@ from pure_ocean_breeze.state.homeplace import HomePlace
 try:
     homeplace = HomePlace()
 except Exception:
-    print('您暂未初始化，功能将受限')
+    print("您暂未初始化，功能将受限")
 try:
     pro = dc.pro_api(homeplace.api_token)
 except Exception:
@@ -280,6 +280,10 @@ def download_single_daily(day):
                 "adjhigh",
                 "adjlow",
                 "tradestatus",
+                "adjfactor",
+                "limit",
+                "stopping",
+                "avgprice",
             ],
         )
         # 换手率，流通股本，换手率要除以100，流通股本要乘以10000
@@ -289,6 +293,7 @@ def download_single_daily(day):
                 "ts_code",
                 "trade_date",
                 "turnover_rate_f",
+                "total_share",
                 "float_share",
                 "pe",
                 "pb",
@@ -323,6 +328,7 @@ def download_single_daily(day):
                 "ts_code",
                 "trade_date",
                 "turnover_rate_f",
+                "total_share",
                 "float_share",
                 "pe",
                 "pb",
@@ -374,12 +380,17 @@ def database_update_daily_files() -> None:
         "lows_unadj",
         "closes_unadj",
         "sharenums",
+        "total_sharenums",
         "ages",
         "sts",
         "states",
         "volumes",
         "pb",
         "pe",
+        "vwaps",
+        "adjfactors",
+        "stop_ups",
+        "stop_downs",
     ]
     startdates = list(map(single_file, names))
     startdate = min(startdates)
@@ -436,6 +447,7 @@ def database_update_daily_files() -> None:
 
         # 股票日行情（未复权高开低收，复权高开低收，交易状态，成交量）
         part1 = df1s.copy()
+        part1.volume = part1.volume * 100
         # 未复权开盘价
         opens = to_mat(part1, "open", "opens_unadj")
         # 未复权最高价
@@ -445,7 +457,7 @@ def database_update_daily_files() -> None:
         # 未复权收盘价
         closes = to_mat(part1, "close", "closes_unadj")
         # 成交量
-        volumes = to_mat(part1, "volume", "volumes")
+        volumes = to_mat(part1, "volume", "amounts")
         # 复权开盘价
         diopens = to_mat(part1, "adjopen", "opens")
         # 复权最高价
@@ -456,6 +468,14 @@ def database_update_daily_files() -> None:
         dicloses = to_mat(part1, "adjclose", "closes")
         # 交易状态
         status = to_mat(part1, "tradestatus", "states")
+        # 平均价格
+        vwaps = to_mat(part1, "adjprice", "vwaps")
+        # 复权因子
+        adjfactors = to_mat(part1, "adjfactor", "adjfactors")
+        # 涨停价
+        stop_ups = to_mat(part1, "limit", "stop_ups")
+        # 跌停价
+        stop_downs = to_mat(part1, "stop", "stop_downs")
 
         # 换手率
         part2 = df2s[["date", "code", "turnover_rate_f"]].pivot(
@@ -484,6 +504,22 @@ def database_update_daily_files() -> None:
         part3_new = part3_new[sorted(list(part3_new.columns))]
         part3_new.to_parquet(homeplace.daily_data_file + "sharenums.parquet")
         logger.success("流通股数更新完成")
+
+        # 总股数
+        # 读取新的总股变动数
+        part3a = df2s[["date", "code", "total_share"]].pivot(
+            columns="code", index="date", values="total_share"
+        )
+        part3a = part3a * 10000
+        part3_olda = pd.read_parquet(
+            homeplace.daily_data_file + "total_sharenums.parquet"
+        )
+        part3_newa = pd.concat([part3_olda, part3a]).drop_duplicates()
+        part3_newa = part3_newa[closes.columns]
+        part3_newa = drop_duplicates_index(part3_newa)
+        part3_newa = part3_newa[sorted(list(part3_newa.columns))]
+        part3_newa.to_parquet(homeplace.daily_data_file + "total_sharenums.parquet")
+        logger.success("总股数更新完成")
 
         # pb
         partpb = df2s[["date", "code", "pb"]].pivot(
@@ -1225,3 +1261,36 @@ class FactorReader:
     def add_token(self, tokens: List[str], users: List[str]):
         tus = pd.DataFrame({"token": tokens, "user": users})
         self.__write_via_df(tus, "tokenlines")
+
+
+def database_update_index_weight():
+    opens = read_daily(open=1).resample("M").last()
+    dates = [datetime.datetime.strftime(i, "%Y%m%d") for i in list(opens.index)]
+    df1s = []
+    df2s = []
+    df3s = []
+    for i in tqdm.auto.tqdm(dates):
+        df1s.append(
+            rqdatac.index_weights(convert_code("000300.SH")[0], date=i).to_frame(i)
+        )
+        df2s.append(
+            rqdatac.index_weights(convert_code("000905.SH")[0], date=i).to_frame(i)
+        )
+        try:
+            df3s.append(
+                rqdatac.index_weights(convert_code("000852.SH")[0], date=i).to_frame(i)
+            )
+        except Exception:
+            ...
+
+    def deal(df):
+        df = pd.concat(df, axis=1).T
+        df.index = pd.to_datetime(df.index)
+        df.columns = [convert_code(i)[0] for i in df.columns]
+        return df
+
+    df1, df2, df3 = list(map(deal, [df1s, df2s, df3s]))
+    df1.to_parquet(homeplace.daily_data_file + "沪深300成分股权重.parquet")
+    df2.to_parquet(homeplace.daily_data_file + "中证500成分股权重.parquet")
+    df3.to_parquet(homeplace.daily_data_file + "中证1000成分股权重.parquet")
+    logger.success("指数成分股权重更新完了")

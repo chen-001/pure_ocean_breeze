@@ -1,10 +1,10 @@
-__updated__ = "2023-03-16 18:51:07"
+__updated__ = "2023-03-23 01:34:51"
 
 import os
 import numpy as np
 import pandas as pd
 import datetime
-from typing import Union,Dict,Tuple
+from typing import Union, Dict, Tuple
 from loguru import logger
 
 from pure_ocean_breeze.state.states import STATES
@@ -15,7 +15,7 @@ from pure_ocean_breeze.data.database import ClickHouseClient, Questdb
 try:
     homeplace = HomePlace()
 except Exception:
-    print('您暂未初始化，功能将受限')
+    print("您暂未初始化，功能将受限")
 
 
 def read_daily(
@@ -24,12 +24,16 @@ def read_daily(
     close: bool = 0,
     high: bool = 0,
     low: bool = 0,
+    vwap: bool = 0,
     tr: bool = 0,
     sharenum: bool = 0,
-    volume: bool = 0,
+    total_sharenum: bool = 0,
+    amount: bool = 0,
     money: bool = 0,
     age: bool = 0,
     flow_cap: bool = 0,
+    total_cap: bool = 0,
+    adjfactor: bool = 0,
     st: bool = 0,
     state: bool = 0,
     unadjust: bool = 0,
@@ -48,6 +52,14 @@ def read_daily(
     illiquidity: bool = 0,
     swindustry_ret: bool = 0,
     zxindustry_ret: bool = 0,
+    stop_up: bool = 0,
+    stop_down: bool = 0,
+    zxindustry_dummy_code: bool = 0,
+    zxindustry_dummy_name: bool = 0,
+    swindustry_dummy: bool = 0,
+    hs300_member_weight: bool = 0,
+    zz500_member_weight: bool = 0,
+    zz1000_member_weight: bool = 0,
     start: int = STATES["START"],
 ) -> pd.DataFrame:
     """直接读取常用的量价读取日频数据，默认为复权价格，
@@ -65,11 +77,15 @@ def read_daily(
         为1则选择读取最高价, by default 0
     low : bool, optional
         为1则选择读取最低价, by default 0
+    vwap : bool, optional
+        为1则选择读取日均成交价, by default 0
     tr : bool, optional
         为1则选择读取换手率, by default 0
     sharenum : bool, optional
         为1则选择读取流通股数, by default 0
-    volume : bool, optional
+    total_sharenum : bool, optional
+        为1则表示读取总股数, by default 0
+    amount : bool, optional
         为1则选择读取成交量, by default 0
     money : bool, optional
         为1则表示读取成交额, by default 0
@@ -77,6 +93,10 @@ def read_daily(
         为1则选择读取上市天数, by default 0
     flow_cap : bool, optional
         为1则选择读取流通市值, by default 0
+    total_cap : bool, optional
+        为1则选择读取总市值, by default 0
+    adjfactor : bool, optional
+        为1则选择读取复权因子, by default 0
     st : bool, optional
         为1则选择读取当日是否为st股，1表示是st股，空值则不是, by default 0
     state : bool, optional
@@ -113,6 +133,22 @@ def read_daily(
         为1则表示读取每只股票对应申万一级行业当日收益率, by default 0
     zxindustry_ret : bool, optional
         为1则表示读取每只股票对应申万一级行业当日收益率, by default 0
+    stop_up : bool, optional
+        为1则表示读取每只股票涨停价, by default 0
+    stop_down : bool, optional
+        为1则表示读取每只股票跌停价, by default 0
+    zxindustry_dummy_code : bool, optional
+        为1则表示读取中信一级行业哑变量表代码版, by default 0
+    zxindustry_dummy_name : bool, optional
+        为1则表示读取中信一级行业哑变量表名称版, by default 0
+    swindustry_dummy : bool, optional
+        为1则表示读取申万一级行业哑变量, by default 0
+    hs300_member_weight : bool, optional
+        为1则表示读取沪深300成分股权重（月频）, by default 0
+    zz500_member_weight : bool, optional
+        为1则表示读取中证500成分股权重（月频）, by default 0
+    zz1000_member_weight : bool, optional
+        为1则表示读取中证1000成分股权重（月频）, by default 0
     start : int, optional
         起始日期，形如20130101, by default STATES["START"]
 
@@ -125,7 +161,6 @@ def read_daily(
     ------
     `IOError`
         open,close,high,low,tr,sharenum,volume 都为0时，将报错
-    另：如果数据未更新，可使用read_daily.clear_cache()来清空缓存
     """
 
     if not unadjust:
@@ -143,14 +178,20 @@ def read_daily(
         elif low:
             lows = pd.read_parquet(homeplace.daily_data_file + "lows.parquet")
             df = lows
+        elif vwap:
+            df = pd.read_parquet(
+                homeplace.daily_data_file + "vwaps.parquet"
+            ) * read_daily(adjfactor=1, start=start)
         elif tr:
             trs = pd.read_parquet(homeplace.daily_data_file + "trs.parquet")
             df = trs
         elif sharenum:
             sharenums = pd.read_parquet(homeplace.daily_data_file + "sharenums.parquet")
             df = sharenums
-        elif volume:
-            volumes = pd.read_parquet(homeplace.daily_data_file + "volumes.parquet")
+        elif total_sharenum:
+            df = pd.read_parquet(homeplace.daily_data_file + "total_sharenums.parquet")
+        elif amount:
+            volumes = pd.read_parquet(homeplace.daily_data_file + "amounts.parquet")
             df = volumes
         elif money:
             df = pd.read_parquet(
@@ -164,6 +205,18 @@ def read_daily(
             sharenums = pd.read_parquet(homeplace.daily_data_file + "sharenums.parquet")
             flow_cap = closes * sharenums
             df = flow_cap
+        elif total_cap:
+            closes = pd.read_parquet(homeplace.daily_data_file + "closes_unadj.parquet")
+            sharenums = pd.read_parquet(
+                homeplace.daily_data_file + "total_sharenums.parquet"
+            )
+            flow_cap = closes * sharenums
+            df = flow_cap
+        elif adjfactor:
+            # df=pd.read_parquet(homeplace.daily_data_file+'adjfactors.parquet')
+            df = read_daily(close=1, start=start) / read_daily(
+                close=1, start=start, unadjust=1
+            )
         elif st:
             st = pd.read_parquet(homeplace.daily_data_file + "sts.parquet")
             df = st
@@ -213,6 +266,38 @@ def read_daily(
             df = pd.read_parquet(homeplace.daily_data_file + "股票对应申万一级行业每日收益率.parquet")
         elif zxindustry_ret:
             df = pd.read_parquet(homeplace.daily_data_file + "股票对应中信一级行业每日收益率.parquet")
+        elif stop_up:
+            df = pd.read_parquet(
+                homeplace.daily_data_file + "stop_ups.parquet"
+            ) * read_daily(adjfactor=1, start=start)
+        elif stop_down:
+            df = pd.read_parquet(
+                homeplace.daily_data_file + "stop_downs.parquet"
+            ) * read_daily(adjfactor=1, start=start)
+        elif zxindustry_dummy_code:
+            df = pd.read_parquet(homeplace.daily_data_file + "中信一级行业哑变量代码版.parquet")
+        elif zxindustry_dummy_name:
+            df = pd.read_parquet(homeplace.daily_data_file + "中信一级行业哑变量名称版.parquet")
+        elif swindustry_dummy:
+            df = pd.read_parquet(homeplace.daily_data_file + "申万行业2021版哑变量.parquet")
+        elif hs300_member_weight:
+            df = (
+                pd.read_parquet(homeplace.daily_data_file + "沪深300成分股权重.parquet")
+                .resample("M")
+                .last()
+            )
+        elif zz500_member_weight:
+            df = (
+                pd.read_parquet(homeplace.daily_data_file + "中证500成分股权重.parquet")
+                .resample("M")
+                .last()
+            )
+        elif zz1000_member_weight:
+            df = (
+                pd.read_parquet(homeplace.daily_data_file + "中证1000成分股权重.parquet")
+                .resample("M")
+                .last()
+            )
         else:
             raise IOError("阁下总得读点什么吧？🤒")
     else:
@@ -228,10 +313,16 @@ def read_daily(
         elif low:
             lows = pd.read_parquet(homeplace.daily_data_file + "lows_unadj.parquet")
             df = lows
-
+        elif vwap:
+            df = pd.read_parquet(homeplace.daily_data_file + "vwaps.parquet")
+        elif stop_up:
+            df = pd.read_parquet(homeplace.daily_data_file + "stop_ups.parquet")
+        elif stop_down:
+            df = pd.read_parquet(homeplace.daily_data_file + "stop_downs.parquet")
         else:
             raise IOError("阁下总得读点什么吧？🤒")
-    df = df[df.index >= pd.Timestamp(str(start))]
+    if "date" not in df.columns:
+        df = df[df.index >= pd.Timestamp(str(start))]
     return df.dropna(how="all")
 
 

@@ -1,4 +1,4 @@
-__updated__ = "2023-03-16 18:51:33"
+__updated__ = "2023-03-22 20:22:04"
 
 import pandas as pd
 import pymysql
@@ -7,11 +7,10 @@ from sqlalchemy import FLOAT, INT, VARCHAR, BIGINT
 from loguru import logger
 import datetime
 import psycopg2 as pg
-import psycopg2.extras as extras
 import numpy as np
 import requests
 import os
-from typing import Union,Dict,List
+from typing import Union, Dict, List
 from psycopg2.extensions import register_adapter, AsIs
 from tenacity import retry, stop_after_attempt
 import questdb.ingress as qdbing
@@ -823,74 +822,6 @@ class Questdb(DriverOfPostgre):
 
     def __addapt_numpy_int64(self, numpy_int64):
         return AsIs(numpy_int64)
-
-    def write_via_df_old(
-        self,
-        df: pd.DataFrame,
-        table: str,
-        str_col: List[str] = None,
-        date_col: List[str] = None,
-        time_col: List[str] = None,
-        data_dict: Dict = None,
-    ) -> None:
-        """通过postgre的方式，直接将pd.Dataframe写入Questdb数据库，此函数不必提前单独创建table，在本函数中会自动检测表是否存在并创建
-
-        Parameters
-        ----------
-        df : pd.DataFrame
-            要写入的数据
-        table : str
-            要写入的表名
-        str_col : List[str], optional
-            类型为str的列的列名, by default None
-        date_col : List[str], optional
-            类型为date的列的列名, by default None
-        time_col : List[str], optional
-            类型为timestamp的列的列名, by default None
-        data_dict : Dict, optional
-            如果不指定上述参数，也可以通过这一参数，指定所有参数类型，传入字典形式，且value应为字符串，如`'FLOAT'`, by default None
-        """
-        register_adapter(np.float64, self.__addapt_numpy_float64)
-        register_adapter(np.int64, self.__addapt_numpy_int64)
-        conn = self.connect()
-        # Create a list of tupples from the dataframe values
-        tuples = [tuple(x) for x in df.to_numpy()]
-        # Comma-separated dataframe columns
-        cols = ",".join(list(df.columns))
-        # SQL quert to execute
-        query = "INSERT INTO %s(%s) VALUES %%s" % (table, cols)
-        cursor = conn.cursor()
-        try:
-            extras.execute_values(cursor, query, tuples)
-            conn.commit()
-        except Exception:
-            try:
-                startstr = "("
-                if data_dict is None:
-                    data_dict = {k: "FLOAT" for k in list(df.columns)}
-                    if str_col is not None:
-                        data_dict_str = {k: "symbol" for k in str_col}
-                        data_dict.update(data_dict_str)
-                    if date_col is not None:
-                        data_dict_date = {k: "date" for k in date_col}
-                        data_dict.update(data_dict_date)
-                    if time_col is not None:
-                        data_dict_time = {k: "timestamp" for k in time_col}
-                        data_dict.update(data_dict_time)
-                        tail = f"timestamp({time_col[0]})"
-                for k, v in data_dict.items():
-                    startstr = startstr + k + " " + v + ", "
-                startstr = startstr[:-2] + ")"
-                if time_col is not None:
-                    startstr = startstr + " " + tail
-                cursor.execute(f"create table {table} {startstr}")
-                extras.execute_values(cursor, query, tuples)
-                conn.commit()
-            except (Exception, pg.DatabaseError) as error:
-                print("Error: %s" % error)
-                conn.rollback()
-                cursor.close()
-        cursor.close()
 
     def write_via_df(
         self,

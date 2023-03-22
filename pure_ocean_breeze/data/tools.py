@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2023-03-17 14:15:34"
+__updated__ = "2023-03-22 22:50:18"
 
 import os
 import pandas as pd
@@ -989,7 +989,7 @@ def get_list_std(delta_sts: List[pd.DataFrame]) -> pd.DataFrame:
     delta_sts_mean = sum(delta_sts) / len(delta_sts)
     delta_sts_std = [(i - delta_sts_mean) ** 2 for i in delta_sts]
     delta_sts_std = sum(delta_sts_std)
-    delta_sts_std = delta_sts_std**0.5 / len(delta_sts)
+    delta_sts_std = delta_sts_std**0.5 / len(delta_sts)**0.5
     return delta_sts_std
 
 

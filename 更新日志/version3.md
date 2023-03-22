@@ -1,5 +1,44 @@
 ## 更新日志🗓 — v3
 
+* v3.9.0 — 2023.3.23
+
+> 1. 删去了Questdb中的write_via_df_old方法
+> 2. 给read_daily函数新增了如下参数
+>    * vwap：平均成交价
+>    * total_sharenum：总股数
+>    * amount：原volumes，成交量
+>    * total_cap：总市值
+>    * adjfactor：复权因子
+>    * stop_up：涨停价
+>    * stop_down：跌停价
+>    * zxindustry_dummy_code：中信行业哑变量代码版
+>    * zxindustry_dummy_name：中信行业哑变量名称版
+>    * swindustry_dummy：申万行业哑变量
+>    * hs300_member_weight：沪深300成分股权重
+>    * zz500_member_weight：中证500成分股权重
+>    * zz1000_member_weight：中证1000成分股权重
+> 3. 修复了ge t_list_std中计算的错误
+> 4. 在download_single_day和database_update_daily_files中新增了对上述新数据的支持
+> 5. 新增了database_update_index_weight函数来更新函数成分股权重
+> 6. 给如下回测相关的类和函数新增了trade_cost_double_side参数，用于设置双边手续费率
+>    * daily_factor_on_industry
+>    * group_test_on_industry
+>    * pure_moonnight
+>    * pure_newyear
+>    * test_on_300500
+>    * test_on_index_four
+> 7. 给follow_tests函数新增了trade_cost_double_side_list，用于一次性比较多个不同手续费率下的策略表现
+> 8. 给如下回测相关的类和函数新增了opens_average_first_day参数，用于设置买入时以当日成交均价（vwap）买入
+>    * pure_moonnight
+>    * follow_tests
+>    * test_on_300500
+>    * test_on_index_four
+> 9. 对pure_moonnight中的回测，不再向后补全一期开收盘价
+> 10. 调整了pure_moonnight换手率的展示方式，改为多头组的月均换手率
+> 11. 给pure_moonnight新增了comment_yearly方法，用于逐年产生绩效评价
+> 12. 新增pure_moon_a和pure_week_a类，用于辅助回测
+> 13. 新增了pure_linprog，用于对打分预测的指标，进行线性规划求解
+
 * v3.8.6 — 2023.3.17
 
 > 1. 修正了get_fac_via_corr中riskmetrics方法的权重值
