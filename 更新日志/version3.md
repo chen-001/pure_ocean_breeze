@@ -1,5 +1,13 @@
 ## 更新日志🗓 — v3
 
+* v3.9.1 — 2023.3.25
+
+> 1. 给read_market和read_index_single函数新增了quested_host参数
+> 2. 将database_update_barra_files改为从米筐更新，将原database_update_barra_files函数改为database_update_barra_files_dcube
+> 3. 给pure_fall_frequent和pure_star新增了questdb_host参数，用于指定questdb数据库的host
+> 4. 修复了follow_tests中手续费部分绩效写入excel的bug
+> 5. 删去了对依赖库numpy的版本限制
+
 * v3.9.0 — 2023.3.23
 
 > 1. 删去了Questdb中的write_via_df_old方法

@@ -1,4 +1,4 @@
-__updated__ = "2023-03-23 02:33:15"
+__updated__ = "2023-03-23 11:58:16"
 
 import time
 
@@ -627,7 +627,7 @@ def download_single_day_style(day):
         return style
 
 
-def database_update_barra_files():
+def database_update_barra_files_dcube():
     fs = os.listdir(homeplace.barra_data_file)[0]
     fs = pd.read_parquet(homeplace.barra_data_file + fs)
     last_date = fs.index.max()
@@ -672,6 +672,60 @@ def database_update_barra_files():
             sts = list(style.columns)[2:]
             for s in sts:
                 ds[s].append(style.pivot(columns="code", index="date", values=s))
+        for k, v in ds.items():
+            old = pd.read_parquet(homeplace.barra_data_file + k + ".parquet")
+            new = pd.concat(v)
+            new = pd.concat([old, new])
+            new.to_parquet(homeplace.barra_data_file + k + ".parquet")
+        logger.success(f"风格暴露数据已经更新到{now}")
+    else:
+        logger.info("从上次更新到这次更新，还没有经过交易日。放假就好好休息吧，别跑代码了🤒")
+
+
+def database_update_barra_files():
+    fs = os.listdir(homeplace.barra_data_file)[0]
+    fs = pd.read_parquet(homeplace.barra_data_file + fs)
+    last_date = fs.index.max()
+    last_date = datetime.datetime.strftime(last_date, "%Y%m%d")
+    now = datetime.datetime.now()
+    if now.hour < 17:
+        now = now - pd.Timedelta(days=1)
+    now = datetime.datetime.strftime(now, "%Y%m%d")
+    logger.info(f"风格暴露数据上次更新到{last_date}，本次将更新到{now}")
+    df0 = download_calendar(last_date, now)
+    tradedates = sorted(list(set(df0.trade_date)))
+    style_names = [
+        "beta",
+        "momentum",
+        "size",
+        "residualvolatility",
+        "earningsyield",
+        "growth",
+        "booktoprice",
+        "leverage",
+        "liquidity",
+        "nonlinearsize",
+    ]
+    ds = {k: [] for k in style_names}
+    if len(tradedates) >= 1:
+        codes=[convert_code(i)[0] for i in list(read_daily(open=1).columns)]
+        style = rqdatac.get_factor_exposure(order_book_ids=codes,start_date=pd.Timestamp(last_date)+pd.Timedelta(days=1), end_date=now).reset_index()
+        style = style.rename(
+            columns={
+                "earnings_yield": "earningsyield",
+                "tradedate": "date",
+                "ticker": "code",
+                "residual_volatility": "residualvolatility",
+                "book_to_price": "booktoprice",
+                "non_linear_size": "nonlinearsize",
+                'order_book_id':'code'
+            }
+        )
+        style=style[style_names+['date','code']]
+        style.date = pd.to_datetime(style.date)
+        style.code = style.code.apply(lambda x:convert_code(x)[0])
+        for s in style_names:
+            ds[s].append(style.pivot(columns="code", index="date", values=s))
         for k, v in ds.items():
             old = pd.read_parquet(homeplace.barra_data_file + k + ".parquet")
             new = pd.concat(v)

@@ -1,4 +1,4 @@
-__updated__ = "2023-03-23 01:34:51"
+__updated__ = "2023-03-25 19:35:57"
 
 import os
 import numpy as np
@@ -334,6 +334,7 @@ def read_market(
     start: int = STATES["START"],
     every_stock: bool = 1,
     market_code: str = "000985.SH",
+    questdb_host: str = '127.0.0.1',
 ) -> Union[pd.DataFrame, pd.Series]:
     """读取中证全指日行情数据
 
@@ -374,12 +375,12 @@ def read_market(
         )
     except Exception:
         try:
-            qdb = Questdb()
+            qdb = Questdb(host=questdb_host)
             df = qdb.get_data(
                 f"select date,num,close,high,low from minute_data_index where code='{market_code}' and cast(date as int)>={start}"
             )
         except Exception:
-            qdb = Questdb(web_port="9000")
+            qdb = Questdb(host='192.168.1.3')
             df = qdb.get_data(
                 f"select date,num,close,high,low from minute_data_index where code='{market_code}' and cast(date as int)>={start}"
             )
@@ -493,7 +494,7 @@ def read_money_flow(
         return dfs
 
 
-def read_index_single(code: str) -> pd.Series:
+def read_index_single(code: str,questdb_host:str='127.0.0.1') -> pd.Series:
     """读取某个指数的日行情收盘价数据
 
     Parameters
@@ -525,12 +526,12 @@ def read_index_single(code: str) -> pd.Series:
         return hs300
     except Exception:
         try:
-            qdb = Questdb()
+            qdb = Questdb(host=questdb_host)
             hs300 = qdb.get_data(
                 f"select date,num,close FROM 'minute_data_index' WHERE code='{code}'"
             )
         except Exception:
-            qdb = Questdb(web_port="9000")
+            qdb = Questdb(host='192.168.1.3')
             hs300 = qdb.get_data(
                 f"select date,num,close FROM 'minute_data_index' WHERE code='{code}'"
             )

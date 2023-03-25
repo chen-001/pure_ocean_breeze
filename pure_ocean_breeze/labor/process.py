@@ -1,4 +1,4 @@
-__updated__ = "2023-03-23 02:23:55"
+__updated__ = "2023-03-25 19:33:26"
 
 import warnings
 
@@ -3026,6 +3026,7 @@ class pure_fall_frequent(object):
         project: str = None,
         startdate: int = None,
         enddate: int = None,
+        questdb_host: str = '127.0.0.1',
         kind: str = "stock",
         clickhouse: bool = 0,
         questdb: bool = 0,
@@ -3071,13 +3072,13 @@ class pure_fall_frequent(object):
             # 连接clickhouse
             self.chc = ClickHouseClient("minute_data")
         elif questdb == 1:
-            self.chc = Questdb(web_port=questdb_web_port)
+            self.chc = Questdb(host=questdb_host,web_port=questdb_web_port)
         # 将计算到一半的因子，存入questdb中，避免中途被打断后重新计算，表名即为因子文件名的汉语拼音
         pinyin = Pinyin()
         self.factor_file_pinyin = pinyin.get_pinyin(
             factor_file.replace(".parquet", ""), ""
         )
-        self.factor_steps = Questdb(web_port=questdb_web_port)
+        self.factor_steps = Questdb(host=questdb_host,web_port=questdb_web_port)
         if project is not None:
             if not os.path.exists(homeplace.factor_data_file + project):
                 os.makedirs(homeplace.factor_data_file + project)
@@ -4259,7 +4260,7 @@ def follow_tests(
                     shen.shen.group_rets.group10
                     - shen.shen.factor_turnover_rates.group10 * i,
                     hs300=1,
-                ).to_excel(comments_writer, sheet_name=f"300超额双边费率{i}")
+                ).to_excel(net_values_writer, sheet_name=f"300超额双边费率{i}")
         else:
             make_relative_comments_plot(shen.shen.group_rets.group10, hs300=1)
     elif neg:
@@ -4284,7 +4285,7 @@ def follow_tests(
                     shen.shen.group_rets.group1
                     - shen.shen.factor_turnover_rates.group1 * i,
                     hs300=1,
-                ).to_excel(comments_writer, sheet_name=f"300超额双边费率{i}")
+                ).to_excel(net_values_writer, sheet_name=f"300超额双边费率{i}")
         else:
             make_relative_comments_plot(shen.shen.group_rets.group1, hs300=1)
     else:
@@ -4320,7 +4321,7 @@ def follow_tests(
                     shen.shen.group_rets.group10
                     - shen.shen.factor_turnover_rates.group10 * i,
                     zz500=1,
-                ).to_excel(comments_writer, sheet_name=f"500超额双边费率{i}")
+                ).to_excel(net_values_writer, sheet_name=f"500超额双边费率{i}")
         else:
             make_relative_comments_plot(shen.shen.group_rets.group10, zz500=1)
     else:
@@ -4345,7 +4346,7 @@ def follow_tests(
                     shen.shen.group_rets.group1
                     - shen.shen.factor_turnover_rates.group1 * i,
                     zz500=1,
-                ).to_excel(comments_writer, sheet_name=f"500超额双边费率{i}")
+                ).to_excel(net_values_writer, sheet_name=f"500超额双边费率{i}")
         else:
             make_relative_comments_plot(shen.shen.group_rets.group1, zz500=1)
     # 1000
@@ -4379,7 +4380,7 @@ def follow_tests(
                     shen.shen.group_rets.group10
                     - shen.shen.factor_turnover_rates.group10 * i,
                     zz1000=1,
-                ).to_excel(comments_writer, sheet_name=f"1000超额双边费率{i}")
+                ).to_excel(net_values_writer, sheet_name=f"1000超额双边费率{i}")
         else:
             make_relative_comments_plot(shen.shen.group_rets.group10, zz1000=1)
     else:
@@ -4404,7 +4405,7 @@ def follow_tests(
                     shen.shen.group_rets.group1
                     - shen.shen.factor_turnover_rates.group1 * i,
                     zz1000=1,
-                ).to_excel(comments_writer, sheet_name=f"1000超额双边费率{i}")
+                ).to_excel(net_values_writer, sheet_name=f"1000超额双边费率{i}")
         else:
             make_relative_comments_plot(shen.shen.group_rets.group1, zz1000=1)
     # 各行业Rank IC
@@ -5159,6 +5160,7 @@ class pure_star(object):
         comments_writer: pd.ExcelWriter = None,
         net_values_writer: pd.ExcelWriter = None,
         sheetname: str = None,
+        questdb_host: str='127.0.0.1',
     ):
         """择时回测框架，输入仓位比例或信号值，依据信号买入对应的股票或指数，并考察绝对收益、超额收益和基准收益
         回测方式为，t日收盘时获得信号，t+1日开盘时以开盘价买入，t+2开盘时以开盘价卖出
@@ -5191,7 +5193,7 @@ class pure_star(object):
                 kind = "index"
             self.kind = kind
             if kind == "index":
-                qdb = Questdb()
+                qdb = Questdb(host=questdb_host)
                 price_opens = qdb.get_data(
                     f"select date,num,close from minute_data_{kind} where code='{code}'"
                 )

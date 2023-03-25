@@ -1,4 +1,4 @@
-__updated__ = "2023-03-16 22:10:06"
+__updated__ = "2023-03-23 19:10:06"
 
 from setuptools import setup
 import setuptools
@@ -16,7 +16,7 @@ def get_version(package):
     return re.search("__version__ = ['\"]([^'\"]+)['\"]", init_py).group(1)
 
 install_requires=[
-    "numpy<=1.23.5",
+    "numpy",
     "pandas",
     "scipy",
     "statsmodels",
