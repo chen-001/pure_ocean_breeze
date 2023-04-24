@@ -1,4 +1,4 @@
-__updated__ = "2023-04-03 01:16:24"
+__updated__ = "2023-04-24 14:42:09"
 
 import warnings
 
@@ -1418,6 +1418,11 @@ class pure_moon(object):
         "corr_itself",
         "factor_cross_stds",
         "corr_itself_shift2",
+        "rets_all",
+        "inner_long_ret_yearly",
+        "inner_short_ret_yearly",
+        "inner_long_net_values",
+        "inner_short_net_values",
     ]
 
     @classmethod
@@ -1929,11 +1934,13 @@ class pure_moon(object):
                 return df.ret.sum()
 
             self.group_rets = self.data.groupby(["date", "group"]).apply(in_g)
+            self.rets_all=self.data.groupby(['date']).apply(in_g)
             self.group_rets_std = "市值加权暂未设置该功能，敬请期待🌙"
         else:
             self.group_rets = self.data.groupby(["date", "group"]).apply(
                 lambda x: x.ret.mean()
             )
+            self.rets_all=self.data.groupby(['date']).apply(lambda x:x.ret.mean())
             self.group_rets_stds = self.data.groupby(["date", "group"]).apply(
                 lambda x: x.ret.std()
             )
@@ -1948,16 +1955,22 @@ class pure_moon(object):
         self.group_rets = (
             self.group_rets - self.factor_turnover_rates * trade_cost_double_side
         )
+        self.rets_all=self.rets_all-self.factor_turnover_rates.mean(axis=1)*trade_cost_double_side
         self.long_short_rets = (
             self.group_rets["group1"] - self.group_rets["group" + str(groups_num)]
         )
-        self.long_short_net_values = (self.long_short_rets + 1).cumprod()
+        self.inner_rets_long=self.group_rets.group1-self.rets_all
+        self.inner_rets_short=self.rets_all-self.group_rets["group" + str(groups_num)]
+        self.long_short_net_values = self.make_start_to_one((self.long_short_rets + 1).cumprod())
         if self.long_short_net_values[-1] <= self.long_short_net_values[0]:
             self.long_short_rets = (
                 self.group_rets["group" + str(groups_num)] - self.group_rets["group1"]
             )
-            self.long_short_net_values = (self.long_short_rets + 1).cumprod()
-        self.long_short_net_values = self.make_start_to_one(self.long_short_net_values)
+            self.long_short_net_values = self.make_start_to_one((self.long_short_rets + 1).cumprod())
+            self.inner_rets_long=self.group_rets["group" + str(groups_num)]-self.rets_all
+            self.inner_rets_short=self.rets_all-self.group_rets.group1
+        self.inner_long_net_values = self.make_start_to_one((self.inner_rets_long + 1).cumprod())
+        self.inner_short_net_values = self.make_start_to_one((self.inner_rets_short + 1).cumprod())
         self.group_rets = self.group_rets.assign(long_short=self.long_short_rets)
         self.group_net_values = self.group_rets.applymap(lambda x: x + 1)
         self.group_net_values = self.group_net_values.cumprod()
@@ -1983,6 +1996,16 @@ class pure_moon(object):
         self.long_short_ret_yearly = (
             self.long_short_net_values[-1]
             ** (self.freq_ctrl.counts_one_year / len(self.long_short_net_values))
+            - 1
+        )
+        self.inner_long_ret_yearly = (
+            self.inner_long_net_values[-1]
+            ** (self.freq_ctrl.counts_one_year / len(self.inner_long_net_values))
+            - 1
+        )
+        self.inner_short_ret_yearly = (
+            self.inner_short_net_values[-1]
+            ** (self.freq_ctrl.counts_one_year / len(self.inner_short_net_values))
             - 1
         )
         # week_here
@@ -2069,9 +2092,9 @@ class pure_moon(object):
                             self.factor_cover,
                             self.pos_neg_rate,
                             self.factor_cross_skew,
-                            self.factor_cross_skew_after_neu,
+                            self.inner_long_ret_yearly,
+                            self.inner_long_ret_yearly/(self.inner_long_ret_yearly+self.inner_short_ret_yearly),
                             self.corr_itself,
-                            self.corr_itself_shift2,
                         ]
                     },
                     index=[
@@ -2079,9 +2102,9 @@ class pure_moon(object):
                         "因子覆盖率",
                         "因子正值占比",
                         "因子截面偏度",
-                        "中性化后偏度",
+                        "多头超均收益",
+                        "多头收益占比",
                         "一阶自相关性",
-                        "二阶自相关性",
                     ],
                 ),
             ]
@@ -4156,6 +4179,7 @@ class pure_dawn(object):
 def follow_tests(
     fac: pd.DataFrame,
     trade_cost_double_side_list: float = [0.001, 0.002, 0.003, 0.004, 0.005],
+    index_member_value_weighted: bool=0,
     comments_writer: pd.ExcelWriter = None,
     net_values_writer: pd.ExcelWriter = None,
     pos: bool = 0,
@@ -4173,6 +4197,8 @@ def follow_tests(
         要进行后续测试的因子值，index是时间，columns是股票代码，values是因子值
     trade_cost_double_side : float, optional
         交易的双边手续费率, by default 0
+    index_member_value_weighted : bool, optional
+        成分股多头采取流通市值加权
     comments_writer : pd.ExcelWriter, optional
         写入评价指标的excel, by default None
     net_values_writer : pd.ExcelWriter, optional
@@ -4235,6 +4261,7 @@ def follow_tests(
     fi300 = daily_factor_on300500(fac, hs300=1)
     shen = pure_moonnight(
         fi300,
+        value_weighted=index_member_value_weighted,
         comments_writer=comments_writer,
         net_values_writer=net_values_writer,
         sheetname="300多空",
@@ -4296,6 +4323,7 @@ def follow_tests(
     fi500 = daily_factor_on300500(fac, zz500=1)
     shen = pure_moonnight(
         fi500,
+        value_weighted=index_member_value_weighted,
         comments_writer=comments_writer,
         net_values_writer=net_values_writer,
         sheetname="500多空",
@@ -4355,6 +4383,7 @@ def follow_tests(
     fi1000 = daily_factor_on300500(fac, zz1000=1)
     shen = pure_moonnight(
         fi1000,
+        value_weighted=index_member_value_weighted,
         comments_writer=comments_writer,
         net_values_writer=net_values_writer,
         sheetname="1000多空",
@@ -4421,6 +4450,7 @@ def follow_tests(
 
 def test_on_index_four_out(
     fac: pd.DataFrame,
+    value_weighted: bool=0,
     trade_cost_double_side_list: float = [0.001, 0.002, 0.003, 0.004, 0.005],
     group_num: int = 10,
     boxcox: bool = 1,
@@ -4456,6 +4486,7 @@ def test_on_index_four_out(
     fi300 = daily_factor_on300500(fac, hs300=1)
     shen = pure_moonnight(
         fi300,
+        value_weighted=value_weighted,
         groups_num=group_num,
         boxcox=boxcox,
         comments_writer=comments_writer,
@@ -4521,6 +4552,7 @@ def test_on_index_four_out(
     fi500 = daily_factor_on300500(fac, zz500=1)
     shen = pure_moonnight(
         fi500,
+        value_weighted=value_weighted,
         groups_num=group_num,
         boxcox=boxcox,
         comments_writer=comments_writer,
@@ -4584,6 +4616,7 @@ def test_on_index_four_out(
     fi1000 = daily_factor_on300500(fac, zz1000=1)
     shen = pure_moonnight(
         fi1000,
+        value_weighted=value_weighted,
         groups_num=group_num,
         boxcox=boxcox,
         comments_writer=comments_writer,
@@ -5049,6 +5082,7 @@ def test_on_300500(
     df: pd.DataFrame,
     trade_cost_double_side: float = 0,
     group_num: int = 10,
+    value_weighted: bool=0,
     boxcox: bool = 0,
     hs300: bool = 0,
     zz500: bool = 0,
@@ -5067,6 +5101,8 @@ def test_on_300500(
         交易的双边手续费率, by default 0
     group_num : int
         分组数量, by default 10
+    value_weighted : bool
+        是否进行流通市值加权, by default 0
     hs300 : bool, optional
         在沪深300成分股内测试, by default 0
     zz500 : bool, optional
@@ -5090,6 +5126,7 @@ def test_on_300500(
     )
     shen = pure_moonnight(
         fi300,
+        value_weighted=value_weighted,
         groups_num=group_num,
         trade_cost_double_side=trade_cost_double_side,
         boxcox=boxcox,
@@ -5140,6 +5177,7 @@ def test_on_300500(
 @do_on_dfs
 def test_on_index_four(
     df: pd.DataFrame,
+    value_weighted: bool=0,
     group_num: int = 10,
     trade_cost_double_side: float = 0,
     iplot: bool = 1,
@@ -5153,6 +5191,8 @@ def test_on_index_four(
     ----------
     df : pd.DataFrame
         因子值，index为时间，columns为股票代码
+    value_weighted : bool
+        是否进行流通市值加权, by default 0
     group_num : int
         分组数量, by default 10
     trade_cost_double_side : float, optional
@@ -5175,6 +5215,7 @@ def test_on_index_four(
     shen = pure_moonnight(
         fi300,
         groups_num=group_num,
+        value_weighted=value_weighted,
         trade_cost_double_side=trade_cost_double_side,
         iplot=iplot,
         boxcox=boxcox,
@@ -5191,6 +5232,7 @@ def test_on_index_four(
         shen = pure_moonnight(
             fi500,
             groups_num=group_num,
+            value_weighted=value_weighted,
             trade_cost_double_side=trade_cost_double_side,
             iplot=iplot,
             boxcox=boxcox,
@@ -5203,6 +5245,7 @@ def test_on_index_four(
         shen = pure_moonnight(
             fi1000,
             groups_num=group_num,
+            value_weighted=value_weighted,
             trade_cost_double_side=trade_cost_double_side,
             iplot=iplot,
             boxcox=boxcox,
@@ -5232,6 +5275,7 @@ def test_on_index_four(
         shen = pure_moonnight(
             fi500,
             groups_num=group_num,
+            value_weighted=value_weighted,
             trade_cost_double_side=trade_cost_double_side,
             iplot=iplot,
             boxcox=boxcox,
@@ -5244,6 +5288,7 @@ def test_on_index_four(
         shen = pure_moonnight(
             fi1000,
             groups_num=group_num,
+            value_weighted=value_weighted,
             trade_cost_double_side=trade_cost_double_side,
             iplot=iplot,
             boxcox=boxcox,
@@ -5257,6 +5302,7 @@ def test_on_index_four(
             shen = pure_moonnight(
                 fi2000,
                 groups_num=group_num,
+                value_weighted=value_weighted,
                 trade_cost_double_side=trade_cost_double_side,
                 iplot=iplot,
                 boxcox=boxcox,
