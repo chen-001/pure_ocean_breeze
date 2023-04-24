@@ -1,8 +1,14 @@
 ## 更新日志🗓 — v3
 
+* v3.9.2 — 2023.4.24
+
+> 1. 修正了download_single_daily和database_update_daily_files函数中的bug
+> 2. 给make_relative_comments和make_relative_comments_plot新增了all_a参数，表示相对中证全指的超额
+> 3. 新增test_on_index_four_out函数，用于输出因子在指数成分股内的多头超额绩效表现到xlsx文件中
+
 * v3.9.1 — 2023.3.25
 
-> 1. 给read_market和read_index_single函数新增了quested_host参数
+> 1. 给read_market和read_index_single函数新增了questdb_host参数
 > 2. 将database_update_barra_files改为从米筐更新，将原database_update_barra_files函数改为database_update_barra_files_dcube
 > 3. 给pure_fall_frequent和pure_star新增了questdb_host参数，用于指定questdb数据库的host
 > 4. 修复了follow_tests中手续费部分绩效写入excel的bug

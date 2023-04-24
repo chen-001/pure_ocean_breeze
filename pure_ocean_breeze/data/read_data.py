@@ -354,6 +354,8 @@ def read_market(
         是否修改为index是时间，columns是每只股票代码，每一列值都相同的形式, by default 1
     market_code : str, optional
         选用哪个指数作为市场指数，默认使用中证全指
+    questdb_host: str, optional
+        questdb的host，使用NAS时改为'192.168.1.3', by default '127.0.0.1'
 
     Returns
     -------
@@ -501,6 +503,8 @@ def read_index_single(code: str,questdb_host:str='127.0.0.1') -> pd.Series:
     ----------
     code : str
         指数的wind代码
+    questdb_host: str, optional
+        questdb的host，使用NAS时改为'192.168.1.3', by default '127.0.0.1'
 
     Returns
     -------

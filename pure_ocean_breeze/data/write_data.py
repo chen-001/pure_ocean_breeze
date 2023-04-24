@@ -1,4 +1,4 @@
-__updated__ = "2023-03-23 11:58:16"
+__updated__ = "2023-03-26 22:29:53"
 
 import time
 
@@ -319,6 +319,10 @@ def download_single_daily(day):
                 "adjhigh",
                 "adjlow",
                 "tradestatus",
+                "adjfactor",
+                "limit",
+                "stopping",
+                "avgprice",
             ],
         )
         # 换手率，流通股本，换手率要除以100，流通股本要乘以10000
@@ -469,13 +473,13 @@ def database_update_daily_files() -> None:
         # 交易状态
         status = to_mat(part1, "tradestatus", "states")
         # 平均价格
-        vwaps = to_mat(part1, "adjprice", "vwaps")
+        vwaps = to_mat(part1, "avgprice", "vwaps")
         # 复权因子
         adjfactors = to_mat(part1, "adjfactor", "adjfactors")
         # 涨停价
         stop_ups = to_mat(part1, "limit", "stop_ups")
         # 跌停价
-        stop_downs = to_mat(part1, "stop", "stop_downs")
+        stop_downs = to_mat(part1, "stopping", "stop_downs")
 
         # 换手率
         part2 = df2s[["date", "code", "turnover_rate_f"]].pivot(
@@ -515,7 +519,7 @@ def database_update_daily_files() -> None:
             homeplace.daily_data_file + "total_sharenums.parquet"
         )
         part3_newa = pd.concat([part3_olda, part3a]).drop_duplicates()
-        part3_newa = part3_newa[closes.columns]
+        part3_newa = part3_newa.reindex(columns=closes.columns)
         part3_newa = drop_duplicates_index(part3_newa)
         part3_newa = part3_newa[sorted(list(part3_newa.columns))]
         part3_newa.to_parquet(homeplace.daily_data_file + "total_sharenums.parquet")

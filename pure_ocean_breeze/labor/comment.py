@@ -146,6 +146,7 @@ def make_relative_comments(
     zz500: bool = 0,
     zz1000: bool = 0,
     gz2000: bool = 0,
+    all_a: bool = 0,
     day: int = None,
     show_nets: bool = 0,
 ) -> pd.Series:
@@ -163,6 +164,8 @@ def make_relative_comments(
         为1则相对中证1000指数行情, by default 0
     gz2000 : bool, optional
         为1则相对国证2000指数行情, by default 0
+    all_a : bool, optional
+        为1则相对中证全指指数行情, by default 0
     day : int, optional
         起始日期，形如20130101, by default None
     show_nets : bool, optional
@@ -200,7 +203,11 @@ def make_relative_comments(
             net_index = read_index_single("399303.SZ").resample("M").last()
             net_indexs.append(net_index)
             weights.append(2000)
-        if (hs300 + zz500 + zz1000 + gz2000) == 0:
+        if all_a:
+            net_index = read_index_single("000985.SH").resample("M").last()
+            net_indexs.append(net_index)
+            weights.append(5000)
+        if (hs300 + zz500 + zz1000 + gz2000+ all_a) == 0:
             raise IOError("你总得指定一个股票池吧？")
         net_index = pd.concat(net_indexs, axis=1)
     ret_index = net_index.pct_change()
@@ -231,6 +238,7 @@ def make_relative_comments_plot(
     zz500: bool = 0,
     zz1000: bool = 0,
     gz2000: bool = 0,
+    all_a: bool = 0,
     day: int = None,
 ) -> pd.Series:
     """对于一个给定的收益率序列，计算其相对于某个指数的超额表现，然后绘图，并返回超额净值序列
@@ -247,6 +255,8 @@ def make_relative_comments_plot(
         为1则相对中证1000指数行情, by default 0
     gz2000 : bool, optional
         为1则相对国证2000指数行情, by default 0
+    all_a : bool, optional
+        为1则相对中证全指指数行情, by default 0
     day : int, optional
         起始日期，形如20130101, by default None
 
@@ -281,7 +291,11 @@ def make_relative_comments_plot(
             net_index = read_index_single("399303.SZ").resample("M").last()
             net_indexs.append(net_index)
             weights.append(2000)
-        if (hs300 + zz500 + zz1000 + gz2000) == 0:
+        if all_a:
+            net_index = read_index_single("000985.SH").resample("M").last()
+            net_indexs.append(net_index)
+            weights.append(5000)
+        if (hs300 + zz500 + zz1000 + gz2000+ all_a) == 0:
             raise IOError("你总得指定一个股票池吧？")
         net_index = pd.concat(net_indexs, axis=1)
     ret_index = net_index.pct_change()

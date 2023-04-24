@@ -1,4 +1,4 @@
-__updated__ = "2023-03-25 19:33:26"
+__updated__ = "2023-04-03 01:16:24"
 
 import warnings
 
@@ -3026,7 +3026,7 @@ class pure_fall_frequent(object):
         project: str = None,
         startdate: int = None,
         enddate: int = None,
-        questdb_host: str = '127.0.0.1',
+        questdb_host: str = "127.0.0.1",
         kind: str = "stock",
         clickhouse: bool = 0,
         questdb: bool = 0,
@@ -3046,6 +3046,8 @@ class pure_fall_frequent(object):
             起始时间，形如20121231，为开区间, by default None
         enddate : int, optional
             截止时间，形如20220814，为闭区间，为空则计算到最近数据, by default None
+        questdb_host: str, optional
+            questdb的host，使用NAS时改为'192.168.1.3', by default '127.0.0.1'
         kind : str, optional
             类型为股票还是指数，指数为'index', by default "stock"
         clickhouse : bool, optional
@@ -3072,13 +3074,13 @@ class pure_fall_frequent(object):
             # 连接clickhouse
             self.chc = ClickHouseClient("minute_data")
         elif questdb == 1:
-            self.chc = Questdb(host=questdb_host,web_port=questdb_web_port)
+            self.chc = Questdb(host=questdb_host, web_port=questdb_web_port)
         # 将计算到一半的因子，存入questdb中，避免中途被打断后重新计算，表名即为因子文件名的汉语拼音
         pinyin = Pinyin()
         self.factor_file_pinyin = pinyin.get_pinyin(
             factor_file.replace(".parquet", ""), ""
         )
-        self.factor_steps = Questdb(host=questdb_host,web_port=questdb_web_port)
+        self.factor_steps = Questdb(host=questdb_host, web_port=questdb_web_port)
         if project is not None:
             if not os.path.exists(homeplace.factor_data_file + project):
                 os.makedirs(homeplace.factor_data_file + project)
@@ -4417,6 +4419,232 @@ def follow_tests(
     logger.success("因子后续的必要测试全部完成")
 
 
+def test_on_index_four_out(
+    fac: pd.DataFrame,
+    trade_cost_double_side_list: float = [0.001, 0.002, 0.003, 0.004, 0.005],
+    group_num: int = 10,
+    boxcox: bool = 1,
+    comments_writer: pd.ExcelWriter = None,
+    net_values_writer: pd.ExcelWriter = None,
+    opens_average_first_day: bool = 0,
+):
+    if comments_writer is None:
+        from pure_ocean_breeze.state.states import COMMENTS_WRITER
+
+        comments_writer = COMMENTS_WRITER
+    if net_values_writer is None:
+        from pure_ocean_breeze.state.states import NET_VALUES_WRITER
+
+        net_values_writer = NET_VALUES_WRITER
+
+    shen = pure_moonnight(
+        fac,
+        opens_average_first_day=opens_average_first_day,
+    )
+    if (
+        shen.shen.group_net_values.group1.iloc[-1]
+        > shen.shen.group_net_values10.iloc[-1]
+    ):
+        neg = 1
+        pos = 0
+    else:
+        pos = 1
+        neg = 0
+
+    """3510多空和多头"""
+    # 300
+    fi300 = daily_factor_on300500(fac, hs300=1)
+    shen = pure_moonnight(
+        fi300,
+        groups_num=group_num,
+        boxcox=boxcox,
+        comments_writer=comments_writer,
+        net_values_writer=net_values_writer,
+        sheetname="300多空",
+        opens_average_first_day=opens_average_first_day,
+    )
+    if pos:
+        if comments_writer is not None:
+            make_relative_comments(
+                shen.shen.group_rets[f"group{group_num}"], hs300=1
+            ).to_excel(comments_writer, sheet_name="300超额")
+            for i in trade_cost_double_side_list:
+                make_relative_comments(
+                    shen.shen.group_rets[f"group{group_num}"]
+                    - shen.shen.factor_turnover_rates[f"group{group_num}"] * i,
+                    hs300=1,
+                ).to_excel(comments_writer, sheet_name=f"300超额双边费率{i}")
+        else:
+            make_relative_comments(shen.shen.group_rets[f"group{group_num}"], hs300=1)
+        if net_values_writer is not None:
+            make_relative_comments_plot(
+                shen.shen.group_rets[f"group{group_num}"], hs300=1
+            ).to_excel(net_values_writer, sheet_name="300超额")
+            for i in trade_cost_double_side_list:
+                make_relative_comments_plot(
+                    shen.shen.group_rets[f"group{group_num}"]
+                    - shen.shen.factor_turnover_rates[f"group{group_num}"] * i,
+                    hs300=1,
+                ).to_excel(net_values_writer, sheet_name=f"300超额双边费率{i}")
+        else:
+            make_relative_comments_plot(
+                shen.shen.group_rets[f"group{group_num}"], hs300=1
+            )
+    elif neg:
+        if comments_writer is not None:
+            make_relative_comments(shen.shen.group_rets.group1, hs300=1).to_excel(
+                comments_writer, sheet_name="300超额"
+            )
+            for i in trade_cost_double_side_list:
+                make_relative_comments(
+                    shen.shen.group_rets.group1
+                    - shen.shen.factor_turnover_rates.group1 * i,
+                    hs300=1,
+                ).to_excel(comments_writer, sheet_name=f"300超额双边费率{i}")
+        else:
+            make_relative_comments(shen.shen.group_rets.group1, hs300=1)
+        if net_values_writer is not None:
+            make_relative_comments_plot(shen.shen.group_rets.group1, hs300=1).to_excel(
+                net_values_writer, sheet_name="300超额"
+            )
+            for i in trade_cost_double_side_list:
+                make_relative_comments_plot(
+                    shen.shen.group_rets.group1
+                    - shen.shen.factor_turnover_rates.group1 * i,
+                    hs300=1,
+                ).to_excel(net_values_writer, sheet_name=f"300超额双边费率{i}")
+        else:
+            make_relative_comments_plot(shen.shen.group_rets.group1, hs300=1)
+    else:
+        raise IOError("请指定因子的方向是正是负🤒")
+    # 500
+    fi500 = daily_factor_on300500(fac, zz500=1)
+    shen = pure_moonnight(
+        fi500,
+        groups_num=group_num,
+        boxcox=boxcox,
+        comments_writer=comments_writer,
+        net_values_writer=net_values_writer,
+        sheetname="500多空",
+        opens_average_first_day=opens_average_first_day,
+    )
+    if pos:
+        if comments_writer is not None:
+            make_relative_comments(
+                shen.shen.group_rets[f"group{group_num}"], zz500=1
+            ).to_excel(comments_writer, sheet_name="500超额")
+            for i in trade_cost_double_side_list:
+                make_relative_comments(
+                    shen.shen.group_rets[f"group{group_num}"]
+                    - shen.shen.factor_turnover_rates[f"group{group_num}"] * i,
+                    zz500=1,
+                ).to_excel(comments_writer, sheet_name=f"500超额双边费率{i}")
+        else:
+            make_relative_comments(shen.shen.group_rets[f"group{group_num}"], zz500=1)
+        if net_values_writer is not None:
+            make_relative_comments_plot(
+                shen.shen.group_rets[f"group{group_num}"], zz500=1
+            ).to_excel(net_values_writer, sheet_name="500超额")
+            for i in trade_cost_double_side_list:
+                make_relative_comments_plot(
+                    shen.shen.group_rets[f"group{group_num}"]
+                    - shen.shen.factor_turnover_rates[f"group{group_num}"] * i,
+                    zz500=1,
+                ).to_excel(net_values_writer, sheet_name=f"500超额双边费率{i}")
+        else:
+            make_relative_comments_plot(
+                shen.shen.group_rets[f"group{group_num}"], zz500=1
+            )
+    else:
+        if comments_writer is not None:
+            make_relative_comments(shen.shen.group_rets.group1, zz500=1).to_excel(
+                comments_writer, sheet_name="500超额"
+            )
+            for i in trade_cost_double_side_list:
+                make_relative_comments(
+                    shen.shen.group_rets.group1
+                    - shen.shen.factor_turnover_rates.group1 * i,
+                    zz500=1,
+                ).to_excel(comments_writer, sheet_name=f"500超额双边费率{i}")
+        else:
+            make_relative_comments(shen.shen.group_rets.group1, zz500=1)
+        if net_values_writer is not None:
+            make_relative_comments_plot(shen.shen.group_rets.group1, zz500=1).to_excel(
+                net_values_writer, sheet_name="500超额"
+            )
+            for i in trade_cost_double_side_list:
+                make_relative_comments_plot(
+                    shen.shen.group_rets.group1
+                    - shen.shen.factor_turnover_rates.group1 * i,
+                    zz500=1,
+                ).to_excel(net_values_writer, sheet_name=f"500超额双边费率{i}")
+        else:
+            make_relative_comments_plot(shen.shen.group_rets.group1, zz500=1)
+    # 1000
+    fi1000 = daily_factor_on300500(fac, zz1000=1)
+    shen = pure_moonnight(
+        fi1000,
+        groups_num=group_num,
+        boxcox=boxcox,
+        comments_writer=comments_writer,
+        net_values_writer=net_values_writer,
+        sheetname="1000多空",
+        opens_average_first_day=opens_average_first_day,
+    )
+    if pos:
+        if comments_writer is not None:
+            make_relative_comments(
+                shen.shen.group_rets[f"group{group_num}"], zz1000=1
+            ).to_excel(comments_writer, sheet_name="1000超额")
+            for i in trade_cost_double_side_list:
+                make_relative_comments(
+                    shen.shen.group_rets[f"group{group_num}"]
+                    - shen.shen.factor_turnover_rates[f"group{group_num}"] * i,
+                    zz1000=1,
+                ).to_excel(comments_writer, sheet_name=f"1000超额双边费率{i}")
+        else:
+            make_relative_comments(shen.shen.group_rets[f"group{group_num}"], zz1000=1)
+        if net_values_writer is not None:
+            make_relative_comments_plot(
+                shen.shen.group_rets[f"group{group_num}"], zz1000=1
+            ).to_excel(net_values_writer, sheet_name="1000超额")
+            for i in trade_cost_double_side_list:
+                make_relative_comments_plot(
+                    shen.shen.group_rets[f"group{group_num}"]
+                    - shen.shen.factor_turnover_rates[f"group{group_num}"] * i,
+                    zz1000=1,
+                ).to_excel(net_values_writer, sheet_name=f"1000超额双边费率{i}")
+        else:
+            make_relative_comments_plot(
+                shen.shen.group_rets[f"group{group_num}"], zz1000=1
+            )
+    else:
+        if comments_writer is not None:
+            make_relative_comments(shen.shen.group_rets.group1, zz1000=1).to_excel(
+                comments_writer, sheet_name="1000超额"
+            )
+            for i in trade_cost_double_side_list:
+                make_relative_comments(
+                    shen.shen.group_rets.group1
+                    - shen.shen.factor_turnover_rates.group1 * i,
+                    zz1000=1,
+                ).to_excel(comments_writer, sheet_name=f"1000超额双边费率{i}")
+        else:
+            make_relative_comments(shen.shen.group_rets.group1, zz1000=1)
+        if net_values_writer is not None:
+            make_relative_comments_plot(shen.shen.group_rets.group1, zz1000=1).to_excel(
+                net_values_writer, sheet_name="1000超额"
+            )
+            for i in trade_cost_double_side_list:
+                make_relative_comments_plot(
+                    shen.shen.group_rets.group1
+                    - shen.shen.factor_turnover_rates.group1 * i,
+                    zz1000=1,
+                ).to_excel(net_values_writer, sheet_name=f"1000超额双边费率{i}")
+        else:
+            make_relative_comments_plot(shen.shen.group_rets.group1, zz1000=1)
+
+
 class pure_helper(object):
     def __init__(
         self,
@@ -4821,6 +5049,7 @@ def test_on_300500(
     df: pd.DataFrame,
     trade_cost_double_side: float = 0,
     group_num: int = 10,
+    boxcox: bool = 0,
     hs300: bool = 0,
     zz500: bool = 0,
     zz1000: bool = 0,
@@ -4863,6 +5092,7 @@ def test_on_300500(
         fi300,
         groups_num=group_num,
         trade_cost_double_side=trade_cost_double_side,
+        boxcox=boxcox,
         iplot=iplot,
         opens_average_first_day=opens_average_first_day,
     )
@@ -5160,7 +5390,7 @@ class pure_star(object):
         comments_writer: pd.ExcelWriter = None,
         net_values_writer: pd.ExcelWriter = None,
         sheetname: str = None,
-        questdb_host: str='127.0.0.1',
+        questdb_host: str = "127.0.0.1",
     ):
         """择时回测框架，输入仓位比例或信号值，依据信号买入对应的股票或指数，并考察绝对收益、超额收益和基准收益
         回测方式为，t日收盘时获得信号，t+1日开盘时以开盘价买入，t+2开盘时以开盘价卖出
@@ -5181,6 +5411,8 @@ class pure_star(object):
             净值序列的存储文件, by default None
         sheetname : str, optional
             存储文件的工作表的名字, by default None
+        questdb_host: str, optional
+            questdb的host，使用NAS时改为'192.168.1.3', by default '127.0.0.1'
         """
         if code is not None:
             x1 = code.split(".")[0]
