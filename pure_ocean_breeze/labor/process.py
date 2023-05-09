@@ -1,4 +1,4 @@
-__updated__ = "2023-04-24 14:42:09"
+__updated__ = "2023-05-09 15:46:45"
 
 import warnings
 
@@ -26,8 +26,6 @@ from collections.abc import Iterable
 import plotly.express as pe
 import plotly.io as pio
 from plotly.tools import FigureFactory as FF
-import plotly.graph_objects as go
-import plotly.tools as plyoo
 import pyfinance.ols as po
 from texttable import Texttable
 from xpinyin import Pinyin
@@ -35,6 +33,7 @@ import tradetime as tt
 import cufflinks as cf
 import deprecation
 from mpire import WorkerPool
+from scipy.optimize import minimize
 from pure_ocean_breeze import __version__
 
 cf.set_config_file(offline=True)
@@ -1509,6 +1508,7 @@ class pure_moon(object):
         closes: pd.DataFrame = None,
         capitals: pd.DataFrame = None,
         opens_average_first_day: bool = 0,
+        total_cap: bool = 0,
     ):
         if ages is None:
             ages = read_daily(age=1, start=20100101)
@@ -1524,7 +1524,14 @@ class pure_moon(object):
         if closes is None:
             closes = read_daily(close=1, start=20100101)
         if capitals is None:
-            capitals = read_daily(flow_cap=1, start=20100101).resample(cls.freq).last()
+            if total_cap:
+                capitals = (
+                    read_daily(total_cap=1, start=20100101).resample(cls.freq).last()
+                )
+            else:
+                capitals = (
+                    read_daily(flow_cap=1, start=20100101).resample(cls.freq).last()
+                )
         # 上市天数文件
         cls.ages = ages
         # st日子标志文件
@@ -1934,13 +1941,13 @@ class pure_moon(object):
                 return df.ret.sum()
 
             self.group_rets = self.data.groupby(["date", "group"]).apply(in_g)
-            self.rets_all=self.data.groupby(['date']).apply(in_g)
+            self.rets_all = self.data.groupby(["date"]).apply(in_g)
             self.group_rets_std = "市值加权暂未设置该功能，敬请期待🌙"
         else:
             self.group_rets = self.data.groupby(["date", "group"]).apply(
                 lambda x: x.ret.mean()
             )
-            self.rets_all=self.data.groupby(['date']).apply(lambda x:x.ret.mean())
+            self.rets_all = self.data.groupby(["date"]).apply(lambda x: x.ret.mean())
             self.group_rets_stds = self.data.groupby(["date", "group"]).apply(
                 lambda x: x.ret.std()
             )
@@ -1955,22 +1962,37 @@ class pure_moon(object):
         self.group_rets = (
             self.group_rets - self.factor_turnover_rates * trade_cost_double_side
         )
-        self.rets_all=self.rets_all-self.factor_turnover_rates.mean(axis=1)*trade_cost_double_side
+        self.rets_all = (
+            self.rets_all
+            - self.factor_turnover_rates.mean(axis=1) * trade_cost_double_side
+        )
         self.long_short_rets = (
             self.group_rets["group1"] - self.group_rets["group" + str(groups_num)]
         )
-        self.inner_rets_long=self.group_rets.group1-self.rets_all
-        self.inner_rets_short=self.rets_all-self.group_rets["group" + str(groups_num)]
-        self.long_short_net_values = self.make_start_to_one((self.long_short_rets + 1).cumprod())
+        self.inner_rets_long = self.group_rets.group1 - self.rets_all
+        self.inner_rets_short = (
+            self.rets_all - self.group_rets["group" + str(groups_num)]
+        )
+        self.long_short_net_values = self.make_start_to_one(
+            (self.long_short_rets + 1).cumprod()
+        )
         if self.long_short_net_values[-1] <= self.long_short_net_values[0]:
             self.long_short_rets = (
                 self.group_rets["group" + str(groups_num)] - self.group_rets["group1"]
             )
-            self.long_short_net_values = self.make_start_to_one((self.long_short_rets + 1).cumprod())
-            self.inner_rets_long=self.group_rets["group" + str(groups_num)]-self.rets_all
-            self.inner_rets_short=self.rets_all-self.group_rets.group1
-        self.inner_long_net_values = self.make_start_to_one((self.inner_rets_long + 1).cumprod())
-        self.inner_short_net_values = self.make_start_to_one((self.inner_rets_short + 1).cumprod())
+            self.long_short_net_values = self.make_start_to_one(
+                (self.long_short_rets + 1).cumprod()
+            )
+            self.inner_rets_long = (
+                self.group_rets["group" + str(groups_num)] - self.rets_all
+            )
+            self.inner_rets_short = self.rets_all - self.group_rets.group1
+        self.inner_long_net_values = self.make_start_to_one(
+            (self.inner_rets_long + 1).cumprod()
+        )
+        self.inner_short_net_values = self.make_start_to_one(
+            (self.inner_rets_short + 1).cumprod()
+        )
         self.group_rets = self.group_rets.assign(long_short=self.long_short_rets)
         self.group_net_values = self.group_rets.applymap(lambda x: x + 1)
         self.group_net_values = self.group_net_values.cumprod()
@@ -2093,7 +2115,10 @@ class pure_moon(object):
                             self.pos_neg_rate,
                             self.factor_cross_skew,
                             self.inner_long_ret_yearly,
-                            self.inner_long_ret_yearly/(self.inner_long_ret_yearly+self.inner_short_ret_yearly),
+                            self.inner_long_ret_yearly
+                            / (
+                                self.inner_long_ret_yearly + self.inner_short_ret_yearly
+                            ),
                             self.corr_itself,
                         ]
                     },
@@ -2521,6 +2546,7 @@ class pure_moonnight(object):
         ilegend: bool = 0,
         without_breakpoint: bool = 0,
         opens_average_first_day: bool = 0,
+        total_cap: bool = 0,
     ) -> None:
         """一键回测框架，测试单因子的月频调仓的分组表现
         每月月底计算因子值，月初第一天开盘时买入，月末收盘最后一天收盘时卖出
@@ -2608,6 +2634,8 @@ class pure_moonnight(object):
             画图的时候是否去除间断点, by default 0
         opens_average_first_day : bool, optional
             买入时使用第一天的平均价格, by default 0
+        total_cap : bool, optional
+            加权和行业市值中性化时使用总市值, by default 0
         """
 
         if not isinstance(factors, pd.DataFrame):
@@ -2644,40 +2672,76 @@ class pure_moonnight(object):
             only_cap = no_read_indu = 1
         if iplot:
             print_comments = 0
-        if opens_average_first_day:
-            if freq == "M":
-                self.shen = pure_moon(
-                    freq=freq,
-                    no_read_indu=no_read_indu,
-                    swindustry_dummy=swindustry_dummy,
-                    zxindustry_dummy=zxindustry_dummy,
-                    read_in_swindustry_dummy=swindustry_dummies,
-                )
-            elif freq == "W":
-                self.shen = pure_week(
-                    freq=freq,
-                    no_read_indu=no_read_indu,
-                    swindustry_dummy=swindustry_dummy,
-                    zxindustry_dummy=zxindustry_dummy,
-                    read_in_swindustry_dummy=swindustry_dummies,
-                )
+        if total_cap:
+            if opens_average_first_day:
+                if freq == "M":
+                    self.shen = pure_moon_b(
+                        freq=freq,
+                        no_read_indu=no_read_indu,
+                        swindustry_dummy=swindustry_dummy,
+                        zxindustry_dummy=zxindustry_dummy,
+                        read_in_swindustry_dummy=swindustry_dummies,
+                    )
+                elif freq == "W":
+                    self.shen = pure_week_b(
+                        freq=freq,
+                        no_read_indu=no_read_indu,
+                        swindustry_dummy=swindustry_dummy,
+                        zxindustry_dummy=zxindustry_dummy,
+                        read_in_swindustry_dummy=swindustry_dummies,
+                    )
+            else:
+                if freq == "M":
+                    self.shen = pure_moon_c(
+                        freq=freq,
+                        no_read_indu=no_read_indu,
+                        swindustry_dummy=swindustry_dummy,
+                        zxindustry_dummy=zxindustry_dummy,
+                        read_in_swindustry_dummy=swindustry_dummies,
+                    )
+                elif freq == "W":
+                    self.shen = pure_week_c(
+                        freq=freq,
+                        no_read_indu=no_read_indu,
+                        swindustry_dummy=swindustry_dummy,
+                        zxindustry_dummy=zxindustry_dummy,
+                        read_in_swindustry_dummy=swindustry_dummies,
+                    )
         else:
-            if freq == "M":
-                self.shen = pure_moon_a(
-                    freq=freq,
-                    no_read_indu=no_read_indu,
-                    swindustry_dummy=swindustry_dummy,
-                    zxindustry_dummy=zxindustry_dummy,
-                    read_in_swindustry_dummy=swindustry_dummies,
-                )
-            elif freq == "W":
-                self.shen = pure_week_a(
-                    freq=freq,
-                    no_read_indu=no_read_indu,
-                    swindustry_dummy=swindustry_dummy,
-                    zxindustry_dummy=zxindustry_dummy,
-                    read_in_swindustry_dummy=swindustry_dummies,
-                )
+            if opens_average_first_day:
+                if freq == "M":
+                    self.shen = pure_moon(
+                        freq=freq,
+                        no_read_indu=no_read_indu,
+                        swindustry_dummy=swindustry_dummy,
+                        zxindustry_dummy=zxindustry_dummy,
+                        read_in_swindustry_dummy=swindustry_dummies,
+                    )
+                elif freq == "W":
+                    self.shen = pure_week(
+                        freq=freq,
+                        no_read_indu=no_read_indu,
+                        swindustry_dummy=swindustry_dummy,
+                        zxindustry_dummy=zxindustry_dummy,
+                        read_in_swindustry_dummy=swindustry_dummies,
+                    )
+            else:
+                if freq == "M":
+                    self.shen = pure_moon_a(
+                        freq=freq,
+                        no_read_indu=no_read_indu,
+                        swindustry_dummy=swindustry_dummy,
+                        zxindustry_dummy=zxindustry_dummy,
+                        read_in_swindustry_dummy=swindustry_dummies,
+                    )
+                elif freq == "W":
+                    self.shen = pure_week_a(
+                        freq=freq,
+                        no_read_indu=no_read_indu,
+                        swindustry_dummy=swindustry_dummy,
+                        zxindustry_dummy=zxindustry_dummy,
+                        read_in_swindustry_dummy=swindustry_dummies,
+                    )
         self.shen.set_basic_data(
             ages=ages,
             sts=sts,
@@ -2686,6 +2750,7 @@ class pure_moonnight(object):
             closes=closes,
             capitals=capitals,
             opens_average_first_day=opens_average_first_day,
+            total_cap=total_cap,
         )
         self.shen.set_factor_df_date_as_index(factors)
         self.shen.prerpare()
@@ -2768,6 +2833,22 @@ class pure_moon_a(pure_moon):
 
 
 class pure_week_a(pure_moon):
+    ...
+
+
+class pure_moon_b(pure_moon):
+    ...
+
+
+class pure_week_b(pure_moon):
+    ...
+
+
+class pure_moon_c(pure_moon):
+    ...
+
+
+class pure_week_c(pure_moon):
     ...
 
 
@@ -4179,7 +4260,7 @@ class pure_dawn(object):
 def follow_tests(
     fac: pd.DataFrame,
     trade_cost_double_side_list: float = [0.001, 0.002, 0.003, 0.004, 0.005],
-    index_member_value_weighted: bool=0,
+    index_member_value_weighted: bool = 1,
     comments_writer: pd.ExcelWriter = None,
     net_values_writer: pd.ExcelWriter = None,
     pos: bool = 0,
@@ -4188,6 +4269,7 @@ def follow_tests(
     zxindustry: bool = 0,
     nums: List[int] = [3],
     opens_average_first_day: bool = 0,
+    total_cap: bool = 0,
 ):
     """因子完成全A测试后，进行的一些必要的后续测试，包括各个分组表现、相关系数与纯净化、3510的多空和多头、各个行业Rank IC、各个行业买3只超额表现
 
@@ -4215,6 +4297,8 @@ def follow_tests(
         各个行业买几只股票, by default [3]
     opens_average_first_day : bool, optional
         买入时使用第一天的平均价格, by default 0
+    total_cap : bool, optional
+        加权和行业市值中性化时使用总市值, by default 0
 
     Raises
     ------
@@ -4255,6 +4339,7 @@ def follow_tests(
         net_values_writer=net_values_writer,
         sheetname="纯净",
         opens_average_first_day=opens_average_first_day,
+        total_cap=total_cap,
     )
     """3510多空和多头"""
     # 300
@@ -4266,6 +4351,7 @@ def follow_tests(
         net_values_writer=net_values_writer,
         sheetname="300多空",
         opens_average_first_day=opens_average_first_day,
+        total_cap=total_cap,
     )
     if pos:
         if comments_writer is not None:
@@ -4328,6 +4414,7 @@ def follow_tests(
         net_values_writer=net_values_writer,
         sheetname="500多空",
         opens_average_first_day=opens_average_first_day,
+        total_cap=total_cap,
     )
     if pos:
         if comments_writer is not None:
@@ -4388,6 +4475,7 @@ def follow_tests(
         net_values_writer=net_values_writer,
         sheetname="1000多空",
         opens_average_first_day=opens_average_first_day,
+        total_cap=total_cap,
     )
     if pos:
         if comments_writer is not None:
@@ -4450,13 +4538,14 @@ def follow_tests(
 
 def test_on_index_four_out(
     fac: pd.DataFrame,
-    value_weighted: bool=0,
+    value_weighted: bool = 1,
     trade_cost_double_side_list: float = [0.001, 0.002, 0.003, 0.004, 0.005],
     group_num: int = 10,
     boxcox: bool = 1,
     comments_writer: pd.ExcelWriter = None,
     net_values_writer: pd.ExcelWriter = None,
     opens_average_first_day: bool = 0,
+    total_cap: bool = 0,
 ):
     if comments_writer is None:
         from pure_ocean_breeze.state.states import COMMENTS_WRITER
@@ -4493,6 +4582,7 @@ def test_on_index_four_out(
         net_values_writer=net_values_writer,
         sheetname="300多空",
         opens_average_first_day=opens_average_first_day,
+        total_cap=total_cap,
     )
     if pos:
         if comments_writer is not None:
@@ -4559,6 +4649,7 @@ def test_on_index_four_out(
         net_values_writer=net_values_writer,
         sheetname="500多空",
         opens_average_first_day=opens_average_first_day,
+        total_cap=total_cap,
     )
     if pos:
         if comments_writer is not None:
@@ -4623,6 +4714,7 @@ def test_on_index_four_out(
         net_values_writer=net_values_writer,
         sheetname="1000多空",
         opens_average_first_day=opens_average_first_day,
+        total_cap=total_cap,
     )
     if pos:
         if comments_writer is not None:
@@ -4751,6 +4843,7 @@ class pure_fama(object):
         add_market_series: pd.Series = None,
         factors_names: list = None,
         betas_rets: bool = 0,
+        total_cap: bool = 0,
     ) -> None:
         """使用fama三因子的方法，将个股的收益率，拆分出各个因子带来的收益率以及特质的收益率
         分别计算每一期，各个因子收益率的值，超额收益率，因子的暴露，以及特质收益率
@@ -4775,6 +4868,8 @@ class pure_fama(object):
             各个因子的名字，默认为fac0(市场收益率因子，如果没有，则从fac1开始),fac1,fac2,fac3, by default None
         betas_rets : bool, optional
             是否计算每只个股的由于暴露在每个因子上所带来的收益率, by default 0
+        total_cap : bool, optional
+            加权时使用总市值, by default 0
         """
         start = max(
             [int(datetime.datetime.strftime(i.index.min(), "%Y%m%d")) for i in factors]
@@ -4798,6 +4893,8 @@ class pure_fama(object):
         ]
         self.value_weighted = value_weighted
         if value_weighted:
+            if total_cap:
+                self.cap=read_daily(total_cap=1,start=start)
             self.cap = read_daily(flow_cap=1, start=start)
             self.factors_group_long = [self.cap * i for i in self.factors_group_long]
             self.factors_group_short = [self.cap * i for i in self.factors_group_short]
@@ -5082,7 +5179,7 @@ def test_on_300500(
     df: pd.DataFrame,
     trade_cost_double_side: float = 0,
     group_num: int = 10,
-    value_weighted: bool=0,
+    value_weighted: bool = 1,
     boxcox: bool = 0,
     hs300: bool = 0,
     zz500: bool = 0,
@@ -5090,6 +5187,7 @@ def test_on_300500(
     gz2000: bool = 0,
     iplot: bool = 1,
     opens_average_first_day: bool = 0,
+    total_cap: bool=0,
 ) -> pd.Series:
     """对因子在指数成分股内进行多空和多头测试
 
@@ -5111,10 +5209,12 @@ def test_on_300500(
         在中证1000成分股内测试, by default 0
     gz1000 : bool, optional
         在国证2000成分股内测试, by default 0
-    iplot : bol,optional
+    iplot : bo0l,optional
         多空回测的时候，是否使用cufflinks绘画
     opens_average_first_day : bool, optional
         买入时使用第一天的平均价格, by default 0
+    total_cap : bool, optional
+        加权和行业市值中性化时使用总市值, by default 0
 
     Returns
     -------
@@ -5132,6 +5232,7 @@ def test_on_300500(
         boxcox=boxcox,
         iplot=iplot,
         opens_average_first_day=opens_average_first_day,
+        total_cap=total_cap,
     )
     if (
         shen.shen.group_net_values.group1.iloc[-1]
@@ -5177,13 +5278,14 @@ def test_on_300500(
 @do_on_dfs
 def test_on_index_four(
     df: pd.DataFrame,
-    value_weighted: bool=0,
+    value_weighted: bool = 1,
     group_num: int = 10,
     trade_cost_double_side: float = 0,
     iplot: bool = 1,
     gz2000: bool = 0,
     boxcox: bool = 1,
     opens_average_first_day: bool = 0,
+    total_cap: bool = 0,
 ) -> pd.DataFrame:
     """对因子同时在沪深300、中证500、中证1000、国证2000这4个指数成分股内进行多空和多头超额测试
 
@@ -5205,6 +5307,8 @@ def test_on_index_four(
         是否进行行业市值中性化处理, by default 1
     opens_average_first_day : bool, optional
         买入时使用第一天的平均价格, by default 0
+    total_cap : bool, optional
+        加权和行业市值中性化时使用总市值, by default 0
 
     Returns
     -------
@@ -5220,6 +5324,7 @@ def test_on_index_four(
         iplot=iplot,
         boxcox=boxcox,
         opens_average_first_day=opens_average_first_day,
+        total_cap=total_cap,
     )
     if (
         shen.shen.group_net_values.group1.iloc[-1]
@@ -5237,6 +5342,7 @@ def test_on_index_four(
             iplot=iplot,
             boxcox=boxcox,
             opens_average_first_day=opens_average_first_day,
+            total_cap=total_cap,
         )
         com500, net500 = make_relative_comments(
             shen.shen.group_rets.group1, zz500=1, show_nets=1
@@ -5250,6 +5356,7 @@ def test_on_index_four(
             iplot=iplot,
             boxcox=boxcox,
             opens_average_first_day=opens_average_first_day,
+            total_cap=total_cap,
         )
         com1000, net1000 = make_relative_comments(
             shen.shen.group_rets.group1, zz1000=1, show_nets=1
@@ -5263,6 +5370,7 @@ def test_on_index_four(
                 iplot=iplot,
                 boxcox=boxcox,
                 opens_average_first_day=opens_average_first_day,
+                total_cap=total_cap,
             )
             com2000, net2000 = make_relative_comments(
                 shen.shen.group_rets.group1, gz2000=1, show_nets=1
@@ -5280,6 +5388,7 @@ def test_on_index_four(
             iplot=iplot,
             boxcox=boxcox,
             opens_average_first_day=opens_average_first_day,
+            total_cap=total_cap,
         )
         com500, net500 = make_relative_comments(
             shen.shen.group_rets[f"group{group_num}"], zz500=1, show_nets=1
@@ -5293,6 +5402,7 @@ def test_on_index_four(
             iplot=iplot,
             boxcox=boxcox,
             opens_average_first_day=opens_average_first_day,
+            total_cap=total_cap,
         )
         com1000, net1000 = make_relative_comments(
             shen.shen.group_rets[f"group{group_num}"], zz1000=1, show_nets=1
@@ -5307,6 +5417,7 @@ def test_on_index_four(
                 iplot=iplot,
                 boxcox=boxcox,
                 opens_average_first_day=opens_average_first_day,
+                total_cap=total_cap,
             )
             com2000, net2000 = make_relative_comments(
                 shen.shen.group_rets[f"group{group_num}"], gz2000=1, show_nets=1
@@ -5872,3 +5983,236 @@ class pure_linprog(object):
             self.zz1000_nets.to_excel(net_values_writer, sheet_name="中证1000组合优化净值")
 
         return self.comments.T
+
+
+def symmetrically_orthogonalize(dfs: list[pd.DataFrame]) -> list[pd.DataFrame]:
+    """对多个因子做对称正交，每个因子得到正交其他因子后的结果
+
+    Parameters
+    ----------
+    dfs : list[pd.DataFrame]
+        多个要做正交的因子，每个df都是index为时间，columns为股票代码，values为因子值的df
+
+    Returns
+    -------
+    list[pd.DataFrame]
+        对称正交后的各个因子
+    """
+
+    def sing(dfs: list[pd.DataFrame], date: pd.Timestamp):
+        dds = []
+        for num, i in enumerate(dfs):
+            i = i[i.index == date]
+            i.index = [f"fac{num}"]
+            i = i.T
+            dds.append(i)
+        dds = pd.concat(dds, axis=1)
+        cov = dds.cov()
+        d, u = np.linalg.eig(cov)
+        d = np.diag(d ** (-0.5))
+        new_facs = pd.DataFrame(
+            np.dot(dds, np.dot(np.dot(u, d), u.T)), columns=dds.columns, index=dds.index
+        )
+        new_facs = new_facs.stack().reset_index()
+        new_facs.columns = ["code", "fac_number", "fac"]
+        new_facs = new_facs.assign(date=date)
+        dds = []
+        for num, i in enumerate(dfs):
+            i = new_facs[new_facs.fac_number == f"fac{num}"]
+            i = i.pivot(index="date", columns="code", values="fac")
+            dds.append(i)
+        return dds
+
+    dfs = [standardlize(i) for i in dfs]
+    date_first = max([i.index.min() for i in dfs])
+    date_last = min([i.index.max() for i in dfs])
+    dfs = [i[(i.index >= date_first) & (i.index <= date_last)] for i in dfs]
+    fac_num = len(dfs)
+    ddss = [[] for i in range(fac_num)]
+    for date in tqdm.auto.tqdm(dfs[0].index):
+        dds = sing(dfs, date)
+        for num, i in enumerate(dds):
+            ddss[num].append(i)
+    ds = []
+    for i in tqdm.auto.tqdm(ddss):
+        ds.append(pd.concat(i))
+    return ds
+
+
+def icir_weight(
+    facs: list[pd.DataFrame],
+    backsee: int = 6,
+    boxcox: bool = 0,
+    rank_corr: bool = 0,
+    only_ic: bool = 0,
+) -> pd.DataFrame:
+    """使用icir滚动加权的方式，加权合成几个因子
+
+    Parameters
+    ----------
+    facs : list[pd.DataFrame]
+        要合成的若干因子，每个df都是index为时间，columns为股票代码，values为因子值的df
+    backsee : int, optional
+        用来计算icir的过去期数, by default 6
+    boxcox : bool, optional
+        是否对因子进行行业市值中性化, by default 0
+    rank_corr : bool, optional
+        是否计算rankicir, by default 0
+    only_ic : bool, optional
+        是否只计算IC或Rank IC, by default 0
+
+    Returns
+    -------
+    pd.DataFrame
+        合成后的因子
+
+    Raises
+    ------
+    ValueError
+        因子期数少于回看期数时将报错
+    """
+    date_first_max = max([i.index[0] for i in facs])
+    facs = [i[i.index >= date_first_max] for i in facs]
+    date_last_min = min([i.index[-1] for i in facs])
+    facs = [i[i.index <= date_last_min] for i in facs]
+    facs = [i.shift(1) for i in facs]
+    ret = read_daily(
+        close=1, start=datetime.datetime.strftime(date_first_max, "%Y%m%d")
+    )
+    ret = ret / ret.shift(20) - 1
+    if boxcox:
+        facs = [decap_industry(i) for i in facs]
+    facs = [((i.T - i.T.mean()) / i.T.std()).T for i in facs]
+    dates = list(facs[0].index)
+    fis = []
+    for num, date in tqdm.auto.tqdm(list(enumerate(dates))):
+        if num < backsee:
+            ...
+        else:
+            nears = [i.iloc[num - backsee : num, :] for i in facs]
+            targets = [i[i.index == date] for i in facs]
+            if rank_corr:
+                weights = [
+                    show_corr(
+                        i, ret[ret.index.isin(i.index)], plt_plot=0, show_series=1
+                    )
+                    for i in nears
+                ]
+            else:
+                weights = [
+                    show_corr(
+                        i,
+                        ret[ret.index.isin(i.index)],
+                        plt_plot=0,
+                        show_series=1,
+                        method="pearson",
+                    )
+                    for i in nears
+                ]
+            if only_ic:
+                weights = [i.mean() for i in weights]
+            else:
+                weights = [i.mean() / i.std() for i in weights]
+            fi = sum([i * j for i, j in zip(weights, targets)])
+            fis.append(fi)
+    if len(fis) > 0:
+        return pd.concat(fis).shift(-1)
+    else:
+        raise ValueError("输入的因子值长度不太够吧？")
+
+
+def scipy_weight(
+    facs: list[pd.DataFrame],
+    backsee: int = 6,
+    boxcox: bool = 0,
+    rank_corr: bool = 0,
+    only_ic: bool = 0,
+    upper_bound: float = None,
+    lower_bound: float = 0,
+) -> pd.DataFrame:
+    """使用scipy的minimize优化求解的方式，寻找最优的因子合成权重，默认优化条件为最大ICIR
+
+    Parameters
+    ----------
+    facs : list[pd.DataFrame]
+        要合成的因子，每个df都是index为时间，columns为股票代码，values为因子值的df
+    backsee : int, optional
+        用来计算icir的过去期数, by default 6
+    boxcox : bool, optional
+        是否对因子进行行业市值中性化, by default 0
+    rank_corr : bool, optional
+        是否计算rankicir, by default 0
+    only_ic : bool, optional
+        是否只计算IC或Rank IC, by default 0
+    upper_bound : float, optional
+        每个因子的权重上限，如果不指定，则为每个因子平均权重的2倍，即2除以因子数量, by default None
+    lower_bound : float, optional
+        每个因子的权重下限, by default 0
+
+    Returns
+    -------
+    pd.DataFrame
+        合成后的因子
+    """
+    date_first_max = max([i.index[0] for i in facs])
+    facs = [i[i.index >= date_first_max] for i in facs]
+    date_last_min = min([i.index[-1] for i in facs])
+    facs = [i[i.index <= date_last_min] for i in facs]
+    facs = [i.shift(1) for i in facs]
+    ret = read_daily(
+        close=1, start=datetime.datetime.strftime(date_first_max, "%Y%m%d")
+    )
+    ret = ret / ret.shift(20) - 1
+    if boxcox:
+        facs = [decap_industry(i) for i in facs]
+    facs = [((i.T - i.T.mean()) / i.T.std()).T for i in facs]
+    if upper_bound is None:
+        upper_bound = 2 / len(facs)
+    dates = list(facs[0].index)
+    fis = []
+    for num, date in tqdm.auto.tqdm(list(enumerate(dates))):
+        if num <= backsee:
+            ...
+        else:
+            nears = [i.iloc[num - backsee : num, :] for i in facs]
+            targets = [i[i.index == date] for i in facs]
+            if rank_corr:
+                weights = [
+                    show_corr(
+                        i, ret[ret.index.isin(i.index)], plt_plot=0, show_series=1
+                    )
+                    for i in nears
+                ]
+            else:
+                weights = [
+                    show_corr(
+                        i,
+                        ret[ret.index.isin(i.index)],
+                        plt_plot=0,
+                        show_series=1,
+                        method="pearson",
+                    )
+                    for i in nears
+                ]
+            if only_ic:
+                weights = [i.mean() for i in weights]
+            else:
+                weights = [i.mean() / i.std() for i in weights]
+            weights = pd.concat(weights, axis=1)
+
+            def func(x):
+                w = np.array(x).reshape((-1, 1))
+                y = weights @ w
+                return np.mean(y) / np.std(y)
+
+            cons = {"type": "eq", "fun": lambda x: np.sum(x) - 1}
+            res = minimize(
+                func,
+                np.random.rand(weights.shape[1], 1),
+                constraints=cons,
+                bounds=[(lower_bound, upper_bound)] * weights.shape[1],
+            )
+            xs = res.x.tolist()
+            fac = sum([i * j for i, j in zip(xs, targets)])
+            fis.append(fac)
+    return pd.concat(fis).shift(-1)

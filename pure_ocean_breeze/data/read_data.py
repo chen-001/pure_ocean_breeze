@@ -1,4 +1,4 @@
-__updated__ = "2023-03-25 19:35:57"
+__updated__ = "2023-05-09 15:39:34"
 
 import os
 import numpy as np
@@ -60,7 +60,7 @@ def read_daily(
     hs300_member_weight: bool = 0,
     zz500_member_weight: bool = 0,
     zz1000_member_weight: bool = 0,
-    start: int = STATES["START"],
+    start: Union[int,str] = STATES["START"],
 ) -> pd.DataFrame:
     """直接读取常用的量价读取日频数据，默认为复权价格，
     在 open,close,high,low,tr,sharenum,volume 中选择一个参数指定为1
@@ -149,7 +149,7 @@ def read_daily(
         为1则表示读取中证500成分股权重（月频）, by default 0
     zz1000_member_weight : bool, optional
         为1则表示读取中证1000成分股权重（月频）, by default 0
-    start : int, optional
+    start : Union[int,str], optional
         起始日期，形如20130101, by default STATES["START"]
 
     Returns
