@@ -1,4 +1,4 @@
-__updated__ = "2023-03-26 22:29:53"
+__updated__ = "2023-05-16 11:40:12"
 
 import time
 
@@ -388,7 +388,7 @@ def database_update_daily_files() -> None:
         "ages",
         "sts",
         "states",
-        "volumes",
+        "amounts",
         "pb",
         "pe",
         "vwaps",
@@ -712,8 +712,12 @@ def database_update_barra_files():
     ]
     ds = {k: [] for k in style_names}
     if len(tradedates) >= 1:
-        codes=[convert_code(i)[0] for i in list(read_daily(open=1).columns)]
-        style = rqdatac.get_factor_exposure(order_book_ids=codes,start_date=pd.Timestamp(last_date)+pd.Timedelta(days=1), end_date=now).reset_index()
+        codes = [convert_code(i)[0] for i in list(read_daily(open=1).columns)]
+        style = rqdatac.get_factor_exposure(
+            order_book_ids=codes,
+            start_date=pd.Timestamp(last_date) + pd.Timedelta(days=1),
+            end_date=now,
+        ).reset_index()
         style = style.rename(
             columns={
                 "earnings_yield": "earningsyield",
@@ -722,12 +726,12 @@ def database_update_barra_files():
                 "residual_volatility": "residualvolatility",
                 "book_to_price": "booktoprice",
                 "non_linear_size": "nonlinearsize",
-                'order_book_id':'code'
+                "order_book_id": "code",
             }
         )
-        style=style[style_names+['date','code']]
+        style = style[style_names + ["date", "code"]]
         style.date = pd.to_datetime(style.date)
-        style.code = style.code.apply(lambda x:convert_code(x)[0])
+        style.code = style.code.apply(lambda x: convert_code(x)[0])
         for s in style_names:
             ds[s].append(style.pivot(columns="code", index="date", values=s))
         for k, v in ds.items():

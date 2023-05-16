@@ -1,4 +1,4 @@
-__updated__ = "2023-05-09 15:46:45"
+__updated__ = "2023-05-16 11:40:18"
 
 import warnings
 
@@ -3769,7 +3769,7 @@ class pure_coldwinter(object):
     def get_corr(self):
         """计算每一期的相关系数，再求平均值"""
         self.corr_by_step = self.corr_pri.groupby(["date"]).apply(
-            lambda x: x.corr().head(1)
+            lambda x: x.rank().corr().head(1)
         )
         self.__corr = self.corr_by_step.mean()
         self.__corr = self.__corr.rename(index=self.rename_dict)
@@ -4122,41 +4122,44 @@ class pure_dawn(object):
                 if old_date == self.fac.date.max():
                     logger.info(f"本地文件已经是最新的了，无需计算")
                 else:
-                    new_date = self.find_begin(self.tradedays, old_date, self.backsee)
-                    fac = self.fac[self.fac.date > new_date]
-                    iter_item = [i for i in iter_item if i > new_date]
-                    if whole_cross:
-                        for end_date in tqdm.auto.tqdm(iter_item):
-                            start_date = self.find_begin(
-                                self.tradedays, end_date, self.backsee
+                    try:
+                        new_date = self.find_begin(self.tradedays, old_date, self.backsee)
+                        fac = self.fac[self.fac.date > new_date]
+                        iter_item = [i for i in iter_item if i > new_date]
+                        if whole_cross:
+                            for end_date in tqdm.auto.tqdm(iter_item):
+                                start_date = self.find_begin(
+                                    self.tradedays, end_date, self.backsee
+                                )
+                                df = fac[(fac.date >= start_date) & (fac.date <= end_date)]
+                                df = func(df)
+                                df = df.to_frame().T
+                                df.index = [end_date]
+                                res.append(df)
+                            fac = pd.concat(res).resample("M").last()
+                            self.fac = pd.concat([old, fac])
+                        else:
+                            tqdm.auto.tqdm.pandas(
+                                desc="when the dawn comes, tonight will be a memory too."
                             )
-                            df = fac[(fac.date >= start_date) & (fac.date <= end_date)]
-                            df = func(df)
-                            df = df.to_frame().T
-                            df.index = [end_date]
-                            res.append(df)
-                        fac = pd.concat(res).resample("M").last()
-                        self.fac = pd.concat([old, fac])
-                    else:
-                        tqdm.auto.tqdm.pandas(
-                            desc="when the dawn comes, tonight will be a memory too."
-                        )
-                        fac = fac.groupby(["code"]).progress_apply(
-                            lambda x: self.make_monthly_factors_single_code(
-                                x, func, daily=daily
+                            fac = fac.groupby(["code"]).progress_apply(
+                                lambda x: self.make_monthly_factors_single_code(
+                                    x, func, daily=daily
+                                )
                             )
-                        )
-                        fac = (
-                            fac.reset_index(level=1, drop=True)
-                            .reset_index()
-                            .set_index(["date", "code"])
-                            .unstack()
-                        )
-                        fac.columns = [i[1] for i in list(fac.columns)]
-                        fac = fac.resample("M").last()
-                        self.fac = pd.concat([old, fac])
-                    self.fac.to_parquet(homeplace.update_data_file + history_file)
-                    logger.success(f"本地文件已经更新完成")
+                            fac = (
+                                fac.reset_index(level=1, drop=True)
+                                .reset_index()
+                                .set_index(["date", "code"])
+                                .unstack()
+                            )
+                            fac.columns = [i[1] for i in list(fac.columns)]
+                            fac = fac.resample("M").last()
+                            self.fac = pd.concat([old, fac])
+                        self.fac.to_parquet(homeplace.update_data_file + history_file)
+                        logger.success(f"本地文件已经更新完成")
+                    except Exception:
+                        logger.info(f"本地文件已经是最新的了，无需计算")
             else:
                 logger.info("第一次计算，请耐心等待……")
                 if whole_cross:

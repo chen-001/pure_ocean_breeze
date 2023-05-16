@@ -1,6 +1,14 @@
 ## 更新日志🗓 — v3
 
 
+* v3.9.5 — 2023.5.16
+
+> 1. 给ClickHouseClient的get_data方法、Questdb的write_via_df方法、get_data_with_tuple方法新增了retry（用以支持pure_fall_frequent的并行）
+> 2. 修正了database_update_daily_files中检查历史文件的错误
+> 3. 将pure_coldwinter中展示的相关系数统一为spearman相关系数
+> 4. 修复了pure_dawn更新历史数据的bug
+
+
 * v3.9.4 — 2023.5.9
 
 > 1. 优化了read_daily函数中start参数的类型提示

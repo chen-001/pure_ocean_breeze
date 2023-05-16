@@ -1,4 +1,4 @@
-__updated__ = "2023-03-22 20:22:04"
+__updated__ = "2023-05-16 11:40:07"
 
 import pandas as pd
 import pymysql
@@ -12,7 +12,7 @@ import requests
 import os
 from typing import Union, Dict, List
 from psycopg2.extensions import register_adapter, AsIs
-from tenacity import retry, stop_after_attempt
+from tenacity import retry, stop_after_attempt, wait_fixed
 import questdb.ingress as qdbing
 from pure_ocean_breeze.state.states import STATES
 from pure_ocean_breeze.state.homeplace import HomePlace
@@ -598,6 +598,7 @@ class ClickHouseClient(object):
         a = pd.read_sql(sql_order, con=self.engine)
         return a
 
+    @retry(stop=stop_after_attempt(10), wait=wait_fixed(3))
     def get_data(
         self, sql_order: str, only_array: bool = 0
     ) -> Union[pd.DataFrame, np.ndarray]:
@@ -823,6 +824,7 @@ class Questdb(DriverOfPostgre):
     def __addapt_numpy_int64(self, numpy_int64):
         return AsIs(numpy_int64)
 
+    @retry(stop=stop_after_attempt(10), wait=wait_fixed(3))
     def write_via_df(
         self,
         df: pd.DataFrame,
@@ -857,6 +859,7 @@ class Questdb(DriverOfPostgre):
             with qdbing.Sender(self.host, 9009) as sender:
                 sender.dataframe(df, table_name=table_name)
 
+    @retry(stop=stop_after_attempt(10), wait=wait_fixed(3))
     def get_data_with_tuple(
         self,
         sql_order: str,
