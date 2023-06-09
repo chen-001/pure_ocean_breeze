@@ -183,7 +183,7 @@ def read_daily(
                 homeplace.daily_data_file + "vwaps.parquet"
             ) * read_daily(adjfactor=1, start=start)
         elif tr:
-            trs = pd.read_parquet(homeplace.daily_data_file + "trs.parquet")
+            trs = pd.read_parquet(homeplace.daily_data_file + "trs.parquet").replace(0,np.nan)
             df = trs
         elif sharenum:
             sharenums = pd.read_parquet(homeplace.daily_data_file + "sharenums.parquet")

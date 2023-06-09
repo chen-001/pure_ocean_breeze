@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2023-03-22 22:50:18"
+__updated__ = "2023-06-09 16:44:30"
 
 import os
 import pandas as pd
@@ -11,6 +11,7 @@ import datetime
 import scipy.io as scio
 import numpy as np
 import numpy_ext as npext
+import knockknock as kk
 import scipy.stats as ss
 from functools import reduce, partial
 from loguru import logger
@@ -26,6 +27,10 @@ from pure_ocean_breeze.state.homeplace import HomePlace
 import deprecation
 from pure_ocean_breeze import __version__
 from pure_ocean_breeze.state.decorators import do_on_dfs
+try:
+    homeplace = HomePlace()
+except Exception:
+    print("您暂未初始化，功能将受限")
 
 
 def is_notebook() -> bool:
@@ -409,12 +414,309 @@ def merge_many(
     return df
 
 
+class pure_dawn(object):
+    """
+    因子切割论的母框架，可以对两个因子进行类似于因子切割的操作
+    可用于派生任何"以两个因子生成一个因子"的子类
+    使用举例
+    cut函数里，必须带有输入变量df,df有两个columns，一个名为'fac1'，一个名为'fac2'，df是最近一个回看期内的数据
+    ```python
+    class Cut(pure_dawn):
+
+    def cut(self,df):
+        df=df.sort_values('fac1')
+        df=df.assign(fac3=df.fac1*df.fac2)
+        ret0=df.fac2.iloc[:4].mean()
+        ret1=df.fac2.iloc[4:8].mean()
+        ret2=df.fac2.iloc[8:12].mean()
+        ret3=df.fac2.iloc[12:16].mean()
+        ret4=df.fac2.iloc[16:].mean()
+        aret0=df.fac3.iloc[:4].mean()
+        aret1=df.fac3.iloc[4:8].mean()
+        aret2=df.fac3.iloc[8:12].mean()
+        aret3=df.fac3.iloc[12:16].mean()
+        aret4=df.fac3.iloc[16:].mean()
+        return ret0,ret1,ret2,ret3,ret4,aret0,aret1,aret2,aret3,aret4
+
+    cut=Cut(ct,ret_inday)
+    cut.run(cut.cut)
+
+    cut0=get_value(cut(),0)
+    cut1=get_value(cut(),1)
+    cut2=get_value(cut(),2)
+    cut3=get_value(cut(),3)
+    cut4=get_value(cut(),4)
+    ```
+    """
+
+    def __init__(self, fac1: pd.DataFrame, fac2: pd.DataFrame, *args: list) -> None:
+        """几个因子的操作，每个月操作一次
+
+        Parameters
+        ----------
+        fac1 : pd.DataFrame
+            因子值1，index为时间，columns为股票代码，values为因子值
+        fac2 : pd.DataFrame
+            因子2，index为时间，columns为股票代码，values为因子值
+        """
+        self.fac1 = fac1
+        self.fac1 = self.fac1.stack().reset_index()
+        self.fac1.columns = ["date", "code", "fac1"]
+        self.fac2 = fac2
+        self.fac2 = self.fac2.stack().reset_index()
+        self.fac2.columns = ["date", "code", "fac2"]
+        fac_all = pd.merge(self.fac1, self.fac2, on=["date", "code"])
+        for i, fac in enumerate(args):
+            fac = fac.stack().reset_index()
+            fac.columns = ["date", "code", f"fac{i+3}"]
+            fac_all = pd.merge(fac_all, fac, on=["date", "code"])
+        fac_all = fac_all.sort_values(["date", "code"])
+        self.fac = fac_all.copy()
+
+    def __call__(self) -> pd.DataFrame:
+        """返回最终月度因子值
+
+        Returns
+        -------
+        `pd.DataFrame`
+            最终因子值
+        """
+        return self.fac.copy()
+
+    def get_fac_long_and_tradedays(self):
+        """将两个因子的矩阵转化为长列表"""
+        self.tradedays = sorted(list(set(self.fac.date)))
+
+    def get_month_starts_and_ends(self, backsee=20):
+        """计算出每个月回看期间的起点日和终点日"""
+        self.month_ends = [
+            i
+            for i, j in zip(self.tradedays[:-1], self.tradedays[1:])
+            if i.month != j.month
+        ]
+        self.month_ends.append(self.tradedays[-1])
+        self.month_starts = [
+            self.find_begin(self.tradedays, i, backsee=backsee) for i in self.month_ends
+        ]
+        self.month_starts[0] = self.tradedays[0]
+
+    def find_begin(self, tradedays, end_day, backsee=20):
+        """找出回看若干天的开始日，默认为20"""
+        end_day_index = tradedays.index(end_day)
+        start_day_index = end_day_index - backsee + 1
+        start_day = tradedays[start_day_index]
+        return start_day
+
+    def make_monthly_factors_single_code(self, df, func, daily):
+        """
+        对单一股票来计算月度因子
+        func为单月执行的函数，返回值应为月度因子，如一个float或一个list
+        df为一个股票的四列表，包含时间、代码、因子1和因子2
+        """
+        res = {}
+        if daily:
+            ones = [self.find_begin(i) for i in self.tradedays[self.backsee - 1 :]]
+            twos = self.tradedays[self.backsee - 1 :]
+        else:
+            ones = self.month_starts
+            twos = self.month_ends
+        for start, end in zip(ones, twos):
+            this_month = df[(df.date >= start) & (df.date <= end)]
+            res[end] = func(this_month)
+        dates = list(res.keys())
+        corrs = list(res.values())
+        part = pd.DataFrame({"date": dates, "corr": corrs})
+        return part
+
+    @staticmethod
+    def for_cross_via_zip(func):
+        """返回值为多个pd.Series，每个pd.Series的index为股票代码，values为单个因子值
+        例如
+        ```python
+        return (
+                    pd.Series([1.54,8.77,9.99……],index=['000001.SZ','000002.SZ','000004.SZ'……]),
+                    pd.Series([3.54,6.98,9.01……],index=['000001.SZ','000002.SZ','000004.SZ'……]),
+                )
+        ```
+        上例中，每个股票一天返回两个因子值，每个pd.Series对应一个因子值
+        """
+
+        def full_run(df, *args, **kwargs):
+            res = func(df, *args, **kwargs)
+            if isinstance(res, pd.Series):
+                return res
+            else:
+                res = pd.concat(res, axis=1)
+                res.columns = [f"fac{i}" for i in range(len(res.columns))]
+                res = res.assign(fac=list(zip(*[res[i] for i in list(res.columns)])))
+                return res.fac
+
+        return full_run
+
+    def get_monthly_factor(
+        self, func, whole_cross: bool = 0, daily: bool = 0, history_file: str = None
+    ):
+        """运行自己写的函数，获得月度因子"""
+        if daily:
+            iter_item = self.tradedays[self.backsee - 1 :]
+        else:
+            iter_item = self.month_ends
+        res = []
+        if history_file is not None:
+            if os.path.exists(homeplace.update_data_file + history_file):
+                old = pd.read_parquet(homeplace.update_data_file + history_file)
+                old_date = old.index.max()
+                if old_date == self.fac.date.max():
+                    logger.info(f"本地文件已经是最新的了，无需计算")
+                else:
+                    try:
+                        new_date = self.find_begin(
+                            self.tradedays, old_date, self.backsee
+                        )
+                        fac = self.fac[self.fac.date > new_date]
+                        iter_item = [i for i in iter_item if i > new_date]
+                        if whole_cross:
+                            for end_date in tqdm.auto.tqdm(iter_item):
+                                start_date = self.find_begin(
+                                    self.tradedays, end_date, self.backsee
+                                )
+                                df = fac[
+                                    (fac.date >= start_date) & (fac.date <= end_date)
+                                ]
+                                df = func(df)
+                                df = df.to_frame().T
+                                df.index = [end_date]
+                                res.append(df)
+                            fac = pd.concat(res).resample("M").last()
+                            self.fac = pd.concat([old, fac])
+                        else:
+                            tqdm.auto.tqdm.pandas(
+                                desc="when the dawn comes, tonight will be a memory too."
+                            )
+                            fac = fac.groupby(["code"]).progress_apply(
+                                lambda x: self.make_monthly_factors_single_code(
+                                    x, func, daily=daily
+                                )
+                            )
+                            fac = (
+                                fac.reset_index(level=1, drop=True)
+                                .reset_index()
+                                .set_index(["date", "code"])
+                                .unstack()
+                            )
+                            fac.columns = [i[1] for i in list(fac.columns)]
+                            fac = fac.resample("M").last()
+                            self.fac = pd.concat([old, fac])
+                        self.fac.to_parquet(homeplace.update_data_file + history_file)
+                        logger.success(f"本地文件已经更新完成")
+                    except Exception:
+                        logger.info(f"本地文件已经是最新的了，无需计算")
+            else:
+                logger.info("第一次计算，请耐心等待……")
+                if whole_cross:
+                    for end_date in tqdm.auto.tqdm(iter_item):
+                        start_date = self.find_begin(
+                            self.tradedays, end_date, self.backsee
+                        )
+                        df = self.fac[
+                            (self.fac.date >= start_date) & (self.fac.date <= end_date)
+                        ]
+                        df = func(df)
+                        df = df.to_frame().T
+                        df.index = [end_date]
+                        res.append(df)
+                    self.fac = pd.concat(res).resample("M").last()
+                else:
+                    tqdm.auto.tqdm.pandas(
+                        desc="when the dawn comes, tonight will be a memory too."
+                    )
+                    self.fac = self.fac.groupby(["code"]).progress_apply(
+                        lambda x: self.make_monthly_factors_single_code(
+                            x, func, daily=daily
+                        )
+                    )
+                    self.fac = (
+                        self.fac.reset_index(level=1, drop=True)
+                        .reset_index()
+                        .set_index(["date", "code"])
+                        .unstack()
+                    )
+                    self.fac.columns = [i[1] for i in list(self.fac.columns)]
+                    self.fac = self.fac.resample("M").last()
+                self.fac.to_parquet(homeplace.update_data_file + history_file)
+                logger.success(f"本地文件已经写入完成")
+        else:
+            logger.warning("您本次计算没有指定任何本地文件路径，这很可能会导致大量的重复计算和不必要的时间浪费，请注意！")
+            if daily:
+                logger.warning("您指定的是日频计算，非月频计算，因此强烈建议您指定history_file参数！！")
+            if whole_cross:
+                for end_date in tqdm.auto.tqdm(iter_item):
+                    start_date = self.find_begin(self.tradedays, end_date, self.backsee)
+                    df = self.fac[
+                        (self.fac.date >= start_date) & (self.fac.date <= end_date)
+                    ]
+                    df = func(df)
+                    df = df.to_frame().T
+                    df.index = [end_date]
+                    res.append(df)
+                self.fac = pd.concat(res).resample("M").last()
+            else:
+                tqdm.auto.tqdm.pandas(
+                    desc="when the dawn comes, tonight will be a memory too."
+                )
+                self.fac = self.fac.groupby(["code"]).progress_apply(
+                    lambda x: self.make_monthly_factors_single_code(
+                        x, func, daily=daily
+                    )
+                )
+                self.fac = (
+                    self.fac.reset_index(level=1, drop=True)
+                    .reset_index()
+                    .set_index(["date", "code"])
+                    .unstack()
+                )
+                self.fac.columns = [i[1] for i in list(self.fac.columns)]
+                self.fac = self.fac.resample("M").last()
+
+    @kk.desktop_sender(title="嘿，切割完成啦🛁")
+    def run(
+        self,
+        func: Callable,
+        backsee: int = 20,
+        whole_cross: bool = 0,
+        daily: bool = 0,
+        history_file: str = None,
+    ) -> None:
+        """执行计算的框架，产生因子值
+
+        Parameters
+        ----------
+        func : Callable
+            每个月要进行的操作
+        backsee : int, optional
+            回看期，即每个月月底对过去多少天进行计算, by default 20
+        whole_cross : bool, optional
+            是否同时取横截面上所有股票进行计算, by default 20
+        daily : bool, optional
+            是否每日计算, by default 20
+        history_file : str, optional
+            存储历史数据的文件名, by default None
+        """
+        self.backsee = backsee
+        self.get_fac_long_and_tradedays()
+        self.get_month_starts_and_ends(backsee=backsee)
+        self.get_monthly_factor(
+            func, whole_cross=whole_cross, daily=daily, history_file=history_file
+        )
+
 def corr_two_daily(
     df1: pd.DataFrame,
     df2: pd.DataFrame,
     history: str = None,
     rolling_window: int = 20,
     n_jobs: int = 1,
+    daily: bool = 1,
+    method: str = 'pearson',
 ) -> pd.DataFrame:
     """求两个因子，在相同股票上，时序上滚动窗口下的相关系数
 
@@ -430,24 +732,60 @@ def corr_two_daily(
         滚动窗口, by default 20
     n_jobs : int, optional
         并行数量, by default 1
+    daily : bool, optional
+        是否每天计算, by default 1
+    method : str, optional
+        使用哪种方法计算相关系数, by default 'pearson'
 
     Returns
     -------
     pd.DataFrame
         相关系数后的结果，index为时间，columns为股票代码
     """
+    if daily:
+        if method=='pearson':
+            def corr_in(a, b, c):
+                return c.iloc[-1], np.corrcoef(a, b)[0, 1]
 
-    def corr_in(a, b, c):
-        return c.iloc[-1], np.corrcoef(a, b)[0, 1]
+            return func_two_daily(
+                df1=df1,
+                df2=df2,
+                func=corr_in,
+                history=history,
+                rolling_window=rolling_window,
+                n_jobs=n_jobs,
+            )
+        elif method=='spearman':
+            def corr_in(a, b, c):
+                return c.iloc[-1], np.corrcoef(np.argsort(a), np.argsort(b))[0, 1]
 
-    return func_two_daily(
-        df1=df1,
-        df2=df2,
-        func=corr_in,
-        history=history,
-        rolling_window=rolling_window,
-        n_jobs=n_jobs,
-    )
+            return func_two_daily(
+                df1=df1,
+                df2=df2,
+                func=corr_in,
+                history=history,
+                rolling_window=rolling_window,
+                n_jobs=n_jobs,
+            )
+        else:
+            raise ValueError('您输入的方法暂不支持')
+    else:
+        if method=='pearson':
+            class Cut(pure_dawn):
+                def cut(self,df:pd.DataFrame):
+                    return df[['fac1','fac2']].corr().iloc[0,1]
+            cut=Cut(df1,df2)
+            cut.run(cut.cut,backsee=rolling_window,history_file=history)
+            return cut()
+        elif method=='spearman':
+            class Cut(pure_dawn):
+                def cut(self,df:pd.DataFrame):
+                    return df[['fac1','fac2']].rank().corr().iloc[0,1]
+            cut=Cut(df1,df2)
+            cut.run(cut.cut,backsee=rolling_window,history_file=history)
+            return cut()
+        else:
+            raise ValueError('您输入的方法暂不支持')
 
 
 def cov_two_daily(
@@ -456,6 +794,7 @@ def cov_two_daily(
     history: str = None,
     rolling_window: int = 20,
     n_jobs: int = 1,
+    daily: bool = 1,
 ) -> pd.DataFrame:
     """求两个因子，在相同股票上，时序上滚动窗口下的协方差
 
@@ -471,24 +810,33 @@ def cov_two_daily(
         滚动窗口, by default 20
     n_jobs : int, optional
         并行数量, by default 1
+    daily : bool, optional
+        是否每天计算, by default 1
 
     Returns
     -------
     pd.DataFrame
         求协方差后的结果，index为时间，columns为股票代码
     """
+    if daily:
+        def cov_in(a, b, c):
+            return c.iloc[-1], np.cov(a, b)[0, 1]
 
-    def cov_in(a, b, c):
-        return c.iloc[-1], np.cov(a, b)[0, 1]
-
-    return func_two_daily(
-        df1=df1,
-        df2=df2,
-        func=cov_in,
-        history=history,
-        rolling_window=rolling_window,
-        n_jobs=n_jobs,
-    )
+        return func_two_daily(
+            df1=df1,
+            df2=df2,
+            func=cov_in,
+            history=history,
+            rolling_window=rolling_window,
+            n_jobs=n_jobs,
+        )
+    else:
+        class Cut(pure_dawn):
+            def cut(self,df:pd.DataFrame):
+                return df[['fac1','fac2']].cov().iloc[0,1]
+        cut=Cut(df1,df2)
+        cut.run(cut.cut,backsee=rolling_window,history_file=history)
+        return cut()
 
 
 def func_two_daily(
@@ -989,7 +1337,7 @@ def get_list_std(delta_sts: List[pd.DataFrame]) -> pd.DataFrame:
     delta_sts_mean = sum(delta_sts) / len(delta_sts)
     delta_sts_std = [(i - delta_sts_mean) ** 2 for i in delta_sts]
     delta_sts_std = sum(delta_sts_std)
-    delta_sts_std = delta_sts_std**0.5 / len(delta_sts)**0.5
+    delta_sts_std = delta_sts_std**0.5 / len(delta_sts) ** 0.5
     return delta_sts_std
 
 
@@ -1271,7 +1619,7 @@ def get_fac_via_corr(
             if daily:
                 return dfs
             else:
-                return dfs.resample('M').last()
+                return dfs.resample("M").last()
         else:
             logger.info("已经是最新的了")
             return old
@@ -1330,7 +1678,7 @@ def get_fac_via_corr(
         if daily:
             return dfs
         else:
-            return dfs.resample('M').last()
+            return dfs.resample("M").last()
 
 
 @do_on_dfs
@@ -1509,15 +1857,29 @@ def all_pos(df: pd.DataFrame) -> pd.DataFrame:
 
 
 @do_on_dfs
-def clip_mad(df: pd.DataFrame, n: float = 3) -> pd.DataFrame:
-    df0 = df.T
-    median = df0.quantile(0.5)
-    diff_median = ((df0 - median).abs()).quantile(0.5)
-    max_range = median + n * diff_median
-    min_range = median - n * diff_median
-    mid1 = (((df0 - min_range) >= 0) + 0).replace(0, np.nan)
-    mid2 = (((df0 - max_range) <= 0) + 0).replace(0, np.nan)
-    return (df0 * mid1 * mid2).T
+def clip_mad(df: pd.DataFrame, n: float = 3, replace: bool = 1) -> pd.DataFrame:
+    def clip_sing(x: pd.Series, n: float = 3):
+        median = x.quantile(0.5)
+        diff_median = ((x - median).abs()).quantile(0.5)
+        max_range = median + n * diff_median
+        min_range = median - n * diff_median
+        x = x.where(x < max_range, max_range)
+        x = x.where(x > min_range, min_range)
+        return x
+
+    if replace:
+        df1 = df.T.apply(lambda x: clip_sing(x, n)).T
+        df = np.abs(np.sign(df)) * df1
+        return df
+    else:
+        df0 = df.T
+        median = df0.quantile(0.5)
+        diff_median = ((df0 - median).abs()).quantile(0.5)
+        max_range = median + n * diff_median
+        min_range = median - n * diff_median
+        mid1 = (((df0 - min_range) >= 0) + 0).replace(0, np.nan)
+        mid2 = (((df0 - max_range) <= 0) + 0).replace(0, np.nan)
+        return (df0 * mid1 * mid2).T
 
 
 @do_on_dfs

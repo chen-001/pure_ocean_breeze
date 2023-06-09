@@ -1,4 +1,4 @@
-__updated__ = "2023-05-16 11:40:12"
+__updated__ = "2023-05-22 15:55:43"
 
 import time
 
@@ -292,7 +292,7 @@ def download_single_daily(day):
             fields=[
                 "ts_code",
                 "trade_date",
-                "turnover_rate_f",
+                "turnover_rate",
                 "total_share",
                 "float_share",
                 "pe",
@@ -331,7 +331,7 @@ def download_single_daily(day):
             fields=[
                 "ts_code",
                 "trade_date",
-                "turnover_rate_f",
+                "turnover_rate",
                 "total_share",
                 "float_share",
                 "pe",
@@ -482,8 +482,8 @@ def database_update_daily_files() -> None:
         stop_downs = to_mat(part1, "stopping", "stop_downs")
 
         # 换手率
-        part2 = df2s[["date", "code", "turnover_rate_f"]].pivot(
-            index="date", columns="code", values="turnover_rate_f"
+        part2 = df2s[["date", "code", "turnover_rate"]].pivot(
+            index="date", columns="code", values="turnover_rate"
         )
         part2 = part2 / 100
         part2_old = pd.read_parquet(homeplace.daily_data_file + "trs.parquet")
