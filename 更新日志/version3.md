@@ -15,7 +15,7 @@
 
 > 1. 使用read_daily函数读取换手率时，为0的值替换为nan
 > 2. 给corr_two_daily新增了daily和method参数，用于指定是否每天计算以及计算方式
-> 3. 给cod_two_daily新增了daily参数，用于指定是否每天计算
+> 3. 给cov_two_daily新增了daily参数，用于指定是否每天计算
 > 4. 给clip_mad函数新增了replace参数，用于指定将超出临界值的值替换为临界值（否则删除）
 > 5. 修复了download_single_daily下载换手率数据中的bug
 > 6. 修复了pure_moon中回测绩效因子覆盖率指标的计算错误
