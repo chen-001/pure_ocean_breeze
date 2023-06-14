@@ -1,4 +1,4 @@
-__updated__ = "2023-06-04 12:44:48"
+__updated__ = "2023-06-14 09:29:34"
 
 import warnings
 
@@ -1403,6 +1403,8 @@ class pure_moon(object):
         "factor_turnover_rate",
         "group_rets_std",
         "group_rets_stds",
+        "group_rets_skews",
+        "group_rets_skew",
         "wind_out",
         "swindustry_dummy",
         "zxindustry_dummy",
@@ -1949,10 +1951,14 @@ class pure_moon(object):
                 lambda x: x.ret.mean()
             )
             self.rets_all = self.data.groupby(["date"]).apply(lambda x: x.ret.mean())
-            self.group_rets_stds = self.data.groupby(["date", "group"]).apply(
-                lambda x: x.ret.std()
+            self.group_rets_stds = self.data.groupby(["date", "group"]).ret.std()
+            self.group_rets_std = (
+                self.group_rets_stds.reset_index().groupby("group").mean()
             )
-            self.group_rets_std = self.group_rets_stds.groupby("group").mean()
+            self.group_rets_skews = self.data.groupby(["date", "group"]).ret.skew()
+            self.group_rets_skew = (
+                self.group_rets_skews.reset_index().groupby("group").mean()
+            )
         # dropna是因为如果股票行情数据比因子数据的截止日期晚，而最后一个月发生月初跌停时，会造成最后某组多出一个月的数据
         self.group_rets = self.group_rets.unstack()
         self.group_rets = self.group_rets[
@@ -2820,7 +2826,7 @@ class pure_moonnight(object):
         pd.DataFrame
             各年度的收益率
         """
-        df = self.shen.group_net_values.resample("M").last().pct_change()
+        df = self.shen.group_net_values.resample("Y").last().pct_change()
         df.index = df.index.year
         return df
 
@@ -3534,6 +3540,12 @@ class pure_fall_frequent(object):
                 res = res.reset_index()
                 res.columns = ["code", "fac"]
                 return res
+            elif isinstance(res, pd.DataFrame):
+                res.columns = [f"fac{i}" for i in range(len(res.columns))]
+                res = res.assign(fac=list(zip(*[res[i] for i in list(res.columns)])))
+                res = res[["fac"]].reset_index()
+                res.columns = ["code", "fac"]
+                return res
             else:
                 res = pd.concat(res, axis=1)
                 res.columns = [f"fac{i}" for i in range(len(res.columns))]
@@ -3966,7 +3978,6 @@ class pure_newyear(object):
             每个组的年化收益率
         """
         return self.square_rets.copy()
-
 
 
 @do_on_dfs

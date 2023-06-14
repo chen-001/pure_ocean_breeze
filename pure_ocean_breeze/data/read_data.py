@@ -1,4 +1,4 @@
-__updated__ = "2023-05-09 15:39:34"
+__updated__ = "2023-06-14 09:06:36"
 
 import os
 import numpy as np
@@ -60,7 +60,7 @@ def read_daily(
     hs300_member_weight: bool = 0,
     zz500_member_weight: bool = 0,
     zz1000_member_weight: bool = 0,
-    start: Union[int,str] = STATES["START"],
+    start: Union[int, str] = STATES["START"],
 ) -> pd.DataFrame:
     """直接读取常用的量价读取日频数据，默认为复权价格，
     在 open,close,high,low,tr,sharenum,volume 中选择一个参数指定为1
@@ -167,23 +167,35 @@ def read_daily(
         if path:
             return pd.read_parquet(homeplace.daily_data_file + path)
         elif open:
-            opens = pd.read_parquet(homeplace.daily_data_file + "opens.parquet")
+            opens = pd.read_parquet(
+                homeplace.daily_data_file + "opens.parquet"
+            ) * read_daily(state=1)
             df = opens
         elif close:
-            closes = pd.read_parquet(homeplace.daily_data_file + "closes.parquet")
+            closes = pd.read_parquet(
+                homeplace.daily_data_file + "closes.parquet"
+            ) * read_daily(state=1)
             df = closes
         elif high:
-            highs = pd.read_parquet(homeplace.daily_data_file + "highs.parquet")
+            highs = pd.read_parquet(
+                homeplace.daily_data_file + "highs.parquet"
+            ) * read_daily(state=1)
             df = highs
         elif low:
-            lows = pd.read_parquet(homeplace.daily_data_file + "lows.parquet")
+            lows = pd.read_parquet(
+                homeplace.daily_data_file + "lows.parquet"
+            ) * read_daily(state=1)
             df = lows
         elif vwap:
-            df = pd.read_parquet(
-                homeplace.daily_data_file + "vwaps.parquet"
-            ) * read_daily(adjfactor=1, start=start)
+            df = (
+                pd.read_parquet(homeplace.daily_data_file + "vwaps.parquet")
+                * read_daily(adjfactor=1, start=start)
+                * read_daily(state=1)
+            )
         elif tr:
-            trs = pd.read_parquet(homeplace.daily_data_file + "trs.parquet").replace(0,np.nan)
+            trs = pd.read_parquet(homeplace.daily_data_file + "trs.parquet").replace(
+                0, np.nan
+            ) * read_daily(state=1)
             df = trs
         elif sharenum:
             sharenums = pd.read_parquet(homeplace.daily_data_file + "sharenums.parquet")
@@ -191,7 +203,9 @@ def read_daily(
         elif total_sharenum:
             df = pd.read_parquet(homeplace.daily_data_file + "total_sharenums.parquet")
         elif amount:
-            volumes = pd.read_parquet(homeplace.daily_data_file + "amounts.parquet")
+            volumes = pd.read_parquet(
+                homeplace.daily_data_file + "amounts.parquet"
+            ) * read_daily(state=1)
             df = volumes
         elif money:
             df = pd.read_parquet(
@@ -201,12 +215,16 @@ def read_daily(
             age = pd.read_parquet(homeplace.daily_data_file + "ages.parquet")
             df = age
         elif flow_cap:
-            closes = pd.read_parquet(homeplace.daily_data_file + "closes_unadj.parquet")
+            closes = pd.read_parquet(
+                homeplace.daily_data_file + "closes_unadj.parquet"
+            ) * read_daily(state=1)
             sharenums = pd.read_parquet(homeplace.daily_data_file + "sharenums.parquet")
             flow_cap = closes * sharenums
             df = flow_cap
         elif total_cap:
-            closes = pd.read_parquet(homeplace.daily_data_file + "closes_unadj.parquet")
+            closes = pd.read_parquet(
+                homeplace.daily_data_file + "closes_unadj.parquet"
+            ) * read_daily(state=1)
             sharenums = pd.read_parquet(
                 homeplace.daily_data_file + "total_sharenums.parquet"
             )
@@ -214,14 +232,18 @@ def read_daily(
             df = flow_cap
         elif adjfactor:
             # df=pd.read_parquet(homeplace.daily_data_file+'adjfactors.parquet')
-            df = read_daily(close=1, start=start) / read_daily(
-                close=1, start=start, unadjust=1
+            df = (
+                read_daily(close=1, start=start)
+                * read_daily(state=1)
+                / read_daily(close=1, start=start, unadjust=1)
+                * read_daily(state=1)
             )
         elif st:
             st = pd.read_parquet(homeplace.daily_data_file + "sts.parquet")
             df = st
         elif state:
             state = pd.read_parquet(homeplace.daily_data_file + "states.parquet")
+            state = state.where(state == 1, np.nan)
             df = state
         elif ret:
             df = read_daily(close=1, start=start)
@@ -235,7 +257,9 @@ def read_daily(
                 - 1
             )
         elif vol_daily:
-            df = pd.read_parquet(homeplace.factor_data_file + "草木皆兵/草木皆兵_初级.parquet")
+            df = pd.read_parquet(
+                homeplace.factor_data_file + "草木皆兵/草木皆兵_初级.parquet"
+            ) * read_daily(state=1)
         elif vol:
             df = read_daily(ret=1, start=start)
             df = df.rolling(20, min_periods=10).std()
@@ -250,30 +274,44 @@ def read_daily(
                 read_daily(high=1, start=start) - read_daily(low=1, start=start)
             ) / read_daily(close=1, start=start)
         elif pb:
-            df = pd.read_parquet(homeplace.daily_data_file + "pb.parquet")
+            df = pd.read_parquet(homeplace.daily_data_file + "pb.parquet") * read_daily(
+                state=1
+            )
         elif pe:
-            df = pd.read_parquet(homeplace.daily_data_file + "pe.parquet")
+            df = pd.read_parquet(homeplace.daily_data_file + "pe.parquet") * read_daily(
+                state=1
+            )
         elif iret:
             df = pd.read_parquet(
                 homeplace.daily_data_file + "idiosyncratic_ret.parquet"
-            )
+            ) * read_daily(state=1)
         elif ivol:
             df = read_daily(iret=1, start=start)
             df = df.rolling(20, min_periods=10).std()
         elif illiquidity:
-            df = pd.read_parquet(homeplace.daily_data_file + "illiquidity.parquet")
+            df = pd.read_parquet(
+                homeplace.daily_data_file + "illiquidity.parquet"
+            ) * read_daily(state=1)
         elif swindustry_ret:
-            df = pd.read_parquet(homeplace.daily_data_file + "股票对应申万一级行业每日收益率.parquet")
+            df = pd.read_parquet(
+                homeplace.daily_data_file + "股票对应申万一级行业每日收益率.parquet"
+            ) * read_daily(state=1)
         elif zxindustry_ret:
-            df = pd.read_parquet(homeplace.daily_data_file + "股票对应中信一级行业每日收益率.parquet")
+            df = pd.read_parquet(
+                homeplace.daily_data_file + "股票对应中信一级行业每日收益率.parquet"
+            ) * read_daily(state=1)
         elif stop_up:
-            df = pd.read_parquet(
-                homeplace.daily_data_file + "stop_ups.parquet"
-            ) * read_daily(adjfactor=1, start=start)
+            df = (
+                pd.read_parquet(homeplace.daily_data_file + "stop_ups.parquet")
+                * read_daily(adjfactor=1, start=start)
+                * read_daily(state=1)
+            )
         elif stop_down:
-            df = pd.read_parquet(
-                homeplace.daily_data_file + "stop_downs.parquet"
-            ) * read_daily(adjfactor=1, start=start)
+            df = (
+                pd.read_parquet(homeplace.daily_data_file + "stop_downs.parquet")
+                * read_daily(adjfactor=1, start=start)
+                * read_daily(state=1)
+            )
         elif zxindustry_dummy_code:
             df = pd.read_parquet(homeplace.daily_data_file + "中信一级行业哑变量代码版.parquet")
         elif zxindustry_dummy_name:
@@ -302,23 +340,37 @@ def read_daily(
             raise IOError("阁下总得读点什么吧？🤒")
     else:
         if open:
-            opens = pd.read_parquet(homeplace.daily_data_file + "opens_unadj.parquet")
+            opens = pd.read_parquet(
+                homeplace.daily_data_file + "opens_unadj.parquet"
+            ) * read_daily(state=1)
             df = opens
         elif close:
-            closes = pd.read_parquet(homeplace.daily_data_file + "closes_unadj.parquet")
+            closes = pd.read_parquet(
+                homeplace.daily_data_file + "closes_unadj.parquet"
+            ) * read_daily(state=1)
             df = closes
         elif high:
-            highs = pd.read_parquet(homeplace.daily_data_file + "highs_unadj.parquet")
+            highs = pd.read_parquet(
+                homeplace.daily_data_file + "highs_unadj.parquet"
+            ) * read_daily(state=1)
             df = highs
         elif low:
-            lows = pd.read_parquet(homeplace.daily_data_file + "lows_unadj.parquet")
+            lows = pd.read_parquet(
+                homeplace.daily_data_file + "lows_unadj.parquet"
+            ) * read_daily(state=1)
             df = lows
         elif vwap:
-            df = pd.read_parquet(homeplace.daily_data_file + "vwaps.parquet")
+            df = pd.read_parquet(
+                homeplace.daily_data_file + "vwaps.parquet"
+            ) * read_daily(state=1)
         elif stop_up:
-            df = pd.read_parquet(homeplace.daily_data_file + "stop_ups.parquet")
+            df = pd.read_parquet(
+                homeplace.daily_data_file + "stop_ups.parquet"
+            ) * read_daily(state=1)
         elif stop_down:
-            df = pd.read_parquet(homeplace.daily_data_file + "stop_downs.parquet")
+            df = pd.read_parquet(
+                homeplace.daily_data_file + "stop_downs.parquet"
+            ) * read_daily(state=1)
         else:
             raise IOError("阁下总得读点什么吧？🤒")
     if "date" not in df.columns:
@@ -334,7 +386,7 @@ def read_market(
     start: int = STATES["START"],
     every_stock: bool = 1,
     market_code: str = "000985.SH",
-    questdb_host: str = '127.0.0.1',
+    questdb_host: str = "127.0.0.1",
 ) -> Union[pd.DataFrame, pd.Series]:
     """读取中证全指日行情数据
 
@@ -382,7 +434,7 @@ def read_market(
                 f"select date,num,close,high,low from minute_data_index where code='{market_code}' and cast(date as int)>={start}"
             )
         except Exception:
-            qdb = Questdb(host='192.168.1.3')
+            qdb = Questdb(host="192.168.1.3")
             df = qdb.get_data(
                 f"select date,num,close,high,low from minute_data_index where code='{market_code}' and cast(date as int)>={start}"
             )
@@ -496,7 +548,7 @@ def read_money_flow(
         return dfs
 
 
-def read_index_single(code: str,questdb_host:str='127.0.0.1') -> pd.Series:
+def read_index_single(code: str, questdb_host: str = "127.0.0.1") -> pd.Series:
     """读取某个指数的日行情收盘价数据
 
     Parameters
@@ -535,7 +587,7 @@ def read_index_single(code: str,questdb_host:str='127.0.0.1') -> pd.Series:
                 f"select date,num,close FROM 'minute_data_index' WHERE code='{code}'"
             )
         except Exception:
-            qdb = Questdb(host='192.168.1.3')
+            qdb = Questdb(host="192.168.1.3")
             hs300 = qdb.get_data(
                 f"select date,num,close FROM 'minute_data_index' WHERE code='{code}'"
             )

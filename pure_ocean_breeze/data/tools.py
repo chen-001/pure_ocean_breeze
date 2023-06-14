@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2023-06-09 16:44:30"
+__updated__ = "2023-06-14 00:08:18"
 
 import os
 import pandas as pd
@@ -27,6 +27,7 @@ from pure_ocean_breeze.state.homeplace import HomePlace
 import deprecation
 from pure_ocean_breeze import __version__
 from pure_ocean_breeze.state.decorators import do_on_dfs
+
 try:
     homeplace = HomePlace()
 except Exception:
@@ -580,9 +581,13 @@ class pure_dawn(object):
                                 start_date = self.find_begin(
                                     self.tradedays, end_date, self.backsee
                                 )
-                                df = fac[
-                                    (fac.date >= start_date) & (fac.date <= end_date)
-                                ]
+                                if start_date < end_date:
+                                    df = self.fac[
+                                        (self.fac.date >= start_date)
+                                        & (self.fac.date <= end_date)
+                                    ]
+                                else:
+                                    df = self.fac[self.fac.date <= end_date]
                                 df = func(df)
                                 df = df.to_frame().T
                                 df.index = [end_date]
@@ -618,9 +623,13 @@ class pure_dawn(object):
                         start_date = self.find_begin(
                             self.tradedays, end_date, self.backsee
                         )
-                        df = self.fac[
-                            (self.fac.date >= start_date) & (self.fac.date <= end_date)
-                        ]
+                        if start_date < end_date:
+                            df = self.fac[
+                                (self.fac.date >= start_date)
+                                & (self.fac.date <= end_date)
+                            ]
+                        else:
+                            df = self.fac[self.fac.date <= end_date]
                         df = func(df)
                         df = df.to_frame().T
                         df.index = [end_date]
@@ -652,9 +661,12 @@ class pure_dawn(object):
             if whole_cross:
                 for end_date in tqdm.auto.tqdm(iter_item):
                     start_date = self.find_begin(self.tradedays, end_date, self.backsee)
-                    df = self.fac[
-                        (self.fac.date >= start_date) & (self.fac.date <= end_date)
-                    ]
+                    if start_date < end_date:
+                        df = self.fac[
+                            (self.fac.date >= start_date) & (self.fac.date <= end_date)
+                        ]
+                    else:
+                        df = self.fac[self.fac.date <= end_date]
                     df = func(df)
                     df = df.to_frame().T
                     df.index = [end_date]
@@ -709,6 +721,7 @@ class pure_dawn(object):
             func, whole_cross=whole_cross, daily=daily, history_file=history_file
         )
 
+
 def corr_two_daily(
     df1: pd.DataFrame,
     df2: pd.DataFrame,
@@ -716,7 +729,7 @@ def corr_two_daily(
     rolling_window: int = 20,
     n_jobs: int = 1,
     daily: bool = 1,
-    method: str = 'pearson',
+    method: str = "pearson",
 ) -> pd.DataFrame:
     """求两个因子，在相同股票上，时序上滚动窗口下的相关系数
 
@@ -743,7 +756,8 @@ def corr_two_daily(
         相关系数后的结果，index为时间，columns为股票代码
     """
     if daily:
-        if method=='pearson':
+        if method == "pearson":
+
             def corr_in(a, b, c):
                 return c.iloc[-1], np.corrcoef(a, b)[0, 1]
 
@@ -755,7 +769,8 @@ def corr_two_daily(
                 rolling_window=rolling_window,
                 n_jobs=n_jobs,
             )
-        elif method=='spearman':
+        elif method == "spearman":
+
             def corr_in(a, b, c):
                 return c.iloc[-1], np.corrcoef(np.argsort(a), np.argsort(b))[0, 1]
 
@@ -768,24 +783,28 @@ def corr_two_daily(
                 n_jobs=n_jobs,
             )
         else:
-            raise ValueError('您输入的方法暂不支持')
+            raise ValueError("您输入的方法暂不支持")
     else:
-        if method=='pearson':
+        if method == "pearson":
+
             class Cut(pure_dawn):
-                def cut(self,df:pd.DataFrame):
-                    return df[['fac1','fac2']].corr().iloc[0,1]
-            cut=Cut(df1,df2)
-            cut.run(cut.cut,backsee=rolling_window,history_file=history)
+                def cut(self, df: pd.DataFrame):
+                    return df[["fac1", "fac2"]].corr().iloc[0, 1]
+
+            cut = Cut(df1, df2)
+            cut.run(cut.cut, backsee=rolling_window, history_file=history)
             return cut()
-        elif method=='spearman':
+        elif method == "spearman":
+
             class Cut(pure_dawn):
-                def cut(self,df:pd.DataFrame):
-                    return df[['fac1','fac2']].rank().corr().iloc[0,1]
-            cut=Cut(df1,df2)
-            cut.run(cut.cut,backsee=rolling_window,history_file=history)
+                def cut(self, df: pd.DataFrame):
+                    return df[["fac1", "fac2"]].rank().corr().iloc[0, 1]
+
+            cut = Cut(df1, df2)
+            cut.run(cut.cut, backsee=rolling_window, history_file=history)
             return cut()
         else:
-            raise ValueError('您输入的方法暂不支持')
+            raise ValueError("您输入的方法暂不支持")
 
 
 def cov_two_daily(
@@ -819,6 +838,7 @@ def cov_two_daily(
         求协方差后的结果，index为时间，columns为股票代码
     """
     if daily:
+
         def cov_in(a, b, c):
             return c.iloc[-1], np.cov(a, b)[0, 1]
 
@@ -831,11 +851,13 @@ def cov_two_daily(
             n_jobs=n_jobs,
         )
     else:
+
         class Cut(pure_dawn):
-            def cut(self,df:pd.DataFrame):
-                return df[['fac1','fac2']].cov().iloc[0,1]
-        cut=Cut(df1,df2)
-        cut.run(cut.cut,backsee=rolling_window,history_file=history)
+            def cut(self, df: pd.DataFrame):
+                return df[["fac1", "fac2"]].cov().iloc[0, 1]
+
+        cut = Cut(df1, df2)
+        cut.run(cut.cut, backsee=rolling_window, history_file=history)
         return cut()
 
 
@@ -1857,17 +1879,57 @@ def all_pos(df: pd.DataFrame) -> pd.DataFrame:
 
 
 @do_on_dfs
-def clip_mad(df: pd.DataFrame, n: float = 3, replace: bool = 1) -> pd.DataFrame:
-    def clip_sing(x: pd.Series, n: float = 3):
-        median = x.quantile(0.5)
-        diff_median = ((x - median).abs()).quantile(0.5)
-        max_range = median + n * diff_median
-        min_range = median - n * diff_median
-        x = x.where(x < max_range, max_range)
-        x = x.where(x > min_range, min_range)
-        return x
+def clip_mad(
+    df: pd.DataFrame, n: float = 3, replace: bool = 1, keep_trend: bool = 1
+) -> pd.DataFrame:
+    if keep_trend:
+        df = df.stack().reset_index()
+        df.columns = ["date", "code", "fac"]
 
-    if replace:
+        def clip_sing(x: pd.DataFrame, n: float = 3):
+            median = x.fac.quantile(0.5)
+            diff_median = ((x.fac - median).abs()).quantile(0.5)
+            max_range1 = median + n * diff_median
+            min_range1 = median - n * diff_median
+            max_range2 = median + (n + 0.5) * diff_median
+            min_range2 = median - (n + 0.5) * diff_median
+            x = x.sort_values(["fac"])
+            x_min = x[x.fac <= min_range1]
+            x_max = x[x.fac >= max_range1]
+            x_middle = x[(x.fac > min_range1) & (x.fac < max_range1)]
+            x_min.fac = np.nan
+            x_max.fac = np.nan
+            if x_min.shape[0] >= 1:
+                x_min.fac.iloc[-1] = min_range1
+                if x_min.shape[0] >= 2:
+                    x_min.fac.iloc[0] = min_range2
+                    x_min.fac = x_min.fac.interpolate()
+            if x_max.shape[0] >= 1:
+                x_max.fac.iloc[-1] = max_range2
+                if x_max.shape[0] >= 2:
+                    x_max.fac.iloc[0] = max_range1
+                    x_max.fac = x_max.fac.interpolate()
+            x = pd.concat([x_min, x_middle, x_max]).sort_values(["code"])
+            return x
+
+        df = df.groupby(["date"]).apply(lambda x: clip_sing(x, n))
+        try:
+            df = df.reset_index()
+        except Exception:
+            ...
+        df = df.pivot(index="date", columns="code", values="fac")
+        return df
+    elif replace:
+
+        def clip_sing(x: pd.Series, n: float = 3):
+            median = x.quantile(0.5)
+            diff_median = ((x - median).abs()).quantile(0.5)
+            max_range = median + n * diff_median
+            min_range = median - n * diff_median
+            x = x.where(x < max_range, max_range)
+            x = x.where(x > min_range, min_range)
+            return x
+
         df1 = df.T.apply(lambda x: clip_sing(x, n)).T
         df = np.abs(np.sign(df)) * df1
         return df
