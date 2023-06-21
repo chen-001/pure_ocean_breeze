@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2023-06-14 00:08:18"
+__updated__ = "2023-06-20 22:25:36"
 
 import os
 import pandas as pd
@@ -74,8 +74,14 @@ def read_h5(path: str) -> Dict:
     a = h5py.File(path)
     for k, v in tqdm.tqdm(list(a.items()), desc="数据加载中……"):
         value = list(v.values())[-1]
-        col = [i.decode("utf-8") for i in list(list(v.values())[0])]
-        ind = [i.decode("utf-8") for i in list(list(v.values())[1])]
+        try:
+            col = [i.decode("utf-8") for i in list(list(v.values())[0])]
+        except Exception:
+            col=list(list(v.values())[0])
+        try:
+            ind = [i.decode("utf-8") for i in list(list(v.values())[1])]
+        except Exception:
+            ind=list(list(v.values())[1])
         res[k] = pd.DataFrame(value, columns=col, index=ind)
     return res
 
@@ -157,6 +163,33 @@ def convert_code(x: str) -> Tuple[str, str]:
     else:
         kind = "index"
     return x, kind
+
+
+@do_on_dfs
+def add_suffix(code:str)->str:
+    """给股票代码加上后缀
+
+    Parameters
+    ----------
+    code : str
+        纯数字组成的字符串类型的股票代码，如000001
+
+    Returns
+    -------
+    str
+        添加完后缀后的股票代码，如000001.SZ
+    """    
+    if not isinstance(code, str):
+        code = str(code)
+    if len(code) < 6:
+        code = "0" * (6 - len(code)) + code
+    if code.startswith("0") or code.startswith("3"):
+        code = ".".join([code, "SZ"])
+    elif code.startswith("6"):
+        code = ".".join([code, "SH"])
+    elif code.startswith("8"):
+        code = ".".join([code, "BJ"])
+    return code
 
 
 @do_on_dfs
@@ -322,6 +355,8 @@ def add_suffix(code: str) -> str:
     else:
         code = code + ".UN"
     return code
+
+
 
 
 @do_on_dfs
@@ -1917,7 +1952,7 @@ def clip_mad(
             df = df.reset_index()
         except Exception:
             ...
-        df = df.pivot(index="date", columns="code", values="fac")
+        df = df.drop_duplicates(subset=['date','code']).pivot(index="date", columns="code", values="fac")
         return df
     elif replace:
 

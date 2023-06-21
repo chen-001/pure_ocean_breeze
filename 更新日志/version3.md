@@ -1,6 +1,16 @@
 ## 更新日志🗓 — v3
 
 
+* v3.9.8 — 2023.6.21
+
+> 1. 修复了read_daily函数中start参数异常的bug
+> 2. 给read_h5增加了容错性
+> 3. 新增了add_suffix函数，用于给纯数字组成的股票代码添加后缀
+> 4. 修复了clip_mad中的偶尔异常
+> 5. 修复了to_tradeends在2013年以前异常的bug
+> 6. 给pure_fall_frequent在截面整体计算时增加了容错性；并允许select_one_calculate方法返回空值
+
+
 * v3.9.7 — 2023.6.14
 
 > 1. 将read_daily中交易状态的数据，非正常交易（即值不为1的部分）全部改为nan；将非正常交易日的其他数据改为nan

@@ -169,33 +169,33 @@ def read_daily(
         elif open:
             opens = pd.read_parquet(
                 homeplace.daily_data_file + "opens.parquet"
-            ) * read_daily(state=1)
+            ) * read_daily(state=1,start=start)
             df = opens
         elif close:
             closes = pd.read_parquet(
                 homeplace.daily_data_file + "closes.parquet"
-            ) * read_daily(state=1)
+            ) * read_daily(state=1,start=start)
             df = closes
         elif high:
             highs = pd.read_parquet(
                 homeplace.daily_data_file + "highs.parquet"
-            ) * read_daily(state=1)
+            ) * read_daily(state=1,start=start)
             df = highs
         elif low:
             lows = pd.read_parquet(
                 homeplace.daily_data_file + "lows.parquet"
-            ) * read_daily(state=1)
+            ) * read_daily(state=1,start=start)
             df = lows
         elif vwap:
             df = (
                 pd.read_parquet(homeplace.daily_data_file + "vwaps.parquet")
                 * read_daily(adjfactor=1, start=start)
-                * read_daily(state=1)
+                * read_daily(state=1,start=start)
             )
         elif tr:
             trs = pd.read_parquet(homeplace.daily_data_file + "trs.parquet").replace(
                 0, np.nan
-            ) * read_daily(state=1)
+            ) * read_daily(state=1,start=start)
             df = trs
         elif sharenum:
             sharenums = pd.read_parquet(homeplace.daily_data_file + "sharenums.parquet")
@@ -205,7 +205,7 @@ def read_daily(
         elif amount:
             volumes = pd.read_parquet(
                 homeplace.daily_data_file + "amounts.parquet"
-            ) * read_daily(state=1)
+            ) * read_daily(state=1,start=start)
             df = volumes
         elif money:
             df = pd.read_parquet(
@@ -217,14 +217,14 @@ def read_daily(
         elif flow_cap:
             closes = pd.read_parquet(
                 homeplace.daily_data_file + "closes_unadj.parquet"
-            ) * read_daily(state=1)
+            ) * read_daily(state=1,start=start)
             sharenums = pd.read_parquet(homeplace.daily_data_file + "sharenums.parquet")
             flow_cap = closes * sharenums
             df = flow_cap
         elif total_cap:
             closes = pd.read_parquet(
                 homeplace.daily_data_file + "closes_unadj.parquet"
-            ) * read_daily(state=1)
+            ) * read_daily(state=1,start=start)
             sharenums = pd.read_parquet(
                 homeplace.daily_data_file + "total_sharenums.parquet"
             )
@@ -234,9 +234,9 @@ def read_daily(
             # df=pd.read_parquet(homeplace.daily_data_file+'adjfactors.parquet')
             df = (
                 read_daily(close=1, start=start)
-                * read_daily(state=1)
+                * read_daily(state=1,start=start)
                 / read_daily(close=1, start=start, unadjust=1)
-                * read_daily(state=1)
+                * read_daily(state=1,start=start)
             )
         elif st:
             st = pd.read_parquet(homeplace.daily_data_file + "sts.parquet")
@@ -275,42 +275,42 @@ def read_daily(
             ) / read_daily(close=1, start=start)
         elif pb:
             df = pd.read_parquet(homeplace.daily_data_file + "pb.parquet") * read_daily(
-                state=1
+                state=1,start=start
             )
         elif pe:
             df = pd.read_parquet(homeplace.daily_data_file + "pe.parquet") * read_daily(
-                state=1
+                state=1,start=start
             )
         elif iret:
             df = pd.read_parquet(
                 homeplace.daily_data_file + "idiosyncratic_ret.parquet"
-            ) * read_daily(state=1)
+            ) * read_daily(state=1,start=start)
         elif ivol:
             df = read_daily(iret=1, start=start)
             df = df.rolling(20, min_periods=10).std()
         elif illiquidity:
             df = pd.read_parquet(
                 homeplace.daily_data_file + "illiquidity.parquet"
-            ) * read_daily(state=1)
+            ) * read_daily(state=1,start=start)
         elif swindustry_ret:
             df = pd.read_parquet(
                 homeplace.daily_data_file + "股票对应申万一级行业每日收益率.parquet"
-            ) * read_daily(state=1)
+            ) * read_daily(state=1,start=start)
         elif zxindustry_ret:
             df = pd.read_parquet(
                 homeplace.daily_data_file + "股票对应中信一级行业每日收益率.parquet"
-            ) * read_daily(state=1)
+            ) * read_daily(state=1,start=start)
         elif stop_up:
             df = (
                 pd.read_parquet(homeplace.daily_data_file + "stop_ups.parquet")
                 * read_daily(adjfactor=1, start=start)
-                * read_daily(state=1)
+                * read_daily(state=1,start=start)
             )
         elif stop_down:
             df = (
                 pd.read_parquet(homeplace.daily_data_file + "stop_downs.parquet")
                 * read_daily(adjfactor=1, start=start)
-                * read_daily(state=1)
+                * read_daily(state=1,start=start)
             )
         elif zxindustry_dummy_code:
             df = pd.read_parquet(homeplace.daily_data_file + "中信一级行业哑变量代码版.parquet")
@@ -342,35 +342,35 @@ def read_daily(
         if open:
             opens = pd.read_parquet(
                 homeplace.daily_data_file + "opens_unadj.parquet"
-            ) * read_daily(state=1)
+            ) * read_daily(state=1,start=start)
             df = opens
         elif close:
             closes = pd.read_parquet(
                 homeplace.daily_data_file + "closes_unadj.parquet"
-            ) * read_daily(state=1)
+            ) * read_daily(state=1,start=start)
             df = closes
         elif high:
             highs = pd.read_parquet(
                 homeplace.daily_data_file + "highs_unadj.parquet"
-            ) * read_daily(state=1)
+            ) * read_daily(state=1,start=start)
             df = highs
         elif low:
             lows = pd.read_parquet(
                 homeplace.daily_data_file + "lows_unadj.parquet"
-            ) * read_daily(state=1)
+            ) * read_daily(state=1,start=start)
             df = lows
         elif vwap:
             df = pd.read_parquet(
                 homeplace.daily_data_file + "vwaps.parquet"
-            ) * read_daily(state=1)
+            ) * read_daily(state=1,start=start)
         elif stop_up:
             df = pd.read_parquet(
                 homeplace.daily_data_file + "stop_ups.parquet"
-            ) * read_daily(state=1)
+            ) * read_daily(state=1,start=start)
         elif stop_down:
             df = pd.read_parquet(
                 homeplace.daily_data_file + "stop_downs.parquet"
-            ) * read_daily(state=1)
+            ) * read_daily(state=1,start=start)
         else:
             raise IOError("阁下总得读点什么吧？🤒")
     if "date" not in df.columns:

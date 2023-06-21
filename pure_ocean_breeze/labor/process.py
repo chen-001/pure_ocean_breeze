@@ -1,4 +1,4 @@
-__updated__ = "2023-06-14 09:29:34"
+__updated__ = "2023-06-21 11:11:30"
 
 import warnings
 
@@ -930,7 +930,10 @@ def to_tradeends(df: pd.DataFrame) -> pd.DataFrame:
         修改为交易日标注后的pd.DataFrame
     """
     """"""
-    trs = read_daily(tr=1)
+    start=df.index.min()
+    start=start-pd.tseries.offsets.MonthBegin()
+    start=datetime.datetime.strftime(start,'%Y%m%d')
+    trs = read_daily(tr=1,start=start)
     trs = trs.assign(tradeends=list(trs.index))
     trs = trs[["tradeends"]]
     trs = trs.resample("M").last()
@@ -3336,14 +3339,15 @@ class pure_fall_frequent(object):
             df.columns = ["date", "code", "fac"]
         else:
             df = df.reset_index()
-        df = df.pivot(columns="code", index="date", values="fac")
-        df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
-        to_save = df.stack().reset_index()
-        to_save.columns = ["date", "code", "fac"]
-        self.factor_steps.write_via_df(
-            to_save, self.factor_file_pinyin, tuple_col="fac"
-        )
-        return df
+        if (df is not None) and (df.shape[0]>0):
+            df = df.pivot(columns="code", index="date", values="fac")
+            df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
+            to_save = df.stack().reset_index()
+            to_save.columns = ["date", "code", "fac"]
+            self.factor_steps.write_via_df(
+                to_save, self.factor_file_pinyin, tuple_col="fac"
+            )
+            return df
 
     def select_many_calculate(
         self,
@@ -3546,6 +3550,8 @@ class pure_fall_frequent(object):
                 res = res[["fac"]].reset_index()
                 res.columns = ["code", "fac"]
                 return res
+            elif res is None:
+                ...
             else:
                 res = pd.concat(res, axis=1)
                 res.columns = [f"fac{i}" for i in range(len(res.columns))]
