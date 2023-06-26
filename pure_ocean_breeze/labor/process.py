@@ -1,4 +1,4 @@
-__updated__ = "2023-06-21 11:11:30"
+__updated__ = "2023-06-26 09:24:10"
 
 import warnings
 
@@ -930,10 +930,10 @@ def to_tradeends(df: pd.DataFrame) -> pd.DataFrame:
         修改为交易日标注后的pd.DataFrame
     """
     """"""
-    start=df.index.min()
-    start=start-pd.tseries.offsets.MonthBegin()
-    start=datetime.datetime.strftime(start,'%Y%m%d')
-    trs = read_daily(tr=1,start=start)
+    start = df.index.min()
+    start = start - pd.tseries.offsets.MonthBegin()
+    start = datetime.datetime.strftime(start, "%Y%m%d")
+    trs = read_daily(tr=1, start=start)
     trs = trs.assign(tradeends=list(trs.index))
     trs = trs[["tradeends"]]
     trs = trs.resample("M").last()
@@ -1894,7 +1894,7 @@ class pure_moon(object):
             index="date", columns="code", values="group"
         )
         rates = []
-        for i in range(1, 11):
+        for i in range(1, groups_num + 1):
             son = (self.factor_turnover_rates == i) + 0
             son1 = son.diff()
             # self.factor_turnover_rates = self.factor_turnover_rates.diff()
@@ -3339,7 +3339,7 @@ class pure_fall_frequent(object):
             df.columns = ["date", "code", "fac"]
         else:
             df = df.reset_index()
-        if (df is not None) and (df.shape[0]>0):
+        if (df is not None) and (df.shape[0] > 0):
             df = df.pivot(columns="code", index="date", values="fac")
             df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
             to_save = df.stack().reset_index()

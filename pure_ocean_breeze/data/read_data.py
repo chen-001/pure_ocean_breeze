@@ -1,4 +1,4 @@
-__updated__ = "2023-06-14 09:06:36"
+__updated__ = "2023-06-21 14:48:09"
 
 import os
 import numpy as np
@@ -47,6 +47,7 @@ def read_daily(
     swing: bool = 0,
     pb: bool = 0,
     pe: bool = 0,
+    pettm: bool = 0,
     iret: bool = 0,
     ivol: bool = 0,
     illiquidity: bool = 0,
@@ -122,6 +123,8 @@ def read_daily(
     pb : bool, optional
         为1则表示读取市净率, by default 0
     pe : bool, optional
+        为1则表示读取市盈率, by default 0
+    pettm : bool, optional
         为1则表示读取市盈率, by default 0
     iret : bool, optional
         为1则表示读取20日回归的fama三因子（市场、流通市值、市净率）特质收益率, by default 0
@@ -279,6 +282,10 @@ def read_daily(
             )
         elif pe:
             df = pd.read_parquet(homeplace.daily_data_file + "pe.parquet") * read_daily(
+                state=1,start=start
+            )
+        elif pettm:
+            df = pd.read_parquet(homeplace.daily_data_file + "pettm.parquet") * read_daily(
                 state=1,start=start
             )
         elif iret:

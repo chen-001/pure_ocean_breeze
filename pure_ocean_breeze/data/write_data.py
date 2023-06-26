@@ -1,4 +1,4 @@
-__updated__ = "2023-05-22 15:55:43"
+__updated__ = "2023-06-21 14:50:52"
 
 import time
 
@@ -297,6 +297,7 @@ def download_single_daily(day):
                 "float_share",
                 "pe",
                 "pb",
+                'pe_ttm',
             ],
         )
         time.sleep(1)
@@ -336,6 +337,7 @@ def download_single_daily(day):
                 "float_share",
                 "pe",
                 "pb",
+                'pe_ttm'
             ],
         )
         time.sleep(1)
@@ -391,6 +393,7 @@ def database_update_daily_files() -> None:
         "amounts",
         "pb",
         "pe",
+        'pettm',
         "vwaps",
         "adjfactors",
         "stop_ups",
@@ -550,6 +553,19 @@ def database_update_daily_files() -> None:
         partpe_new = drop_duplicates_index(partpe_new)
         partpe_new.to_parquet(homeplace.daily_data_file + "pe.parquet")
         logger.success("市盈率更新完成")
+        
+        # pettm
+        partpe = df2s[["date", "code", "pe_ttm"]].pivot(
+            index="date", columns="code", values="pe"
+        )
+        partpe_old = pd.read_parquet(homeplace.daily_data_file + "pettm.parquet")
+        partpe_new = pd.concat([partpe_old, partpe])
+        partpe_new = partpe_new.drop_duplicates()
+        partpe_new = partpe_new[closes.columns]
+        partpe_new = partpe_new[sorted(list(partpe_new.columns))]
+        partpe_new = drop_duplicates_index(partpe_new)
+        partpe_new.to_parquet(homeplace.daily_data_file + "pettm.parquet")
+        logger.success("TTM市盈率更新完成")
 
         # st
         part4 = df3[["s_info_windcode", "entry_dt", "remove_dt"]]
