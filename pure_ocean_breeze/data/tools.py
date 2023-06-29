@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2023-06-20 22:25:36"
+__updated__ = "2023-06-28 16:09:30"
 
 import os
 import pandas as pd
@@ -45,73 +45,6 @@ def is_notebook() -> bool:
             return False  # Other type (?)
     except NameError:
         return False
-
-
-@do_on_dfs
-@deprecation.deprecated(
-    deprecated_in="3.0",
-    removed_in="4.0",
-    current_version=__version__,
-    details="考虑到h5文件的多样性，4.0版本开始将不再支持一键读入h5文件",
-)
-def read_h5(path: str) -> Dict:
-    """
-    Reads a HDF5 file into a dictionary of pandas DataFrames.
-
-    Parameters
-    ----------
-    path : str
-        The path to the HDF5 file.
-
-    Returns
-    -------
-    `Dict`
-        A dictionary of pandas DataFrames.
-    """
-    res = {}
-    import h5py
-
-    a = h5py.File(path)
-    for k, v in tqdm.tqdm(list(a.items()), desc="数据加载中……"):
-        value = list(v.values())[-1]
-        try:
-            col = [i.decode("utf-8") for i in list(list(v.values())[0])]
-        except Exception:
-            col=list(list(v.values())[0])
-        try:
-            ind = [i.decode("utf-8") for i in list(list(v.values())[1])]
-        except Exception:
-            ind=list(list(v.values())[1])
-        res[k] = pd.DataFrame(value, columns=col, index=ind)
-    return res
-
-
-@do_on_dfs
-@deprecation.deprecated(
-    deprecated_in="3.0",
-    removed_in="4.0",
-    current_version=__version__,
-    details="考虑到h5文件的多样性，4.0版本开始将不再支持一键读入h5文件",
-)
-def read_h5_new(path: str) -> pd.DataFrame:
-    """读取h5文件
-
-    Parameters
-    ----------
-    path : str
-        h5文件路径
-
-    Returns
-    -------
-    `pd.DataFrame`
-        读取字典的第一个value
-    """
-    import h5py
-
-    a = h5py.File(path)
-    v = list(a.values())[0]
-    v = a[v.name][:]
-    return pd.DataFrame(v)
 
 
 @do_on_dfs

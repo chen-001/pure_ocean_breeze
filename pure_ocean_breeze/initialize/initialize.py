@@ -2,7 +2,7 @@ import pickle
 import os
 
 
-def initialize():
+def ini():
     user_file = os.path.expanduser("~") + "/"
     # 日频数据路径
     daily_data_file = input("请设置日频数据存放路径(请最终以斜杠结尾，请不要输入反斜杠'',请都替换为'/')：")
@@ -39,6 +39,13 @@ def initialize():
         final_factor_file = input("请设置最终因子成果存放路径(请最终以斜杠结尾，请不要输入反斜杠'',请都替换为'/')：")
     if final_factor_file[-1] != "/":
         final_factor_file = final_factor_file + "/"
+    # 股票逐笔数据路径
+    tick_by_tick_data=input("请设置股票逐笔数据存放路径(请最终以斜杠结尾，请不要输入反斜杠'',请都替换为'/)：")
+    while "/" not in tick_by_tick_data:
+        print("请不要输入反斜杠''，请替换为'/'，并以'/'结尾")
+        tick_by_tick_data=input("请设置股票逐笔数据存放路径(请最终以斜杠结尾，请不要输入反斜杠'',请都替换为'/)：")
+    if tick_by_tick_data[-1]!='/':
+        tick_by_tick_data=tick_by_tick_data+'/'
     # 数立方token
     api_token = input("请输入您的数立方token：")
     save_dict = {
@@ -48,6 +55,7 @@ def initialize():
         "update_data_file": update_data_file,
         "final_factor_file": final_factor_file,
         "api_token": api_token,
+        'tick_by_tick_data': tick_by_tick_data,
     }
     save_dict_file = open(user_file + "paths.settings", "wb")
     pickle.dump(save_dict, save_dict_file)

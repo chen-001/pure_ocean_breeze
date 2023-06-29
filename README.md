@@ -1,10 +1,14 @@
 # pure_ocean_breeze 
-#### **众人的因子回测框架**
+#### **众人的因子框架**
 ##### 我们的口号是：量价因子才是最牛的！
 ***
 
 ### 全新大版本📢
+* v4.0.0 — 2023.06.28
+> 因子框架4.0版本来啦！逐笔数据&任意秒级数据来啦！
+
 * v3.0.0 — 2022.08.16
+
 >回测框架3.0版本来啦！ 模块拆分&说明文档来啦！[pure_ocean_breeze说明文档](https://chen-001.github.io/pure_ocean_breeze/)
 * v2.0.0 — 2022.07.12
 >回测框架2.0版本来啦！数据库&自动更新&最终因子库功能上线啦！
@@ -16,8 +20,8 @@
 >* 在初次安装框架时，请进行初始化，以将路径设置到自己的文件里
 >* 使用如下语句进行初始化
 >>```python
->>import pure_ocean_breeze.initialize.initialize
->>pure_ocean_breeze.initialize.initialize.initialize()
+>>import pure_ocean_breeze as p
+>>p.ini()
 >>```
 >* 然后根据提示进行操作即可
 >* 请注意路径不要写反斜杠\，而要写成/

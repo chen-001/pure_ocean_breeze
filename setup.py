@@ -1,4 +1,4 @@
-__updated__ = "2023-03-23 19:10:06"
+__updated__ = "2023-06-28 13:20:31"
 
 from setuptools import setup
 import setuptools
@@ -17,7 +17,7 @@ def get_version(package):
 
 install_requires=[
     "numpy",
-    "pandas",
+    "pandas<=1.5.3",
     "scipy",
     "statsmodels",
     "plotly",

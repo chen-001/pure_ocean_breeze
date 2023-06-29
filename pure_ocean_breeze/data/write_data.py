@@ -1,4 +1,4 @@
-__updated__ = "2023-06-21 14:50:52"
+__updated__ = "2023-06-27 20:38:39"
 
 import time
 
@@ -53,6 +53,12 @@ import tqdm.auto
 from functools import reduce
 from typing import Union, List
 import dcube as dc
+import py7zr
+import unrar
+import zipfile
+import rarfile
+import shutil
+import chardet
 from tenacity import retry, stop_after_attempt
 import questdb.ingress as qdbing
 from pure_ocean_breeze.state.homeplace import HomePlace
@@ -89,6 +95,92 @@ from pure_ocean_breeze.data.tools import (
 from pure_ocean_breeze.labor.process import pure_fama
 
 
+
+# 待补充
+def database_update_second_data_to_clickhouse():
+    ...
+    
+    
+    
+def convert_tick_by_tick_data_to_parquet(file_name:str,PATH:str,delete_7z:bool=False):
+    try:
+        files = sorted(os.listdir(file_name))
+        files=[i for i in files if i[0]!='.']
+        files = [file_name + "/" + i for i in files]
+        dfs = []
+        for i in files:
+            with open(i,'rb') as f:
+                tmp = chardet.detect(f.read())
+            df = pd.read_csv(i,encoding=tmp['encoding'])
+            df.Time = file_name.split('/')[-1] + " " + df.Time
+            df.Time = pd.to_datetime(df.Time)
+            df = df.rename(
+                columns={
+                    "TranID": "tranid",
+                    "Time": "date",
+                    "Price": "price",
+                    "Volume": "money",
+                    "SaleOrderVolume": "salemoney",
+                    "BuyOrderVolume": "buymoney",
+                    "Type": "action",
+                    "SaleOrderID": "saleid",
+                    "SaleOrderPrice": "saleprice",
+                    "BuyOrderID": "buyid",
+                    "BuyOrderPrice": "buyprice",
+                }
+            )
+            df = df.assign(code=add_suffix(i.split("/")[-1].split(".")[0]))
+            dfs.append(df)
+        dfs = pd.concat(dfs)
+        dfs.to_parquet(f"{'/'.join(PATH.split('/')[:-2])}/data/{file_name.split('/')[-1]}.parquet")
+        # logger.success(f"{file_name.split('/')[-1]}的逐笔数据已经写入完成！")
+        shutil.rmtree(file_name + "/",True)
+        if delete_7z:
+            os.remove(file_name + ".7z")
+            
+        # logger.warning(f"{file_name.split('/')[-1]}的逐笔数据csv版已经删除")
+    except Exception:
+        file_name=file_name+'/'+file_name.split('/')[-1]
+        convert_tick_by_tick_data_to_parquet(file_name,PATH)
+        
+        
+def convert_tick_by_tick_data_daily(day_path:str,PATH:str):
+    try:
+        olds=os.listdir('/Volumes/My Passport/data/')
+        theday=day_path.split('/')[-1].split('.')[0]
+        olds_ok=[i for i in olds if theday in i]
+        if len(olds_ok)==0:
+            if os.path.exists(day_path.split('.')[0]):
+                ...
+                # print(f"{day_path.split('.')[0]}已存在")
+            elif day_path.endswith('.7z'):
+                archive = py7zr.SevenZipFile(day_path, mode='r')
+                archive.extractall(path='/'.join(day_path.split('/')[:-1]))
+                archive.close()
+            elif day_path.endswith('.zip'):
+                f = zipfile.ZipFile(day_path,'r') # 压缩文件位置
+                f.extractall('/'.join(day_path.split('/')[:-1]))             # 解压位置
+                f.close()
+            elif day_path.endswith('.rar'):
+                f=rarfile.RarFile(day_path,'r')
+                f.extractall('/'.join(day_path.split('/')[:-1]))
+                f.close()
+            convert_tick_by_tick_data_to_parquet(day_path.split('.')[0],PATH)
+        else:
+            print(f'{theday}已经有了，跳过')
+    except Exception:
+        logger.error(f'{day_path}出错了，请当心！！！')
+        
+
+def convert_tick_by_tick_data_monthly(month_path:str,PATH:str):
+    files=os.listdir(month_path)
+    files=[i for i in files if i.startswith('20')]
+    date=month_path.split('/')[-1]
+    files=[month_path+'/'+i for i in files] # 每个形如2018-01-02.7z
+    for i in tqdm.auto.tqdm(files,f'{date}的进度'):
+        convert_tick_by_tick_data_daily(i,PATH)
+        
+        
 def database_update_minute_data_to_clickhouse_and_questdb(
     kind: str, web_port: str = "9001"
 ) -> None:
@@ -556,7 +648,7 @@ def database_update_daily_files() -> None:
         
         # pettm
         partpe = df2s[["date", "code", "pe_ttm"]].pivot(
-            index="date", columns="code", values="pe"
+            index="date", columns="code", values="pe_ttm"
         )
         partpe_old = pd.read_parquet(homeplace.daily_data_file + "pettm.parquet")
         partpe_new = pd.concat([partpe_old, partpe])

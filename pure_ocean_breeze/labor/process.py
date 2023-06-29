@@ -1,4 +1,4 @@
-__updated__ = "2023-06-26 09:24:10"
+__updated__ = "2023-06-28 16:10:41"
 
 import warnings
 
@@ -65,6 +65,7 @@ from pure_ocean_breeze.data.tools import (
     standardlize,
     select_max,
     select_min,
+    merge_many,
 )
 from pure_ocean_breeze.labor.comment import (
     comments_on_twins,
@@ -1975,7 +1976,7 @@ class pure_moon(object):
         self.rets_all = (
             self.rets_all
             - self.factor_turnover_rates.mean(axis=1) * trade_cost_double_side
-        )
+        ).dropna()
         self.long_short_rets = (
             self.group_rets["group1"] - self.group_rets["group" + str(groups_num)]
         )
@@ -2914,84 +2915,7 @@ class pure_fall(object):
         df = (df - df.mean()) / df.std()
         df = df.T
         return df
-
-    def get_single_day_factor(self, func: Callable, day: int) -> pd.DataFrame:
-        """计算单日的因子值，通过sql数据库，读取单日的数据，然后计算因子值"""
-        sql = sqlConfig("minute_data_stock_alter")
-        df = sql.get_data(str(day))
-        the_func = partial(func)
-        df = df.groupby(["code"]).apply(the_func).to_frame()
-        df.columns = [str(day)]
-        df = df.T
-        df.index = pd.to_datetime(df.index, format="%Y%m%d")
-        return df
-
-    @deprecation.deprecated(
-        deprecated_in="3.7.5",
-        removed_in="4.0",
-        current_version=__version__,
-        details="使用mysql提取分钟数据并更新因子值的方法功能局限且严重滞后，将移除👋",
-    )
-    @kk.desktop_sender(title="嘿，分钟数据处理完啦～🎈")
-    def get_daily_factors_alter(self, func: Callable) -> None:
-        """用mysql逐日更新分钟数据构造的因子
-
-        Parameters
-        ----------
-        func : Callable
-            构造分钟数据使用的函数
-
-        Raises
-        ------
-        `IOError`
-            如果没有历史因子数据，将报错
-        """
-        """通过minute_data_stock_alter数据库一天一天计算因子值"""
-        try:
-            try:
-                self.daily_factors = pd.read_parquet(self.daily_factors_path)
-            except Exception:
-                self.daily_factors_path = self.daily_factors_path.split("日频_")
-                self.daily_factors_path = (
-                    self.daily_factors_path[0] + self.daily_factors_path[1]
-                )
-                self.daily_factors = drop_duplicates_index(
-                    pd.read_parquet(self.daily_factors_path)
-                )
-            sql = sqlConfig("minute_data_stock_alter")
-            now_minute_datas = sql.show_tables(full=False)
-            now_minute_data = now_minute_datas[-1]
-            now_minute_data = pd.Timestamp(now_minute_data)
-            if self.daily_factors.index.max() < now_minute_data:
-                if not STATES["NO_LOG"]:
-                    logger.info(
-                        f"上次存储的因子值到{self.daily_factors.index.max()}，而分钟数据最新到{now_minute_data}，开始更新……"
-                    )
-                old_end = datetime.datetime.strftime(
-                    self.daily_factors.index.max(), "%Y%m%d"
-                )
-                now_minute_datas = [i for i in now_minute_datas if i > old_end]
-                dfs = []
-                for c in tqdm.auto.tqdm(now_minute_datas, desc="桂棹兮兰桨，击空明兮遂流光🌊"):
-                    df = self.get_single_day_factor(func, c)
-                    dfs.append(df)
-                dfs = pd.concat(dfs)
-                dfs = dfs.sort_index()
-                self.daily_factors = pd.concat([self.daily_factors, dfs])
-                self.daily_factors = self.daily_factors.dropna(how="all")
-                self.daily_factors = self.daily_factors[
-                    self.daily_factors.index >= pd.Timestamp(str(STATES["START"]))
-                ]
-            drop_duplicates_index(self.daily_factors).to_parquet(
-                self.daily_factors_path
-            )
-            if not STATES["NO_LOG"]:
-                logger.success("更新已完成")
-
-        except Exception:
-            raise IOError(
-                "您还没有该因子的初级数据，暂时不能更新。请先使用pure_fall_frequent或pure_fall_flexible计算历史因子值。"
-            )
+    
 
 
 class pure_fallmount(pure_fall):
@@ -3589,7 +3513,7 @@ class pure_fall_frequent(object):
         many_days : int, optional
             计算某天的因子值时，需要使用之前多少天的数据
         n_jobs : int, optional
-            并行数量，不建议设置为大于2的数，此外当此参数大于1时，请使用questdb数据库来读取分钟数据, by default 1
+            并行数量, by default 1
         """
         if len(self.dates_new) > 0:
             for interval in self.dates_new_intervals:
@@ -3602,20 +3526,27 @@ class pure_fall_frequent(object):
                     many_days=many_days,
                     n_jobs=n_jobs,
                 )
-            self.factor_new = pd.concat(self.factor_new)
-            # 拼接新的和旧的
-            self.factor = pd.concat([self.factor_old, self.factor_new]).sort_index()
-            self.factor = drop_duplicates_index(self.factor.dropna(how="all"))
-            new_end_date = datetime.datetime.strftime(self.factor.index.max(), "%Y%m%d")
-            # 存入本地
-            self.factor.to_parquet(self.factor_file)
-            logger.info(f"截止到{new_end_date}的因子值计算完了")
-            # 删除存储在questdb的中途备份数据
-            try:
-                self.factor_steps.do_order(f"drop table '{self.factor_file_pinyin}'")
-                logger.info("备份在questdb的表格已删除")
-            except Exception:
-                logger.warning("删除questdb中表格时，存在某个未知错误，请当心")
+            if len(self.factor_new)>0:
+                self.factor_new = pd.concat(self.factor_new)
+                # 拼接新的和旧的
+                self.factor = pd.concat([self.factor_old, self.factor_new]).sort_index()
+                self.factor = drop_duplicates_index(self.factor.dropna(how="all"))
+                new_end_date = datetime.datetime.strftime(self.factor.index.max(), "%Y%m%d")
+                # 存入本地
+                self.factor.to_parquet(self.factor_file)
+                logger.info(f"截止到{new_end_date}的因子值计算完了")
+                # 删除存储在questdb的中途备份数据
+                try:
+                    self.factor_steps.do_order(f"drop table '{self.factor_file_pinyin}'")
+                    logger.info("备份在questdb的表格已删除")
+                except Exception:
+                    logger.warning("删除questdb中表格时，存在某个未知错误，请当心")
+            else:
+                logger.warning('由于某种原因，更新的因子值计算失败，建议检查🤒')
+                # 拼接新的和旧的
+                self.factor = pd.concat([self.factor_old]).sort_index()
+                self.factor = drop_duplicates_index(self.factor.dropna(how="all"))
+
 
         else:
             self.factor = drop_duplicates_index(self.factor_old)
@@ -5946,3 +5877,848 @@ def scipy_weight(
             fac = sum([i * j for i, j in zip(xs, targets)])
             fis.append(fac)
     return pd.concat(fis).shift(-1)
+
+
+# 此处未完成，待改写
+class pure_fall_second(object):
+    """对单只股票单日进行操作"""
+
+    def __init__(
+        self,
+        factor_file: str,
+        project: str = None,
+        startdate: int = None,
+        enddate: int = None,
+        questdb_host: str = "127.0.0.1",
+        ignore_history_in_questdb: bool = 0,
+        groupby_target: list = ["date", "code"],
+    ) -> None:
+        """基于clickhouse的分钟数据，计算因子值，每天的因子值只用到当日的数据
+
+        Parameters
+        ----------
+        factor_file : str
+            用于保存因子值的文件名，需为parquet文件，以'.parquet'结尾
+        project : str, optional
+            该因子所属项目，即子文件夹名称, by default None
+        startdate : int, optional
+            起始时间，形如20121231，为开区间, by default None
+        enddate : int, optional
+            截止时间，形如20220814，为闭区间，为空则计算到最近数据, by default None
+        questdb_host: str, optional
+            questdb的host，使用NAS时改为'192.168.1.3', by default '127.0.0.1'
+        ignore_history_in_questdb : bool, optional
+            打断后重新从头计算，清除在questdb中的记录
+        groupby_target: list, optional
+            groupby计算时，分组的依据，使用此参数时，自定义函数的部分，如果指定按照['date']分组groupby计算，
+            则返回时，应当返回一个两列的dataframe，第一列为股票代码，第二列为为因子值, by default ['date','code']
+        """
+        homeplace = HomePlace()
+        self.groupby_target = groupby_target
+        self.chc = ClickHouseClient("second_data")
+        # 将计算到一半的因子，存入questdb中，避免中途被打断后重新计算，表名即为因子文件名的汉语拼音
+        pinyin = Pinyin()
+        self.factor_file_pinyin = pinyin.get_pinyin(
+            factor_file.replace(".parquet", ""), ""
+        )
+        self.factor_steps = Questdb(host=questdb_host)
+        if project is not None:
+            if not os.path.exists(homeplace.factor_data_file + project):
+                os.makedirs(homeplace.factor_data_file + project)
+            else:
+                logger.info(f"当前正在{project}项目中……")
+        else:
+            logger.warning("当前因子不属于任何项目，这将造成因子数据文件夹的混乱，不便于管理，建议指定一个项目名称")
+        # 完整的因子文件路径
+        if project is not None:
+            factor_file = homeplace.factor_data_file + project + "/" + factor_file
+        else:
+            factor_file = homeplace.factor_data_file + factor_file
+        self.factor_file = factor_file
+        # 读入之前的因子
+        if os.path.exists(factor_file):
+            factor_old = drop_duplicates_index(pd.read_parquet(self.factor_file))
+            self.factor_old = factor_old
+            # 已经算好的日子
+            dates_old = sorted(list(factor_old.index.strftime("%Y%m%d").astype(int)))
+            self.dates_old = dates_old
+        elif (not ignore_history_in_questdb) and self.factor_file_pinyin in list(
+            self.factor_steps.get_data("show tables").table
+        ):
+            logger.info(
+                f"上次计算途中被打断，已经将数据备份在questdb数据库的表{self.factor_file_pinyin}中，现在将读取上次的数据，继续计算"
+            )
+            factor_old = self.factor_steps.get_data_with_tuple(
+                f"select * from '{self.factor_file_pinyin}'"
+            ).drop_duplicates(subset=["date", "code"])
+            factor_old = factor_old.pivot(index="date", columns="code", values="fac")
+            factor_old = factor_old.sort_index()
+            self.factor_old = factor_old
+            # 已经算好的日子
+            dates_old = sorted(list(factor_old.index.strftime("%Y%m%d").astype(int)))
+            self.dates_old = dates_old
+        elif ignore_history_in_questdb and self.factor_file_pinyin in list(
+            self.factor_steps.get_data("show tables").table
+        ):
+            logger.info(
+                f"上次计算途中被打断，已经将数据备份在questdb数据库的表{self.factor_file_pinyin}中，但您选择重新计算，所以正在删除原来的数据，从头计算"
+            )
+            factor_old = self.factor_steps.do_order(
+                f"drop table '{self.factor_file_pinyin}'"
+            )
+            self.factor_old = None
+            self.dates_old = []
+            logger.info("删除完毕，正在重新计算")
+        else:
+            self.factor_old = None
+            self.dates_old = []
+            logger.info("这个因子以前没有，正在重新计算")
+        # 读取当前所有的日子
+        dates_all = self.chc.show_all_dates(f"second_data_stock_10s")
+        dates_all = [int(i) for i in dates_all]
+        if startdate is None:
+            ...
+        else:
+            dates_all = [i for i in dates_all if i >= startdate]
+        if enddate is None:
+            ...
+        else:
+            dates_all = [i for i in dates_all if i <= enddate]
+        self.dates_all = dates_all
+        # 需要新补充的日子
+        self.dates_new = sorted([i for i in dates_all if i not in self.dates_old])
+        if len(self.dates_new) == 0:
+            ...
+        elif len(self.dates_new) == 1:
+            self.dates_new_intervals = [[pd.Timestamp(str(self.dates_new[0]))]]
+            print(f"只缺一天{self.dates_new[0]}")
+        else:
+            dates = [pd.Timestamp(str(i)) for i in self.dates_new]
+            intervals = [[]] * len(dates)
+            interbee = 0
+            intervals[0] = intervals[0] + [dates[0]]
+            for i in range(len(dates) - 1):
+                val1 = dates[i]
+                val2 = dates[i + 1]
+                if val2 - val1 < pd.Timedelta(days=30):
+                    ...
+                else:
+                    interbee = interbee + 1
+                intervals[interbee] = intervals[interbee] + [val2]
+            intervals = [i for i in intervals if len(i) > 0]
+            print(f"共{len(intervals)}个时间区间，分别是")
+            for date in intervals:
+                print(f"从{date[0]}到{date[-1]}")
+            self.dates_new_intervals = intervals
+        self.factor_new = []
+
+    def __call__(self) -> pd.DataFrame:
+        """获得经运算产生的因子
+
+        Returns
+        -------
+        `pd.DataFrame`
+            经运算产生的因子值
+        """
+        return self.factor.copy()
+
+    def forward_dates(self, dates, many_days):
+        dates_index = [self.dates_all.index(i) for i in dates]
+
+        def value(x, a):
+            if x >= 0:
+                return a[x]
+            else:
+                return None
+
+        return [value(i - many_days, self.dates_all) for i in dates_index]
+
+    def select_one_calculate(
+        self,
+        date: pd.Timestamp,
+        func: Callable,
+        fields: str = "*",
+    ) -> None:
+        the_func = partial(func)
+        if not isinstance(date, int):
+            date = int(datetime.datetime.strftime(date, "%Y%m%d"))
+        # 开始计算因子值
+
+        sql_order = f"select {fields} from second_data.second_data_stock_10s where toYYYYMMDD(date)=date order by code,date"
+        df = self.chc.get_data(sql_order)
+        df = ((df.set_index(["code", "date"])) / 100).reset_index()
+        df = df.groupby(self.groupby_target).apply(the_func)
+        if self.groupby_target == ["date", "code"]:
+            df = df.to_frame("fac").reset_index()
+            df.columns = ["date", "code", "fac"]
+        else:
+            df = df.reset_index()
+        if (df is not None) and (df.shape[0] > 0):
+            df = df.pivot(columns="code", index="date", values="fac")
+            df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
+            to_save = df.stack().reset_index()
+            to_save.columns = ["date", "code", "fac"]
+            self.factor_steps.write_via_df(
+                to_save, self.factor_file_pinyin, tuple_col="fac"
+            )
+            return df
+
+    def select_many_calculate(
+        self,
+        dates: List[pd.Timestamp],
+        func: Callable,
+        fields: str = "*",
+        chunksize: int = 10,
+        many_days: int = 1,
+        n_jobs: int = 1,
+    ) -> None:
+        the_func = partial(func)
+        factor_new = []
+        dates = [int(datetime.datetime.strftime(i, "%Y%m%d")) for i in dates]
+        if many_days == 1:
+            # 将需要更新的日子分块，每200天一组，一起运算
+            dates_new_len = len(dates)
+            cut_points = list(range(0, dates_new_len, chunksize)) + [dates_new_len - 1]
+            if cut_points[-1] == cut_points[-2]:
+                cut_points = cut_points[:-1]
+            cuts = tuple(zip(cut_points[:-many_days], cut_points[many_days:]))
+            df_first = self.select_one_calculate(
+                date=dates[0],
+                func=func,
+                fields=fields,
+            )
+            factor_new.append(df_first)
+
+            def cal_one(date1, date2):
+                if self.clickhouse == 1:
+                    sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{dates[date1] * 100} and date<={dates[date2] * 100} order by code,date,num"
+                else:
+                    sql_order = f"select {fields} from minute_data_{self.kind} where cast(date as int)>{dates[date1]} and cast(date as int)<={dates[date2]} order by code,date,num"
+
+                df = self.chc.get_data(sql_order)
+                if self.clickhouse == 1:
+                    df = ((df.set_index("code")) / 100).reset_index()
+                else:
+                    df.num = df.num.astype(int)
+                    df.date = df.date.astype(int)
+                    df = df.sort_values(["date", "num"])
+                df = df.groupby(self.groupby_target).apply(the_func)
+                if self.groupby_target == ["date", "code"]:
+                    df = df.to_frame("fac").reset_index()
+                    df.columns = ["date", "code", "fac"]
+                else:
+                    df = df.reset_index()
+                df = df.pivot(columns="code", index="date", values="fac")
+                df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
+                to_save = df.stack().reset_index()
+                to_save.columns = ["date", "code", "fac"]
+                self.factor_steps.write_via_df(
+                    to_save, self.factor_file_pinyin, tuple_col="fac"
+                )
+                return df
+
+            if n_jobs > 1:
+                with WorkerPool(n_jobs=n_jobs) as pool:
+                    factor_new_more = pool.map(cal_one, cuts, progress_bar=True)
+                factor_new = factor_new + factor_new_more
+            else:
+                # 开始计算因子值
+                for date1, date2 in tqdm.auto.tqdm(cuts, desc="不知乘月几人归，落月摇情满江树。"):
+                    df = cal_one(date1, date2)
+                    factor_new.append(df)
+        else:
+
+            def cal_two(date1, date2):
+                if date1 is not None:
+                    if self.clickhouse == 1:
+                        sql_order = f"select {fields} from minute_data.minute_data_{self.kind} where date>{date1*100} and date<={date2*100} order by code,date,num"
+                    else:
+                        sql_order = f"select {fields} from minute_data_{self.kind} where cast(date as int)>{date1} and cast(date as int)<={date2} order by code,date,num"
+
+                    df = self.chc.get_data(sql_order)
+                    if self.clickhouse == 1:
+                        df = ((df.set_index("code")) / 100).reset_index()
+                    else:
+                        df.num = df.num.astype(int)
+                        df.date = df.date.astype(int)
+                        df = df.sort_values(["date", "num"])
+                    if self.groupby_target == [
+                        "date",
+                        "code",
+                    ] or self.groupby_target == ["code"]:
+                        df = df.groupby(["code"]).apply(the_func).reset_index()
+                    else:
+                        df = the_func(df)
+                    df = df.assign(date=date2)
+                    df.columns = ["code", "fac", "date"]
+                    df = df.pivot(columns="code", index="date", values="fac")
+                    df.index = pd.to_datetime(df.index.astype(str), format="%Y%m%d")
+                    to_save = df.stack().reset_index()
+                    to_save.columns = ["date", "code", "fac"]
+                    self.factor_steps.write_via_df(
+                        to_save, self.factor_file_pinyin, tuple_col="fac"
+                    )
+                    return df
+
+            pairs = self.forward_dates(dates, many_days=many_days)
+            cuts2 = tuple(zip(pairs, dates))
+            if n_jobs > 1:
+                with WorkerPool(n_jobs=n_jobs) as pool:
+                    factor_new_more = pool.map(cal_two, cuts2, progress_bar=True)
+                factor_new = factor_new + factor_new_more
+            else:
+                # 开始计算因子值
+                for date1, date2 in tqdm.auto.tqdm(cuts2, desc="知不可乎骤得，托遗响于悲风。"):
+                    df = cal_two(date1, date2)
+                    factor_new.append(df)
+
+        if len(factor_new) > 0:
+            factor_new = pd.concat(factor_new)
+            return factor_new
+        else:
+            return None
+
+    def select_any_calculate(
+        self,
+        dates: List[pd.Timestamp],
+        func: Callable,
+        fields: str = "*",
+        chunksize: int = 10,
+        show_time: bool = 0,
+        many_days: int = 1,
+        n_jobs: int = 1,
+    ) -> None:
+        if len(dates) == 1 and many_days == 1:
+            res = self.select_one_calculate(
+                dates[0],
+                func=func,
+                fields=fields,
+                show_time=show_time,
+            )
+        else:
+            res = self.select_many_calculate(
+                dates=dates,
+                func=func,
+                fields=fields,
+                chunksize=chunksize,
+                show_time=show_time,
+                many_days=many_days,
+                n_jobs=n_jobs,
+            )
+        if res is not None:
+            self.factor_new.append(res)
+        return res
+
+    @staticmethod
+    def for_cross_via_str(func):
+        """返回值为两层的list，每一个里层的小list为单个股票在这一天的返回值
+        例如
+        ```python
+        return [[0.11,0.24,0.55],[2.59,1.99,0.43],[1.32,8.88,7.77]……]
+        ```
+        上例中，每个股票一天返回三个因子值，里层的list按照股票代码顺序排列"""
+
+        def full_run(df, *args, **kwargs):
+            codes = sorted(list(set(df.code)))
+            res = func(df, *args, **kwargs)
+            if isinstance(res[0], list):
+                kind = 1
+                res = [",".join(i) for i in res]
+            else:
+                kind = 0
+            df = pd.DataFrame({"code": codes, "fac": res})
+            if kind:
+                df.fac = df.fac.apply(lambda x: [float(i) for i in x.split(",")])
+            return df
+
+        return full_run
+
+    @staticmethod
+    def for_cross_via_zip(func):
+        """返回值为多个pd.Series，每个pd.Series的index为股票代码，values为单个因子值
+        例如
+        ```python
+        return (
+                    pd.Series([1.54,8.77,9.99……],index=['000001.SZ','000002.SZ','000004.SZ'……]),
+                    pd.Series([3.54,6.98,9.01……],index=['000001.SZ','000002.SZ','000004.SZ'……]),
+                )
+        ```
+        上例中，每个股票一天返回两个因子值，每个pd.Series对应一个因子值
+        """
+
+        def full_run(df, *args, **kwargs):
+            res = func(df, *args, **kwargs)
+            if isinstance(res, pd.Series):
+                res = res.reset_index()
+                res.columns = ["code", "fac"]
+                return res
+            elif isinstance(res, pd.DataFrame):
+                res.columns = [f"fac{i}" for i in range(len(res.columns))]
+                res = res.assign(fac=list(zip(*[res[i] for i in list(res.columns)])))
+                res = res[["fac"]].reset_index()
+                res.columns = ["code", "fac"]
+                return res
+            elif res is None:
+                ...
+            else:
+                res = pd.concat(res, axis=1)
+                res.columns = [f"fac{i}" for i in range(len(res.columns))]
+                res = res.assign(fac=list(zip(*[res[i] for i in list(res.columns)])))
+                res = res[["fac"]].reset_index()
+                res.columns = ["code", "fac"]
+                return res
+
+        return full_run
+
+    @kk.desktop_sender(title="嘿，分钟数据处理完啦～🎈")
+    def get_daily_factors(
+        self,
+        func: Callable,
+        fields: str = "*",
+        chunksize: int = 10,
+        show_time: bool = 0,
+        many_days: int = 1,
+        n_jobs: int = 1,
+    ) -> None:
+        """每次抽取chunksize天的截面上全部股票的分钟数据
+        对每天的股票的数据计算因子值
+
+        Parameters
+        ----------
+        func : Callable
+            用于计算因子值的函数
+        fields : str, optional
+            股票数据涉及到哪些字段，排除不必要的字段，可以节约读取数据的时间，形如'date,code,num,close,amount,open'
+            提取出的数据，自动按照code,date,num排序，因此code,date,num是必不可少的字段, by default "*"
+        chunksize : int, optional
+            每次读取的截面上的天数, by default 10
+        show_time : bool, optional
+            展示每次读取数据所需要的时间, by default 0
+        many_days : int, optional
+            计算某天的因子值时，需要使用之前多少天的数据
+        n_jobs : int, optional
+            并行数量，不建议设置为大于2的数，此外当此参数大于1时，请使用questdb数据库来读取分钟数据, by default 1
+        """
+        if len(self.dates_new) > 0:
+            for interval in self.dates_new_intervals:
+                df = self.select_any_calculate(
+                    dates=interval,
+                    func=func,
+                    fields=fields,
+                    chunksize=chunksize,
+                    show_time=show_time,
+                    many_days=many_days,
+                    n_jobs=n_jobs,
+                )
+            self.factor_new = pd.concat(self.factor_new)
+            # 拼接新的和旧的
+            self.factor = pd.concat([self.factor_old, self.factor_new]).sort_index()
+            self.factor = drop_duplicates_index(self.factor.dropna(how="all"))
+            new_end_date = datetime.datetime.strftime(self.factor.index.max(), "%Y%m%d")
+            # 存入本地
+            self.factor.to_parquet(self.factor_file)
+            logger.info(f"截止到{new_end_date}的因子值计算完了")
+            # 删除存储在questdb的中途备份数据
+            try:
+                self.factor_steps.do_order(f"drop table '{self.factor_file_pinyin}'")
+                logger.info("备份在questdb的表格已删除")
+            except Exception:
+                logger.warning("删除questdb中表格时，存在某个未知错误，请当心")
+
+        else:
+            self.factor = drop_duplicates_index(self.factor_old)
+            # 存入本地
+            self.factor.to_parquet(self.factor_file)
+            new_end_date = datetime.datetime.strftime(self.factor.index.max(), "%Y%m%d")
+            logger.info(f"当前截止到{new_end_date}的因子值已经是最新的了")
+
+    def drop_table(self):
+        """直接删除存储在questdb中的暂存数据"""
+        try:
+            self.factor_steps.do_order(f"drop table '{self.factor_file_pinyin}'")
+            logger.success(f"暂存在questdb中的数据表格'{self.factor_file_pinyin}'已经删除")
+        except Exception:
+            logger.warning(f"您要删除的表格'{self.factor_file_pinyin}'已经不存在了，请检查")
+
+
+class pure_fall_nature:
+    def __init__(
+        self,
+        factor_file: str,
+        project: str = None,
+        startdate: int = None,
+        enddate: int = None,
+        questdb_host: str = "127.0.0.1",
+        ignore_history_in_questdb: bool = 0,
+        groupby_code: bool = 1,
+    ) -> None:
+        """基于股票逐笔数据，计算因子值，每天的因子值只用到当日的数据
+
+        Parameters
+        ----------
+        factor_file : str
+            用于保存因子值的文件名，需为parquet文件，以'.parquet'结尾
+        project : str, optional
+            该因子所属项目，即子文件夹名称, by default None
+        startdate : int, optional
+            起始时间，形如20121231，为开区间, by default None
+        enddate : int, optional
+            截止时间，形如20220814，为闭区间，为空则计算到最近数据, by default None
+        questdb_host: str, optional
+            questdb的host，使用NAS时改为'192.168.1.3', by default '127.0.0.1'
+        ignore_history_in_questdb : bool, optional
+            打断后重新从头计算，清除在questdb中的记录
+        groupby_target: list, optional
+            groupby计算时，分组的依据, by default ['code']
+        """
+        homeplace = HomePlace()
+        self.groupby_code = groupby_code
+        # 将计算到一半的因子，存入questdb中，避免中途被打断后重新计算，表名即为因子文件名的汉语拼音
+        pinyin = Pinyin()
+        self.factor_file_pinyin = pinyin.get_pinyin(
+            factor_file.replace(".parquet", ""), ""
+        )
+        self.factor_steps = Questdb(host=questdb_host)
+        if project is not None:
+            if not os.path.exists(homeplace.factor_data_file + project):
+                os.makedirs(homeplace.factor_data_file + project)
+            else:
+                logger.info(f"当前正在{project}项目中……")
+        else:
+            logger.warning("当前因子不属于任何项目，这将造成因子数据文件夹的混乱，不便于管理，建议指定一个项目名称")
+        # 完整的因子文件路径
+        if project is not None:
+            factor_file = homeplace.factor_data_file + project + "/" + factor_file
+        else:
+            factor_file = homeplace.factor_data_file + factor_file
+        self.factor_file = factor_file
+        # 读入之前的因子
+        if os.path.exists(factor_file):
+            factor_old = drop_duplicates_index(pd.read_parquet(self.factor_file))
+            self.factor_old = factor_old
+            # 已经算好的日子
+            dates_old = sorted(list(factor_old.index.strftime("%Y%m%d").astype(int)))
+            self.dates_old = dates_old
+        elif (not ignore_history_in_questdb) and self.factor_file_pinyin in list(
+            self.factor_steps.get_data("show tables").table
+        ):
+            logger.info(
+                f"上次计算途中被打断，已经将数据备份在questdb数据库的表{self.factor_file_pinyin}中，现在将读取上次的数据，继续计算"
+            )
+            factor_old = self.factor_steps.get_data_with_tuple(
+                f"select * from '{self.factor_file_pinyin}'"
+            ).drop_duplicates(subset=["date", "code"])
+            factor_old = factor_old.pivot(index="date", columns="code", values="fac")
+            factor_old = factor_old.sort_index()
+            self.factor_old = factor_old
+            # 已经算好的日子
+            dates_old = sorted(list(factor_old.index.strftime("%Y%m%d").astype(int)))
+            self.dates_old = dates_old
+        elif ignore_history_in_questdb and self.factor_file_pinyin in list(
+            self.factor_steps.get_data("show tables").table
+        ):
+            logger.info(
+                f"上次计算途中被打断，已经将数据备份在questdb数据库的表{self.factor_file_pinyin}中，但您选择重新计算，所以正在删除原来的数据，从头计算"
+            )
+            factor_old = self.factor_steps.do_order(
+                f"drop table '{self.factor_file_pinyin}'"
+            )
+            self.factor_old = None
+            self.dates_old = []
+            logger.info("删除完毕，正在重新计算")
+        else:
+            self.factor_old = None
+            self.dates_old = []
+            logger.info("这个因子以前没有，正在重新计算")
+        # 读取当前所有的日子
+        dates_all = os.listdir(homeplace.tick_by_tick_data)
+        dates_all = [i.split(".")[0] for i in dates_all if i.endswith(".parquet")]
+        dates_all = [i.replace("-", "") for i in dates_all]
+        dates_all = [int(i) for i in dates_all if "20" if i]
+        if startdate is None:
+            ...
+        else:
+            dates_all = [i for i in dates_all if i >= startdate]
+        if enddate is None:
+            ...
+        else:
+            dates_all = [i for i in dates_all if i <= enddate]
+        self.dates_all = dates_all
+        # 需要新补充的日子
+        self.dates_new = sorted([i for i in dates_all if i not in self.dates_old])
+        if len(self.dates_new) == 0:
+            ...
+        elif len(self.dates_new) == 1:
+            self.dates_new_intervals = [[pd.Timestamp(str(self.dates_new[0]))]]
+            print(f"只缺一天{self.dates_new[0]}")
+        else:
+            dates = [pd.Timestamp(str(i)) for i in self.dates_new]
+            intervals = [[]] * len(dates)
+            interbee = 0
+            intervals[0] = intervals[0] + [dates[0]]
+            for i in range(len(dates) - 1):
+                val1 = dates[i]
+                val2 = dates[i + 1]
+                if val2 - val1 < pd.Timedelta(days=30):
+                    ...
+                else:
+                    interbee = interbee + 1
+                intervals[interbee] = intervals[interbee] + [val2]
+            intervals = [i for i in intervals if len(i) > 0]
+            print(f"共{len(intervals)}个时间区间，分别是")
+            for date in intervals:
+                print(f"从{date[0]}到{date[-1]}")
+            self.dates_new_intervals = intervals
+        self.factor_new = []
+        self.age = read_daily(age=1)
+        self.state = read_daily(state=1)
+        self.closes_unadj = read_daily(close=1, unadjust=1).shift(1)
+
+    def __call__(self) -> pd.DataFrame:
+        """获得经运算产生的因子
+
+        Returns
+        -------
+        `pd.DataFrame`
+            经运算产生的因子值
+        """
+        return self.factor.copy()
+
+    def select_one_calculate(
+        self,
+        date: pd.Timestamp,
+        func: Callable,
+        resample_frequency: str = None,
+        opens_in: bool = 0,
+        highs_in: bool = 0,
+        lows_in: bool = 0,
+        moneys_in: bool = 0,
+        merge_them: bool = 0,
+    ) -> None:
+        the_func = partial(func)
+        if not isinstance(date, int):
+            date = int(datetime.datetime.strftime(date, "%Y%m%d"))
+        # 开始计算因子值
+        df = pd.read_parquet(
+            homeplace.tick_by_tick_data
+            + str(date)[:4]
+            + "-"
+            + str(date)[4:6]
+            + "-"
+            + str(date)[6:]
+            + ".parquet"
+        )
+        date = df.date.iloc[0]
+        date0 = pd.Timestamp(year=date.year, month=date.month, day=date.day)
+        age_here = self.age.loc[pd.Timestamp(pd.Timestamp(df.date.iloc[0]).date())]
+        age_here = age_here.where(age_here > 180, np.nan).dropna()
+        state_here = self.state.loc[pd.Timestamp(pd.Timestamp(df.date.iloc[0]).date())]
+        state_here = state_here.where(state_here > 0, np.nan).dropna()
+        df = df[df.code.isin(age_here.index)]
+        df = df[df.code.isin(state_here.index)]
+
+        if resample_frequency is not None:
+            date = df.date.iloc[0]
+            date0 = pd.Timestamp(year=date.year, month=date.month, day=date.day)
+            head = self.closes_unadj.loc[date0].to_frame("head_temp").T
+            df = df[df.code.isin(head.columns)]
+            price = df.drop_duplicates(subset=["code", "date"], keep="last").pivot(
+                index="date", columns="code", values="price"
+            )
+            closes = price.resample(resample_frequency).last()
+            head = head[[i for i in head.columns if i in closes.columns]]
+            price = pd.concat([head, closes])
+            closes = closes.ffill().iloc[1:, :]
+            self.closes = closes
+            names = []
+
+            if opens_in:
+                price = df.drop_duplicates(subset=["code", "date"], keep="first").pivot(
+                    index="date", columns="code", values="price"
+                )
+                opens = price.resample(resample_frequency).first()
+                opens = np.isnan(opens).replace(True, 1).replace(
+                    False, 0
+                ) * closes.shift(1) + opens.fillna(0)
+                self.opens = opens
+                names.append("open")
+            else:
+                self.opens = None
+
+            if highs_in:
+                price = (
+                    df.sort_values(["code", "date", "price"])
+                    .drop_duplicates(subset=["code", "date"], keep="last")
+                    .pivot(index="date", columns="code", values="price")
+                )
+                highs = price.resample(resample_frequency).max()
+                highs = np.isnan(highs).replace(True, 1).replace(
+                    False, 0
+                ) * closes.shift(1) + highs.fillna(0)
+                self.highs = highs
+                names.append("high")
+            else:
+                self.highs = None
+
+            if lows_in:
+                price = (
+                    df.sort_values(["code", "date", "price"])
+                    .drop_duplicates(subset=["code", "date"], keep="first")
+                    .pivot(index="date", columns="code", values="price")
+                )
+                lows = price.resample(resample_frequency).min()
+                lows = np.isnan(lows).replace(True, 1).replace(False, 0) * closes.shift(
+                    1
+                ) + lows.fillna(0)
+                self.lows = lows
+                names.append("low")
+            else:
+                self.low = None
+
+            names.append("close")
+            if moneys_in:
+                moneys = df.groupby(["code", "date"]).money.sum().reset_index()
+                moneys = moneys.pivot(index="date", columns="code", values="money")
+                moneys = moneys.resample(resample_frequency).sum().fillna(0)
+                self.moneys = moneys
+                names.append("money")
+            else:
+                self.moneys = None
+
+            if merge_them:
+                self.data = merge_many(
+                    [
+                        i
+                        for i in [
+                            self.opens,
+                            self.highs,
+                            self.lows,
+                            self.closes,
+                            self.moneys,
+                        ]
+                        if i is not None
+                    ],
+                    names,
+                )
+
+        if self.groupby_code:
+            df = df.groupby(["code"]).apply(the_func)
+        else:
+            df = the_func(df)
+            if isinstance(df, pd.DataFrame):
+                df.columns = [f"fac{i}" for i in range(len(df.columns))]
+                df = df.assign(fac=list(zip(*[df[i] for i in list(df.columns)])))
+                df = df[["fac"]]
+            elif isinstance(df, list) or isinstance(df, tuple):
+                df = pd.concat(list(df), axis=1)
+                df.columns = [f"fac{i}" for i in range(len(df.columns))]
+                df = df.assign(fac=list(zip(*[df[i] for i in list(df.columns)])))
+                df = df[["fac"]]
+        df = df.reset_index()
+        df.columns = ["code", "fac"]
+        df.insert(
+            0, "date", pd.Timestamp(year=date.year, month=date.month, day=date.day)
+        )
+        if (df is not None) and (df.shape[0] > 0):
+            self.factor_steps.write_via_df(df, self.factor_file_pinyin, tuple_col="fac")
+            df = df.pivot(columns="code", index="date", values="fac")
+            return df
+
+    @kk.desktop_sender(title="铛铛，逐笔数据处理完啦～🎈")
+    def get_daily_factors(
+        self,
+        func: Callable,
+        n_jobs: int = 1,
+        resample_frequency: str = None,
+        opens_in: bool = 0,
+        highs_in: bool = 0,
+        lows_in: bool = 0,
+        moneys_in: bool = 0,
+        merge_them: bool = 0,
+    ) -> None:
+        """每次抽取chunksize天的截面上全部股票的分钟数据
+        对每天的股票的数据计算因子值
+
+        Parameters
+        ----------
+        func : Callable
+            用于计算因子值的函数
+        n_jobs : int, optional
+            并行数量, by default 1
+        resample_frequency : str, optional
+            将逐笔数据转化为秒级或分钟频数据，可以填写要转化的频率，如'3s'（3秒数据），'1m'（1分钟数据），
+            指定此参数后，将自动生成一个self.closes的收盘价矩阵(index为时间,columns为股票代码,values为收盘价)，
+            可在循环计算的函数中使用`self.closes`来调用计算好的值, by default None
+        opens_in : bool, optional
+            在resample_frequency不为None的情况下，可以使用此参数，提前计算好开盘价矩阵(index为时间,columns为股票代码,values为开盘价)，
+            可在循环计算的函数中使用`self.opens`来调用计算好的值，by default 0
+        highs_in : bool, optional
+            在resample_frequency不为None的情况下，可以使用此参数，提前计算好最高价矩阵(index为时间,columns为股票代码,values为最高价)，
+            可在循环计算的函数中使用`self.highs`来调用计算好的值，by default 0
+        lows_in : bool, optional
+            在resample_frequency不为None的情况下，可以使用此参数，提前计算好最低价矩阵(index为时间,columns为股票代码,values为最低价)，
+            可在循环计算的函数中使用`self.lows`来调用计算好的值，by default 0
+        moneys_in : bool, optional
+            在resample_frequency不为None的情况下，可以使用此参数，提前计算好成交额矩阵(index为时间,columns为股票代码,values为成交额)，
+            可在循环计算的函数中使用`self.moneys`来调用计算好的值，by default 0
+        merge_them : bool, optional
+            在resample_frequency不为None的情况下，可以使用此参数，将计算好的因子值合并到一起，生成类似于分钟数据的sql形式，by default 0
+        """
+        if len(self.dates_new) > 0:
+            if n_jobs > 1:
+                with WorkerPool(n_jobs=n_jobs) as pool:
+                    self.factor_new = pool.map(
+                        lambda x: self.select_one_calculate(
+                            date=x,
+                            func=func,
+                            resample_frequency=resample_frequency,
+                            opens_in=opens_in,
+                            highs_in=highs_in,
+                            lows_in=lows_in,
+                            moneys_in=moneys_in,
+                            merge_them=merge_them,
+                        ),
+                        self.dates_new,
+                        progress_bar=True,
+                    )
+            else:
+                for date in tqdm.auto.tqdm(self.dates_new, "您现在处于单核运算状态，建议仅在调试时使用单核"):
+                    df = self.select_one_calculate(
+                        date=date,
+                        func=func,
+                        resample_frequency=resample_frequency,
+                        opens_in=opens_in,
+                        highs_in=highs_in,
+                        lows_in=lows_in,
+                        moneys_in=moneys_in,
+                        merge_them=merge_them,
+                    )
+                    self.factor_new.append(df)
+            # 拼接新的和旧的
+            self.factor = pd.concat([self.factor_old, self.factor_new]).sort_index()
+            self.factor = drop_duplicates_index(self.factor.dropna(how="all"))
+            new_end_date = datetime.datetime.strftime(self.factor.index.max(), "%Y%m%d")
+            # 存入本地
+            self.factor.to_parquet(self.factor_file)
+            logger.info(f"截止到{new_end_date}的因子值计算完了")
+            # 删除存储在questdb的中途备份数据
+            try:
+                self.factor_steps.do_order(f"drop table '{self.factor_file_pinyin}'")
+                logger.info("备份在questdb的表格已删除")
+            except Exception:
+                logger.warning("删除questdb中表格时，存在某个未知错误，请当心")
+
+        else:
+            self.factor = drop_duplicates_index(self.factor_old)
+            # 存入本地
+            self.factor.to_parquet(self.factor_file)
+            new_end_date = datetime.datetime.strftime(self.factor.index.max(), "%Y%m%d")
+            logger.info(f"当前截止到{new_end_date}的因子值已经是最新的了")
+
+    def drop_table(self):
+        """直接删除存储在questdb中的暂存数据"""
+        try:
+            self.factor_steps.do_order(f"drop table '{self.factor_file_pinyin}'")
+            logger.success(f"暂存在questdb中的数据表格'{self.factor_file_pinyin}'已经删除")
+        except Exception:
+            logger.warning(f"您要删除的表格'{self.factor_file_pinyin}'已经不存在了，请检查")

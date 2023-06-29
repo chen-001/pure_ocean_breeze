@@ -1,4 +1,4 @@
-__updated__ = "2023-05-16 11:40:07"
+__updated__ = "2023-06-28 12:29:06"
 
 import pandas as pd
 import pymysql
@@ -732,9 +732,14 @@ class ClickHouseClient(object):
         list
             表中所有的日期
         """
-        df = self.get_data(
-            f"select distinct(date) from {self.database_name}.{table_name}"
-        ).sort_values("date")
+        if 'second' in table_name:
+            df = self.get_data(f"select distinct(toYYYYMMDD(date)) from {table_name}").sort_values(
+                "date"
+            )
+        else:
+            df = self.get_data(f"select distinct(date) from {table_name}").sort_values(
+                "date"
+            )
         if mul_100:
             return [i for i in list(df.date) if i != 0]
         else:
