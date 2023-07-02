@@ -1,4 +1,4 @@
-__updated__ = "2023-06-28 16:10:41"
+__updated__ = "2023-07-02 02:33:46"
 
 import warnings
 
@@ -6695,7 +6695,10 @@ class pure_fall_nature:
                     )
                     self.factor_new.append(df)
             # 拼接新的和旧的
-            self.factor = pd.concat([self.factor_old, self.factor_new]).sort_index()
+            if self.factor_old is not None:
+                self.factor = pd.concat([self.factor_old, self.factor_new]).sort_index()
+            else:
+                self.factor=self.factor_new.sort_index()
             self.factor = drop_duplicates_index(self.factor.dropna(how="all"))
             new_end_date = datetime.datetime.strftime(self.factor.index.max(), "%Y%m%d")
             # 存入本地

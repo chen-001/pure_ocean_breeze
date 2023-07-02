@@ -1,4 +1,4 @@
-__updated__ = "2023-06-27 20:38:39"
+__updated__ = "2023-07-02 02:35:59"
 
 import time
 
@@ -119,9 +119,9 @@ def convert_tick_by_tick_data_to_parquet(file_name:str,PATH:str,delete_7z:bool=F
                     "TranID": "tranid",
                     "Time": "date",
                     "Price": "price",
-                    "Volume": "money",
-                    "SaleOrderVolume": "salemoney",
-                    "BuyOrderVolume": "buymoney",
+                    "Volume": "amount",
+                    "SaleOrderVolume": "saleamount",
+                    "BuyOrderVolume": "buyamount",
                     "Type": "action",
                     "SaleOrderID": "saleid",
                     "SaleOrderPrice": "saleprice",
@@ -1258,7 +1258,8 @@ def database_update_zxindustry_member():
             df.code = df.code.apply(lambda x: convert_code(x)[0])
             df = pd.concat([old, df], ignore_index=True)
             df = df[df.date.isin(list(a.index))]
-            df.reset_index(drop=True).to_parquet(homeplace.daily_data_file + file)
+            df=df.reset_index(drop=True).replace(True,1).replace(False,0)
+            df.to_parquet(homeplace.daily_data_file + file)
             return df
 
         dfs_codes = save(dfs_codes, old_codes, "中信一级行业哑变量代码版.parquet")

@@ -1,4 +1,4 @@
-__updated__ = "2023-06-28 13:20:31"
+__updated__ = "2023-07-03 01:21:54"
 
 from setuptools import setup
 import setuptools
@@ -21,7 +21,7 @@ install_requires=[
     "scipy",
     "statsmodels",
     "plotly",
-    "matplotlib",
+    # "matplotlib",
     "pyarrow",
     "loguru",
     "knockknock",
