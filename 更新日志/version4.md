@@ -1,6 +1,14 @@
 ## 更新日志🗓 — v4
 
 
+* v4.0.4 — 2023.7.4
+
+> 1. 优化了show_corrs_with_old的结果展示排序
+> 2. 修复了pure_fall_nature中关于money与amount的错误
+> 3. 给pure_fall_nature的get_daily_factors方法增加了fields参数，用于指定要读取的字段，以节约内存（使用duckdb实现）
+> 4. 将pure_fall_nature中的并行方法改为使用concurrent
+
+
 * v4.0.3 — 2023.7.4
 
 > 1. 新增了全新的因子成果数据库FactorDone，每个最终复合因子，都附带其细分因子
