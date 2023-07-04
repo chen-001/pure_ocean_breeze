@@ -1,4 +1,4 @@
-__updated__ = "2023-07-02 02:33:46"
+__updated__ = "2023-07-03 21:16:22"
 
 import warnings
 
@@ -46,6 +46,7 @@ from pure_ocean_breeze.data.read_data import (
     read_zxindustry_prices,
     database_read_final_factors,
     read_index_single,
+    FactorDone,
 )
 from pure_ocean_breeze.state.homeplace import HomePlace
 
@@ -1001,9 +1002,10 @@ def market_kind(
 def show_corr(
     fac1: pd.DataFrame,
     fac2: pd.DataFrame,
-    method: str = "spearman",
+    method: str = "pearson",
     plt_plot: bool = 1,
     show_series: bool = 0,
+    old_way: bool = 0,
 ) -> float:
     """展示两个因子的截面相关性
 
@@ -1014,21 +1016,28 @@ def show_corr(
     fac2 : pd.DataFrame
         因子2
     method : str, optional
-        计算相关系数的方法, by default "spearman"
+        计算相关系数的方法, by default "pearson"
     plt_plot : bool, optional
         是否画出相关系数的时序变化图, by default 1
     show_series : bool, optional
         返回相关性的序列，而非均值
+    old_way : bool, optional
+        使用3.x版本的方式求相关系数
 
     Returns
     -------
     `float`
         平均截面相关系数
     """
-    if method == "spearman":
-        corr = show_x_with_func(fac1, fac2, lambda x: x.rank().corr().iloc[0, 1])
+    if old_way:
+        if method == "spearman":
+            corr = show_x_with_func(fac1, fac2, lambda x: x.rank().corr().iloc[0, 1])
+        else:
+            corr = show_x_with_func(
+                fac1, fac2, lambda x: x.corr(method=method).iloc[0, 1]
+            )
     else:
-        corr = show_x_with_func(fac1, fac2, lambda x: x.corr(method=method).iloc[0, 1])
+        corr = fac1.corrwith(fac2, axis=1, method=method)
     if show_series:
         return corr
     else:
@@ -1043,7 +1052,7 @@ def show_corrs(
     factor_names: List[str] = None,
     print_bool: bool = True,
     show_percent: bool = True,
-    method: str = "spearman",
+    method: str = "pearson",
 ) -> pd.DataFrame:
     """展示很多因子两两之间的截面相关性
 
@@ -1058,7 +1067,7 @@ def show_corrs(
     show_percent : bool, optional
         是否以百分数的形式展示, by default True
     method : str, optional
-        计算相关系数的方法, by default "spearman"
+        计算相关系数的方法, by default "pearson"
 
     Returns
     -------
@@ -1223,7 +1232,12 @@ def de_cross(
 
 @do_on_dfs
 def show_corrs_with_old(
-    df: pd.DataFrame = None, method: str = "spearman", only_new: bool = 1
+    df: pd.DataFrame = None,
+    method: str = "pearson",
+    only_new: bool = 1,
+    with_son_factors: bool = 1,
+    freq: str = "M",
+    old_database: bool = 0,
 ) -> pd.DataFrame:
     """计算新因子和已有因子的相关系数
 
@@ -1232,9 +1246,16 @@ def show_corrs_with_old(
     df : pd.DataFrame, optional
         新因子, by default None
     method : str, optional
-        求相关系数的方法, by default 'spearman'
+        求相关系数的方法, by default 'pearson'
     only_new : bool, optional
         仅计算新因子与旧因子之间的相关系数, by default 1
+    with_son_factors : bool, optional
+        计算新因子与数据库中各个细分因子的相关系数, by default 1
+    freq : str, optional
+        读取因子数据的频率, by default 'M'
+    old_database : bool, optional
+        使用3.x版本的数据库, by default 0
+
 
     Returns
     -------
@@ -1242,43 +1263,102 @@ def show_corrs_with_old(
         相关系数矩阵
     """
     if df is not None:
-        df0 = df.resample("M").last()
+        df0 = df.resample(freq).last()
         if df.shape[0] / df0.shape[0] > 2:
             daily = 1
         else:
             daily = 0
-    nums = os.listdir(homeplace.final_factor_file)
-    nums = sorted(
-        set(
-            [
-                int(i.split("多因子")[1].split("_月")[0])
-                for i in nums
-                if i.endswith("月.parquet")
-            ]
+    if old_database:
+        nums = os.listdir(homeplace.final_factor_file)
+        nums = sorted(
+            set(
+                [
+                    int(i.split("多因子")[1].split("_月")[0])
+                    for i in nums
+                    if i.endswith("月.parquet")
+                ]
+            )
         )
-    )
-    olds = []
-    for i in nums:
-        try:
-            if daily:
-                old = database_read_final_factors(order=i)[0]
+        olds = []
+        for i in nums:
+            try:
+                if daily:
+                    old = database_read_final_factors(order=i)[0]
+                else:
+                    old = database_read_final_factors(order=i)[0].resample("M").last()
+                olds.append(old)
+            except Exception:
+                break
+        if df is not None:
+            if only_new:
+                corrs = [
+                    to_percent(show_corr(df, i, plt_plot=0, method=method))
+                    for i in olds
+                ]
+                corrs = pd.Series(corrs, index=[f"old{i}" for i in nums])
+                corrs = corrs.to_frame(f"{method}相关系数").T
             else:
-                old = database_read_final_factors(order=i)[0].resample("M").last()
-            olds.append(old)
-        except Exception:
-            break
-    if df is not None:
-        if only_new:
-            corrs = [
-                to_percent(show_corr(df, i, plt_plot=0, method=method)) for i in olds
-            ]
-            corrs = pd.Series(corrs, index=[f"old{i}" for i in nums])
-            corrs = corrs.to_frame(f"{method}相关系数").T
+                olds = [df] + olds
+                corrs = show_corrs(
+                    olds, ["new"] + [f"old{i}" for i in nums], method=method
+                )
         else:
-            olds = [df] + olds
-            corrs = show_corrs(olds, ["new"] + [f"old{i}" for i in nums], method=method)
+            corrs = show_corrs(olds, [f"old{i}" for i in nums], method=method)
     else:
-        corrs = show_corrs(olds, [f"old{i}" for i in nums], method=method)
+        qdb = Questdb()
+        if freq == "M":
+            factor_infos = qdb.get_data("select * from factor_infos where freq='月'")
+        else:
+            factor_infos = qdb.get_data("select * from factor_infos where freq='周'")
+        if not with_son_factors:
+            old_orders = list(set(factor_infos.order))
+            if daily:
+                olds = [FactorDone(order=i)() for i in old_orders]
+            else:
+                olds = [FactorDone(order=i)().resample(freq).last() for i in old_orders]
+        else:
+            old_orders = [
+                i.order + i.son_name.replace("因子", "")
+                for i in factor_infos.dropna().itertuples()
+            ]
+            if daily:
+                olds = [
+                    FactorDone(order=i.order)(i.son_name)
+                    for i in factor_infos.dropna().itertuples()
+                ]
+            else:
+                olds = [
+                    FactorDone(order=i.order)(i.son_name).resample(freq).last()
+                    for i in factor_infos.dropna().itertuples()
+                ]
+        if df is not None:
+            if only_new:
+                corrs = [
+                    to_percent(show_corr(df, i, plt_plot=0, method=method))
+                    for i in olds
+                ]
+                corrs = pd.Series(corrs, index=old_orders)
+                corrs = corrs.to_frame(f"{method}相关系数")
+                if corrs.shape[0] <= 30:
+                    ...
+                elif corrs.shape[0] <= 60:
+                    corrs = corrs.reset_index()
+                    corrs.columns = ["因子名称", "相关系数"]
+                    corrs1 = corrs.iloc[:30, :]
+                    corrs2 = corrs.iloc[30:, :].reset_index(drop=True)
+                    corrs = pd.concat([corrs1, corrs2], axis=1).fillna('')
+                elif corrs.shape[0] <= 90:
+                    corrs = corrs.reset_index()
+                    corrs.columns = ["因子名称", "相关系数"]
+                    corrs1 = corrs.iloc[:30, :]
+                    corrs2 = corrs.iloc[30:60, :].reset_index(drop=True)
+                    corrs3 = corrs.iloc[60:90, :].reset_index(drop=True)
+                    corrs = pd.concat([corrs1, corrs2, corrs3], axis=1).fillna('')
+            else:
+                olds = [df] + olds
+                corrs = show_corrs(olds, old_orders, method=method)
+        else:
+            corrs = show_corrs(olds, old_orders, method=method)
     return corrs
 
 
@@ -2915,7 +2995,6 @@ class pure_fall(object):
         df = (df - df.mean()) / df.std()
         df = df.T
         return df
-    
 
 
 class pure_fallmount(pure_fall):
@@ -3526,27 +3605,30 @@ class pure_fall_frequent(object):
                     many_days=many_days,
                     n_jobs=n_jobs,
                 )
-            if len(self.factor_new)>0:
+            if len(self.factor_new) > 0:
                 self.factor_new = pd.concat(self.factor_new)
                 # 拼接新的和旧的
                 self.factor = pd.concat([self.factor_old, self.factor_new]).sort_index()
                 self.factor = drop_duplicates_index(self.factor.dropna(how="all"))
-                new_end_date = datetime.datetime.strftime(self.factor.index.max(), "%Y%m%d")
+                new_end_date = datetime.datetime.strftime(
+                    self.factor.index.max(), "%Y%m%d"
+                )
                 # 存入本地
                 self.factor.to_parquet(self.factor_file)
                 logger.info(f"截止到{new_end_date}的因子值计算完了")
                 # 删除存储在questdb的中途备份数据
                 try:
-                    self.factor_steps.do_order(f"drop table '{self.factor_file_pinyin}'")
+                    self.factor_steps.do_order(
+                        f"drop table '{self.factor_file_pinyin}'"
+                    )
                     logger.info("备份在questdb的表格已删除")
                 except Exception:
                     logger.warning("删除questdb中表格时，存在某个未知错误，请当心")
             else:
-                logger.warning('由于某种原因，更新的因子值计算失败，建议检查🤒')
+                logger.warning("由于某种原因，更新的因子值计算失败，建议检查🤒")
                 # 拼接新的和旧的
                 self.factor = pd.concat([self.factor_old]).sort_index()
                 self.factor = drop_duplicates_index(self.factor.dropna(how="all"))
-
 
         else:
             self.factor = drop_duplicates_index(self.factor_old)
@@ -6698,7 +6780,7 @@ class pure_fall_nature:
             if self.factor_old is not None:
                 self.factor = pd.concat([self.factor_old, self.factor_new]).sort_index()
             else:
-                self.factor=self.factor_new.sort_index()
+                self.factor = self.factor_new.sort_index()
             self.factor = drop_duplicates_index(self.factor.dropna(how="all"))
             new_end_date = datetime.datetime.strftime(self.factor.index.max(), "%Y%m%d")
             # 存入本地
