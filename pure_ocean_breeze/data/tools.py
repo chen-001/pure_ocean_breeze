@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2023-06-28 16:09:30"
+__updated__ = "2023-07-07 10:32:50"
 
 import os
 import pandas as pd
@@ -1097,15 +1097,15 @@ def detect_nan(df: pd.DataFrame) -> bool:
 
 
 @do_on_dfs
-def get_abs(df: pd.DataFrame, median: bool = 0, square: bool = 0) -> pd.DataFrame:
+def get_abs(df: pd.DataFrame, quantile: float=None, square: bool = 0) -> pd.DataFrame:
     """均值距离化：计算因子与截面均值的距离
 
     Parameters
     ----------
     df : pd.DataFrame
         未均值距离化的因子，index为时间，columns为股票代码
-    median : bool, optional
-        为1则计算到中位数的距离, by default 0
+    quantile : bool, optional
+        为1则计算到某个分位点的距离, by default None
     square : bool, optional
         为1则计算距离的平方, by default 0
 
@@ -1115,13 +1115,13 @@ def get_abs(df: pd.DataFrame, median: bool = 0, square: bool = 0) -> pd.DataFram
         均值距离化之后的因子值
     """
     if not square:
-        if median:
-            return np.abs((df.T - df.T.median()).T)
+        if quantile is not None:
+            return np.abs((df.T - df.T.quantile(quantile)).T)
         else:
             return np.abs((df.T - df.T.mean()).T)
     else:
-        if median:
-            return ((df.T - df.T.median()).T) ** 2
+        if quantile is not None:
+            return ((df.T - df.T.quantile(quantile)).T) ** 2
         else:
             return ((df.T - df.T.mean()).T) ** 2
 
@@ -1848,7 +1848,7 @@ def all_pos(df: pd.DataFrame) -> pd.DataFrame:
 
 @do_on_dfs
 def clip_mad(
-    df: pd.DataFrame, n: float = 3, replace: bool = 1, keep_trend: bool = 1
+    df: pd.DataFrame, n: float = 5, replace: bool = 1, keep_trend: bool = 1
 ) -> pd.DataFrame:
     if keep_trend:
         df = df.stack().reset_index()

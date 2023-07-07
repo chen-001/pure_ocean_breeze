@@ -1,4 +1,4 @@
-__updated__ = "2023-07-04 15:30:48"
+__updated__ = "2023-07-07 10:21:18"
 
 import warnings
 
@@ -1348,14 +1348,14 @@ def show_corrs_with_old(
                     corrs.columns = ["因子名称", "相关系数"]
                     corrs1 = corrs.iloc[:30, :]
                     corrs2 = corrs.iloc[30:, :].reset_index(drop=True)
-                    corrs = pd.concat([corrs1, corrs2], axis=1).fillna('')
+                    corrs = pd.concat([corrs1, corrs2], axis=1).fillna("")
                 elif corrs.shape[0] <= 90:
                     corrs = corrs.reset_index()
                     corrs.columns = ["因子名称", "相关系数"]
                     corrs1 = corrs.iloc[:30, :]
                     corrs2 = corrs.iloc[30:60, :].reset_index(drop=True)
                     corrs3 = corrs.iloc[60:90, :].reset_index(drop=True)
-                    corrs = pd.concat([corrs1, corrs2, corrs3], axis=1).fillna('')
+                    corrs = pd.concat([corrs1, corrs2, corrs3], axis=1).fillna("")
             else:
                 olds = [df] + olds
                 corrs = show_corrs(olds, old_orders, method=method)
@@ -3413,8 +3413,12 @@ class pure_fall_frequent(object):
                 return df
 
             if n_jobs > 1:
-                with WorkerPool(n_jobs=n_jobs) as pool:
-                    factor_new_more = pool.map(cal_one, cuts, progress_bar=True)
+                with concurrent.futures.ThreadPoolExecutor(
+                    max_workers=n_jobs
+                ) as executor:
+                    factor_new_more = list(
+                        tqdm.auto.tqdm(executor.map(cal_one, cuts), total=len(cuts))
+                    )
                 factor_new = factor_new + factor_new_more
             else:
                 # 开始计算因子值
@@ -3460,8 +3464,12 @@ class pure_fall_frequent(object):
             pairs = self.forward_dates(dates, many_days=many_days)
             cuts2 = tuple(zip(pairs, dates))
             if n_jobs > 1:
-                with WorkerPool(n_jobs=n_jobs) as pool:
-                    factor_new_more = pool.map(cal_two, cuts2, progress_bar=True)
+                with concurrent.futures.ThreadPoolExecutor(
+                    max_workers=n_jobs
+                ) as executor:
+                    factor_new_more = list(
+                        tqdm.auto.tqdm(executor.map(cal_two, cuts2), total=len(cuts2))
+                    )
                 factor_new = factor_new + factor_new_more
             else:
                 # 开始计算因子值
@@ -3567,8 +3575,7 @@ class pure_fall_frequent(object):
 
         return full_run
 
-    @kk.desktop_sender(title="嘿，分钟数据处理完啦～🎈")
-    def get_daily_factors(
+    def get_daily_factors_one(
         self,
         func: Callable,
         fields: str = "*",
@@ -3576,26 +3583,7 @@ class pure_fall_frequent(object):
         show_time: bool = 0,
         many_days: int = 1,
         n_jobs: int = 1,
-    ) -> None:
-        """每次抽取chunksize天的截面上全部股票的分钟数据
-        对每天的股票的数据计算因子值
-
-        Parameters
-        ----------
-        func : Callable
-            用于计算因子值的函数
-        fields : str, optional
-            股票数据涉及到哪些字段，排除不必要的字段，可以节约读取数据的时间，形如'date,code,num,close,amount,open'
-            提取出的数据，自动按照code,date,num排序，因此code,date,num是必不可少的字段, by default "*"
-        chunksize : int, optional
-            每次读取的截面上的天数, by default 10
-        show_time : bool, optional
-            展示每次读取数据所需要的时间, by default 0
-        many_days : int, optional
-            计算某天的因子值时，需要使用之前多少天的数据
-        n_jobs : int, optional
-            并行数量, by default 1
-        """
+    ):
         if len(self.dates_new) > 0:
             for interval in self.dates_new_intervals:
                 df = self.select_any_calculate(
@@ -3639,6 +3627,72 @@ class pure_fall_frequent(object):
             new_end_date = datetime.datetime.strftime(self.factor.index.max(), "%Y%m%d")
             logger.info(f"当前截止到{new_end_date}的因子值已经是最新的了")
 
+    @kk.desktop_sender(title="嘿，分钟数据处理完啦～🎈")
+    def get_daily_factors_two(
+        self,
+        func: Callable,
+        fields: str = "*",
+        chunksize: int = 10,
+        show_time: bool = 0,
+        many_days: int = 1,
+        n_jobs: int = 1,
+    ):
+        self.get_daily_factors_one(
+            func=func,
+            fields=fields,
+            chunksize=chunksize,
+            show_time=show_time,
+            many_days=many_days,
+            n_jobs=n_jobs,
+        )
+
+    def get_daily_factors(
+        self,
+        func: Callable,
+        fields: str = "*",
+        chunksize: int = 10,
+        show_time: bool = 0,
+        many_days: int = 1,
+        n_jobs: int = 1,
+    ) -> None:
+        """每次抽取chunksize天的截面上全部股票的分钟数据
+        对每天的股票的数据计算因子值
+
+        Parameters
+        ----------
+        func : Callable
+            用于计算因子值的函数
+        fields : str, optional
+            股票数据涉及到哪些字段，排除不必要的字段，可以节约读取数据的时间，形如'date,code,num,close,amount,open'
+            提取出的数据，自动按照code,date,num排序，因此code,date,num是必不可少的字段, by default "*"
+        chunksize : int, optional
+            每次读取的截面上的天数, by default 10
+        show_time : bool, optional
+            展示每次读取数据所需要的时间, by default 0
+        many_days : int, optional
+            计算某天的因子值时，需要使用之前多少天的数据
+        n_jobs : int, optional
+            并行数量, by default 1
+        """
+        try:
+            self.get_daily_factors_two(
+                func=func,
+                fields=fields,
+                chunksize=chunksize,
+                show_time=show_time,
+                many_days=many_days,
+                n_jobs=n_jobs,
+            )
+        except Exception:
+            self.get_daily_factors_one(
+                func=func,
+                fields=fields,
+                chunksize=chunksize,
+                show_time=show_time,
+                many_days=many_days,
+                n_jobs=n_jobs,
+            )
+
     def drop_table(self):
         """直接删除存储在questdb中的暂存数据"""
         try:
@@ -3651,9 +3705,10 @@ class pure_fall_frequent(object):
 class pure_coldwinter(object):
     # DONE: 可以自由添加其他要剔除的因子，或者替换某些要剔除的因子
 
+    @classmethod
+    @lru_cache(maxsize=None)
     def __init__(
-        self,
-        facs_dict: Dict = None,
+        cls,
         momentum: bool = 1,
         earningsyield: bool = 1,
         growth: bool = 1,
@@ -3692,17 +3747,16 @@ class pure_coldwinter(object):
         booktoprice : bool, optional
             是否删去账面市值比因子, by default 1
         """
-        self.homeplace = HomePlace()
+        cls.homeplace = HomePlace()
         # barra因子数据
-        styles = os.listdir(self.homeplace.barra_data_file)
-        styles = [i for i in styles if i.endswith(".parquet")]
+        styles = os.listdir(cls.homeplace.barra_data_file)
+        styles = [i for i in styles if (i.endswith(".parquet")) and (i[0] != ".")]
         barras = {}
         for s in styles:
             k = s.split(".")[0]
-            v = pd.read_parquet(self.homeplace.barra_data_file + s)
+            v = pd.read_parquet(cls.homeplace.barra_data_file + s).resample("M").last()
             barras[k] = v
         rename_dict = {
-            "fac": "因子自身",
             "size": "市值",
             "nonlinearsize": "非线性市值",
             "booktoprice": "估值",
@@ -3746,71 +3800,52 @@ class pure_coldwinter(object):
         if booktoprice == 0:
             barras = {k: v for k, v in barras.items() if k != "booktoprice"}
             rename_dict = {k: v for k, v in rename_dict.items() if k != "booktoprice"}
-        if facs_dict is not None:
-            barras.update(facs_dict)
-        self.barras = barras
-        self.rename_dict = rename_dict
+        facs_dict = {
+            "反转_20天收益率均值": boom_one(read_daily(ret=1)),
+            "波动_20天收益率标准差": read_daily(ret=1)
+            .rolling(20, min_periods=10)
+            .std()
+            .resample("M")
+            .last(),
+            "换手_20天换手率均值": boom_one(read_daily(tr=1)),
+        }
+        barras.update(facs_dict)
+        rename_dict.update({k: k for k in facs_dict.keys()})
+        cls.barras = barras
+        cls.rename_dict = rename_dict
         sort_names = list(rename_dict.values())
-        if facs_dict is not None:
-            sort_names = sort_names + list(facs_dict.keys())
-        sort_names = [i for i in sort_names if i != "因子自身"]
-        self.sort_names = sort_names
+        cls.sort_names = sort_names
+        cls.barras_together = merge_many(
+            list(barras.values()), list(barras.keys()), how="inner"
+        )
 
     def __call__(self):
         """返回纯净因子值"""
         return self.snow_fac
 
-    def set_factors_df_wide(self, df):
+    def set_factors_df_wide(self, df: pd.DataFrame, other_factors: dict = None):
         """传入因子数据，时间为索引，代码为列名"""
-        df1 = df.copy()
-        # df1.index=df1.index-pd.DateOffset(months=1)
-        df1 = df1.resample("M").last()
-        df1 = df1.stack().reset_index()
-        df1.columns = ["date", "code", "fac"]
-        self.factors = df1.copy()
-
-    def daily_to_monthly(self, df):
-        """将日度的barra因子月度化"""
         df = df.resample("M").last()
-        return df
-
-    def get_monthly_barras_industrys(self):
-        """将barra因子和行业哑变量变成月度数据"""
-        for key, value in self.barras.items():
-            self.barras[key] = self.daily_to_monthly(value)
-
-    def wide_to_long(self, df, name):
-        """将宽数据变成长数据，便于后续拼接"""
-        df = df.stack().reset_index()
-        df.columns = ["date", "code", name]
-        df = df.set_index(["date", "code"])
-        return df
-
-    def get_wide_barras_industrys(self):
-        """将barra因子和行业哑变量都变成长数据"""
-        for key, value in self.barras.items():
-            self.barras[key] = self.wide_to_long(value, key)
-
-    def get_corr_pri_ols_pri(self):
-        """拼接barra因子和行业哑变量，生成用于求相关系数和纯净因子的数据表"""
-        if self.factors.shape[0] > 1:
-            self.factors = self.factors.set_index(["date", "code"])
-        self.corr_pri = pd.concat(
-            [self.factors] + list(self.barras.values()), axis=1
-        ).dropna()
-
-    # DONE: 修改风格因子展示顺序至报告的顺序
-    def get_corr(self):
-        """计算每一期的相关系数，再求平均值"""
-        self.corr_by_step = self.corr_pri.groupby(["date"]).apply(
-            lambda x: x.rank().corr().head(1)
+        self.__corr = [
+            df.corrwith(i, axis=1).mean() for i in list(self.barras.values())
+        ]
+        self.__corr = (
+            pd.Series(
+                self.__corr, index=[self.rename_dict[i] for i in self.barras.keys()]
+            )
+            .to_frame("相关系数")
+            .T
         )
-        self.__corr = self.corr_by_step.mean()
-        self.__corr = self.__corr.rename(index=self.rename_dict)
-        self.__corr = self.__corr.to_frame("相关系数").T
-
         self.__corr = self.__corr[self.sort_names]
-        self.__corr = self.__corr.T
+        df = df.stack().reset_index()
+        df.columns = ["date", "code", "fac"]
+        self.factors = df
+        self.corr_pri = pd.merge(df, self.barras_together, on=["date", "code"]).dropna()
+        if other_factors is not None:
+            other_factors = merge_many(
+                list(other_factors.values()), list(other_factors.keys()), how="inner"
+            )
+            self.corr_pri = pd.merge(self.corr_pri, other_factors, on=["date", "code"])
 
     @property
     def corr(self) -> pd.DataFrame:
@@ -3841,17 +3876,13 @@ class pure_coldwinter(object):
 
     def get_snow_fac(self):
         """获得纯净因子"""
-        self.snow_fac = self.corr_pri.groupby(["date"]).apply(self.ols_in_group)
+        self.snow_fac = (
+            self.corr_pri.set_index(["date", "code"])
+            .groupby(["date"])
+            .apply(self.ols_in_group)
+        )
         self.snow_fac = self.snow_fac.unstack()
         self.snow_fac.columns = list(map(lambda x: x[1], list(self.snow_fac.columns)))
-
-    def run(self):
-        """运行一些必要的函数"""
-        self.get_monthly_barras_industrys()
-        self.get_wide_barras_industrys()
-        self.get_corr_pri_ols_pri()
-        self.get_corr()
-        self.get_snow_fac()
 
 
 @do_on_dfs
@@ -3903,7 +3934,6 @@ class pure_snowtrain(object):
             是否删去账面市值比因子, by default 1
         """
         self.winter = pure_coldwinter(
-            facs_dict=facs_dict,
             momentum=momentum,
             earningsyield=earningsyield,
             growth=growth,
@@ -3915,8 +3945,8 @@ class pure_snowtrain(object):
             residualvolatility=residualvolatility,
             booktoprice=booktoprice,
         )
-        self.winter.set_factors_df_wide(factors.copy())
-        self.winter.run()
+        self.winter.set_factors_df_wide(factors, facs_dict)
+        self.winter.get_snow_fac()
         self.corr = self.winter.corr
 
     def __call__(self) -> pd.DataFrame:
@@ -3937,7 +3967,7 @@ class pure_snowtrain(object):
         pd.DataFrame
             相关系数表格
         """
-        return self.corr.T.applymap(lambda x: to_percent(x))
+        return self.corr.applymap(lambda x: to_percent(x))
 
 
 class pure_newyear(object):
@@ -6202,8 +6232,12 @@ class pure_fall_second(object):
                 return df
 
             if n_jobs > 1:
-                with WorkerPool(n_jobs=n_jobs) as pool:
-                    factor_new_more = pool.map(cal_one, cuts, progress_bar=True)
+                with concurrent.futures.ThreadPoolExecutor(
+                    max_workers=n_jobs
+                ) as executor:
+                    factor_new_more = list(
+                        tqdm.auto.tqdm(executor.map(cal_one, cuts), total=len(cuts))
+                    )
                 factor_new = factor_new + factor_new_more
             else:
                 # 开始计算因子值
@@ -6247,8 +6281,12 @@ class pure_fall_second(object):
             pairs = self.forward_dates(dates, many_days=many_days)
             cuts2 = tuple(zip(pairs, dates))
             if n_jobs > 1:
-                with WorkerPool(n_jobs=n_jobs) as pool:
-                    factor_new_more = pool.map(cal_two, cuts2, progress_bar=True)
+                with concurrent.futures.ThreadPoolExecutor(
+                    max_workers=n_jobs
+                ) as executor:
+                    factor_new_more = list(
+                        tqdm.auto.tqdm(executor.map(cal_two, cuts2), total=len(cuts2))
+                    )
                 factor_new = factor_new + factor_new_more
             else:
                 # 开始计算因子值
@@ -6572,7 +6610,7 @@ class pure_fall_nature:
         self,
         date: pd.Timestamp,
         func: Callable,
-        fields: str='*',
+        fields: str = "*",
         resample_frequency: str = None,
         opens_in: bool = 0,
         highs_in: bool = 0,
@@ -6583,12 +6621,24 @@ class pure_fall_nature:
         the_func = partial(func)
         if not isinstance(date, int):
             date = int(datetime.datetime.strftime(date, "%Y%m%d"))
-        parquet_name=homeplace.tick_by_tick_data+ str(date)[:4]+ "-"+ str(date)[4:6]+ "-"+ str(date)[6:]+ ".parquet"
+        parquet_name = (
+            homeplace.tick_by_tick_data
+            + str(date)[:4]
+            + "-"
+            + str(date)[4:6]
+            + "-"
+            + str(date)[6:]
+            + ".parquet"
+        )
         if resample_frequency is not None:
-            fields='date,code,price,amount'
+            fields = "date,code,price,amount"
         # 开始计算因子值
-        cursor=duckdb.connect()
-        df=cursor.execute(f"select {fields} from '{parquet_name}';").arrow().to_pandas()
+        cursor = duckdb.connect()
+        df = (
+            cursor.execute(f"select {fields} from '{parquet_name}';")
+            .arrow()
+            .to_pandas()
+        )
         date = df.date.iloc[0]
         date0 = pd.Timestamp(year=date.year, month=date.month, day=date.day)
         age_here = self.age.loc[pd.Timestamp(pd.Timestamp(df.date.iloc[0]).date())]
@@ -6705,11 +6755,11 @@ class pure_fall_nature:
             df = df.pivot(columns="code", index="date", values="fac")
             return df
 
-    @kk.desktop_sender(title="铛铛，逐笔数据处理完啦～🎈")
     def get_daily_factors(
         self,
         func: Callable,
         n_jobs: int = 1,
+        fields: str = "*",
         resample_frequency: str = None,
         opens_in: bool = 0,
         highs_in: bool = 0,
@@ -6747,18 +6797,28 @@ class pure_fall_nature:
         """
         if len(self.dates_new) > 0:
             if n_jobs > 1:
-                with concurrent.futures.ThreadPoolExecutor(max_workers=n_jobs) as executor:
-                    self.factor_new=list(tqdm.auto.tqdm(executor.map(
-                        lambda x: self.select_one_calculate(
-                            date=x,
-                            func=func,
-                            resample_frequency=resample_frequency,
-                            opens_in=opens_in,
-                            highs_in=highs_in,
-                            lows_in=lows_in,
-                            moneys_in=amounts_in,
-                            merge_them=merge_them,
-                        ),self.dates_new),total=len(self.dates_new)))
+                with concurrent.futures.ThreadPoolExecutor(
+                    max_workers=n_jobs
+                ) as executor:
+                    self.factor_new = list(
+                        tqdm.auto.tqdm(
+                            executor.map(
+                                lambda x: self.select_one_calculate(
+                                    date=x,
+                                    func=func,
+                                    fields=fields,
+                                    resample_frequency=resample_frequency,
+                                    opens_in=opens_in,
+                                    highs_in=highs_in,
+                                    lows_in=lows_in,
+                                    amounts_in=amounts_in,
+                                    merge_them=merge_them,
+                                ),
+                                self.dates_new,
+                            ),
+                            total=len(self.dates_new),
+                        )
+                    )
             else:
                 for date in tqdm.auto.tqdm(self.dates_new, "您现在处于单核运算状态，建议仅在调试时使用单核"):
                     df = self.select_one_calculate(
@@ -6774,7 +6834,9 @@ class pure_fall_nature:
                     self.factor_new.append(df)
             # 拼接新的和旧的
             if self.factor_old is not None:
-                self.factor = pd.concat([self.factor_old, self.factor_new]).sort_index()
+                self.factor = pd.concat(
+                    [self.factor_old] + self.factor_new
+                ).sort_index()
             else:
                 self.factor = self.factor_new.sort_index()
             self.factor = drop_duplicates_index(self.factor.dropna(how="all"))

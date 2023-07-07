@@ -1,6 +1,18 @@
 ## 更新日志🗓 — v4
 
 
+* v4.0.5 — 2023.7.7
+
+> 1. 修复了pure_fall_nature中缺少fields参数和参数传递的bug
+> 2. 删去了pure_fall_nature中get_daily_factors的系统通知
+> 3. 将pure_fall_frequent中的并行改为使用concurrent
+> 4. 对pure_fall_frequent中的get_daily_factors新增了防止系统通知报错的功能
+> 5. 对pure_coldwinter加入了缓存机制，改进了相关系数的计算方法，大幅提高了运算速度
+> 6. 对pure_coldwinter剔除的风格因子默认新增了传统反转因子、传统波动因子、传统换手因子
+> 7. 将get_abs的median参数替换为quantile参数，表示计算到截面某个分位点的距离
+> 8. 将clip_mad中的参数n默认值改为5
+
+
 * v4.0.4 — 2023.7.4
 
 > 1. 优化了show_corrs_with_old的结果展示排序
@@ -36,7 +48,7 @@
 >
 >    ```python
 >    import pure_ocean_breeze as p
->       
+>          
 >    p.ini()
 >    ```
 > 2. 初始化函数与`Homeplace`参数新增了存储逐笔数据的路径
