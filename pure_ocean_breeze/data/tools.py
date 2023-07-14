@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2023-07-07 10:32:50"
+__updated__ = "2023-07-10 12:46:10"
 
 import os
 import pandas as pd
@@ -537,6 +537,7 @@ class pure_dawn(object):
                 old_date = old.index.max()
                 if old_date == self.fac.date.max():
                     logger.info(f"本地文件已经是最新的了，无需计算")
+                    self.fac=old
                 else:
                     try:
                         new_date = self.find_begin(

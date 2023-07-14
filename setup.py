@@ -1,4 +1,4 @@
-__updated__ = "2023-07-03 01:28:50"
+__updated__ = "2023-07-14 15:12:11"
 
 from setuptools import setup
 import setuptools
@@ -15,7 +15,8 @@ def get_version(package):
     init_py = open(os.path.join(package, "__init__.py")).read()
     return re.search("__version__ = ['\"]([^'\"]+)['\"]", init_py).group(1)
 
-install_requires=[
+
+install_requires = [
     # "numpy",
     "pandas<=1.5.3",
     "scipy",
@@ -43,11 +44,16 @@ install_requires=[
     "deprecation",
     "questdb",
     "mpire",
+    "py7zr",
+    "unrar",
+    "rarfile",
+    "zipfile",
+    "chardet",
 ]
-if sys.platform.startswith('win'):
-    install_requires=install_requires+['psycopg2']
+if sys.platform.startswith("win"):
+    install_requires = install_requires + ["psycopg2"]
 else:
-    install_requires=install_requires+['psycopg2-binary']
+    install_requires = install_requires + ["psycopg2-binary"]
 
 setup(
     name="pure_ocean_breeze",
@@ -65,5 +71,9 @@ setup(
     license="MIT",
     packages=setuptools.find_packages(),
     requires=[],
-    extras_require={'windows':['psycopg2'],'macos':['psycopg2-binary'],'linux':['psycopg2-binary']}
+    extras_require={
+        "windows": ["psycopg2"],
+        "macos": ["psycopg2-binary"],
+        "linux": ["psycopg2-binary"],
+    },
 )

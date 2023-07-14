@@ -1,6 +1,15 @@
 ## 更新日志🗓 — v4
 
 
+* v4.0.6 — 2023.7.14
+
+> 1. 修复了pure_dawn读取已有因子值时`__call__`方法返回错误的问题
+> 2. 修复了pure_fall_frequent中关于计算因子值的bug
+> 3. 修复了optimize_many_days函数和pure_linprog的run方法不受STATES['START']影响的bug
+> 4. 随着时间的推移，将STATES['START']值修改为20140101
+> 5. 更新了依赖库
+
+
 * v4.0.5 — 2023.7.7
 
 > 1. 修复了pure_fall_nature中缺少fields参数和参数传递的bug
@@ -49,7 +58,7 @@
 >
 >    ```python
 >    import pure_ocean_breeze as p
->          
+>             
 >    p.ini()
 >    ```
 > 2. 初始化函数与`Homeplace`参数新增了存储逐笔数据的路径

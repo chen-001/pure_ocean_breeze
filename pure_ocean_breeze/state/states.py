@@ -2,14 +2,14 @@
 一些默认的参数
 """
 
-__updated__ = "2022-11-04 14:41:09"
+__updated__ = "2023-07-13 12:18:16"
 
 STATES = {
     "NO_LOG": False,
     "NO_COMMENT": False,
     "NO_SAVE": True,
     "NO_PLOT": False,
-    "START": 20130101,
+    "START": 20140101,
     "db_host": "127.0.0.1",
     "db_port": 3306,
     "db_user": "root",

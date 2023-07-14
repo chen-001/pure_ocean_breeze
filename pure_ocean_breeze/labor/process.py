@@ -1,4 +1,4 @@
-__updated__ = "2023-07-07 10:21:18"
+__updated__ = "2023-07-13 12:17:42"
 
 import warnings
 
@@ -3417,7 +3417,12 @@ class pure_fall_frequent(object):
                     max_workers=n_jobs
                 ) as executor:
                     factor_new_more = list(
-                        tqdm.auto.tqdm(executor.map(cal_one, cuts), total=len(cuts))
+                        tqdm.auto.tqdm(
+                            executor.map(
+                                cal_one, cut_points[:-many_days], cut_points[many_days:]
+                            ),
+                            total=len(cut_points[many_days:]),
+                        )
                     )
                 factor_new = factor_new + factor_new_more
             else:
@@ -3468,7 +3473,12 @@ class pure_fall_frequent(object):
                     max_workers=n_jobs
                 ) as executor:
                     factor_new_more = list(
-                        tqdm.auto.tqdm(executor.map(cal_two, cuts2), total=len(cuts2))
+                        tqdm.auto.tqdm(
+                            executor.map(
+                                cal_two, pairs, dates
+                            ),
+                            total=len(pairs),
+                        )
                     )
                 factor_new = factor_new + factor_new_more
             else:
@@ -5646,7 +5656,7 @@ class pure_linprog(object):
         else:
             return None
 
-    def optimize_many_days(self, startdate: int = 20130101):
+    def optimize_many_days(self, startdate: int = STATES['START']):
         dates = [i for i in self.facs.index if i >= pd.Timestamp(str(startdate))]
         for date in tqdm.auto.tqdm(dates):
             fac = self.facs[self.facs.index == date].T.dropna()
@@ -5692,7 +5702,7 @@ class pure_linprog(object):
         comments = comments_on_twins(rets[f"{name}增强组合超额净值"], abret.dropna())
         return comments, rets
 
-    def run(self, startdate: int = 20130101) -> pd.DataFrame:
+    def run(self, startdate: int = STATES['START']) -> pd.DataFrame:
         """运行规划求解
 
         Parameters
