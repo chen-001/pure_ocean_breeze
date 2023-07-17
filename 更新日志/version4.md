@@ -1,6 +1,13 @@
 ## 更新日志🗓 — v4
 
 
+* v4.0.7 — 2023.7.17
+
+> 1. 给pure_fall_frequent和pure_fall_nature新增了use_mpire参数，可以使用mpire库开启并行
+> 2. 修复了pure_fall_frequent的select_one_calculate方法中，可能存在的返回类型为字符串的问题
+> 3. 修复了pure_fall_nature中全新因子运算完拼接时的bug
+
+
 * v4.0.6 — 2023.7.14
 
 > 1. 修复了pure_dawn读取已有因子值时`__call__`方法返回错误的问题
@@ -58,7 +65,7 @@
 >
 >    ```python
 >    import pure_ocean_breeze as p
->             
+>                
 >    p.ini()
 >    ```
 > 2. 初始化函数与`Homeplace`参数新增了存储逐笔数据的路径
