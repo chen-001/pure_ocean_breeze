@@ -1,0 +1,33 @@
+name: Deploy to Github Pages
+on:
+  pull_request:
+      
+    paths: 
+      - "docs/**"
+      - "mkdocs.yml"
+      - "pure_ocean_breeze/**"
+  push:
+      paths: 
+        - "docs/**"
+        - "mkdocs.yml"
+        - "pure_ocean_breeze/**"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v2
+        with:
+          python-version: 3.x
+      - uses: actions/cache@v2
+        with:
+          key: ${{ github.ref }}
+          path: .cache
+      - run: pip install mkdocstrings-python
+      - run: pip uninstall mkdocs -y
+      - run: pip install mkdocs-material-zhcorrect
+      - run: mkdocs build
+      - run: mkdocs gh-deploy --force
+
+

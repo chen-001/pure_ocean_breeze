@@ -1,0 +1,71 @@
+
+
+# on:
+#   create:
+#     branches:
+#       - master
+      
+#     # Sequence of patterns matched against refs/tags
+#     tags:
+#       - 'v*' # Push events to matching v*, i.e. v1.0, v20.15.10
+#   # pull_request:
+#   #   branches:
+#   #     - master
+#   #   # Sequence of patterns matched against refs/tags
+#   #   tags:
+#   #     - 'v*' # Push events to matching v*, i.e. v1.0, v20.15.10
+# name: Create Release
+
+# jobs:
+#   build:
+#     name: Create Release
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v2
+#       # - name: Get version
+#       #   id: get_version
+#       #   run: echo ::set-output name=VERSION::${tags/}
+#       - name: Create Tag
+#         id: create_tag
+#         uses: jaywcjlove/create-tag-action@main
+#         with:
+#           test: '[R|r]elease[d]\s+[v|V]\d(\.\d+){0,2}'
+#       - name: Create Release
+#         uses: actions/create-release@v1
+#         env:
+#           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#         with:
+#           tag_name: v${{ steps.create_tag.outputs.version  }}
+#           release_name: v${{ steps.create_tag.outputs.version  }}
+#           body: 详见[更新日志](https://github.com/chen-001/pure_ocean_breeze/blob/master/更新日志/更新日志.md)
+#           draft: false
+#           prerelease: false
+
+
+name: Release
+
+on:
+  create:
+    tags:
+    - 'v*'
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    steps:
+    
+    - name: Checkout code
+      uses: actions/checkout@v2
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: ${{ github.ref }}
+        body: 详见[更新日志](https://github.com/chen-001/pure_ocean_breeze/blob/master/更新日志/更新日志.md)
+        draft: false
+        prerelease: false
