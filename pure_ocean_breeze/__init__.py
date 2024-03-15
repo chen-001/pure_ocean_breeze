@@ -15,7 +15,7 @@ __all__ = [
     "initialize",
     "legacy_version",
     "future_version",
-    "withs"
+    "withs",
 ]
 
 import requests
