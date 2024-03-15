@@ -950,3 +950,10 @@ def judge_factor_by_third(
     fac = fac1 + fac2
     have = np.sign(fac1.abs() + 1)
     return fac * have
+
+
+@do_on_dfs
+def jason_to_wind(df:pd.DataFrame):
+    df.index=pd.to_datetime(df.index.astype(str))
+    df.columns=[add_suffix(i) for i in df.columns]
+    return df

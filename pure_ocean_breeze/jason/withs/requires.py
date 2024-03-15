@@ -45,4 +45,5 @@ cf.set_config_file(offline=True)
 from plotly.tools import FigureFactory as FF
 import plotly.graph_objects as go
 import plotly.tools as plyoo
-import tradetime as tt
+
+import concurrent
