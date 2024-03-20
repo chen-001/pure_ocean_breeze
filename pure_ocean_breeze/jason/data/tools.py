@@ -36,9 +36,8 @@ def is_notebook() -> bool:
         return False
 
 
-
 @do_on_dfs
-def add_suffix(code:str)->str:
+def add_suffix(code: str) -> str:
     """给股票代码加上后缀
 
     Parameters
@@ -50,7 +49,7 @@ def add_suffix(code:str)->str:
     -------
     str
         添加完后缀后的股票代码，如000001.SZ
-    """    
+    """
     if not isinstance(code, str):
         code = str(code)
     if len(code) < 6:
@@ -91,7 +90,6 @@ def get_value(df: pd.DataFrame, n: int) -> pd.DataFrame:
     return df
 
 
-
 @do_on_dfs
 def add_suffix(code: str) -> str:
     """给没有后缀的股票代码加上wind后缀
@@ -115,8 +113,6 @@ def add_suffix(code: str) -> str:
     else:
         code = code + ".UN"
     return code
-
-
 
 
 @do_on_dfs
@@ -208,8 +204,6 @@ def merge_many(
     ]
     df = reduce(lambda x, y: pd.merge(x, y, on=["date", "code"], how=how), dfs)
     return df
-
-
 
 
 @do_on_dfs
@@ -366,7 +360,7 @@ def detect_nan(df: pd.DataFrame) -> bool:
 
 
 @do_on_dfs
-def get_abs(df: pd.DataFrame, quantile: float=None, square: bool = 0) -> pd.DataFrame:
+def get_abs(df: pd.DataFrame, quantile: float = None, square: bool = 0) -> pd.DataFrame:
     """均值距离化：计算因子与截面均值的距离
 
     Parameters
@@ -689,7 +683,6 @@ def same_index(dfs: List[pd.DataFrame]) -> List[pd.DataFrame]:
     return res
 
 
-
 def zip_many_dfs(dfs: List[pd.DataFrame]) -> pd.DataFrame:
     """将多个dataframe，拼在一起，相同index和columns指向的那个values，变为多个dataframe的值的列表
     通常用于存储整合分钟数据计算的因子值
@@ -729,7 +722,6 @@ def get_values(df: pd.DataFrame) -> List[pd.DataFrame]:
     num = len(d.iloc[0])
     facs = list(map(lambda x: get_value(df, x), range(num)))
     return facs
-
 
 
 @do_on_dfs
@@ -822,7 +814,9 @@ def clip_mad(
             df = df.reset_index()
         except Exception:
             ...
-        df = df.drop_duplicates(subset=['date','code']).pivot(index="date", columns="code", values="fac")
+        df = df.drop_duplicates(subset=["date", "code"]).pivot(
+            index="date", columns="code", values="fac"
+        )
         return df
     elif replace:
 
@@ -953,7 +947,55 @@ def judge_factor_by_third(
 
 
 @do_on_dfs
-def jason_to_wind(df:pd.DataFrame):
-    df.index=pd.to_datetime(df.index.astype(str))
-    df.columns=[add_suffix(i) for i in df.columns]
+def jason_to_wind(df: pd.DataFrame):
+    df.index = pd.to_datetime(df.index.astype(str))
+    df.columns = [add_suffix(i) for i in df.columns]
     return df
+
+@do_on_dfs
+def wind_to_jason(df: pd.DataFrame):
+    df.columns = [i[:6] for i in df.columns]
+    df.index = df.index.strftime("%Y%m%d").astype(int)
+    return df
+
+
+@do_on_dfs
+def lu计算连续期数2(
+    s: Union[pd.Series, pd.DataFrame],
+    judge_number: float = 1,
+    nan_value: float = np.nan,
+) -> Union[pd.Series, pd.DataFrame]:
+    # 将Series中的值转换为布尔值，1为True，其余为False
+    is_one = s == judge_number
+
+    # 计算累计和以标识连续的1区块
+    cumulative_sum = is_one.cumsum()
+
+    # 重置每个连续1区块的累计和，为此，我们需要找到每个区块的开始并从cumulative_sum中减去该值
+    reset_cumsum = cumulative_sum - cumulative_sum.where(~is_one).ffill().fillna(0)
+
+    # 在每个连续的1区块内，使用cumsum计算连续1的个数
+    continuous_ones = reset_cumsum * is_one
+    return continuous_ones.replace(0, nan_value)
+
+@do_on_dfs
+def is_pos(s: Union[pd.Series, pd.DataFrame],zero_as_pos:bool=1) -> Union[pd.Series, pd.DataFrame]:
+    if zero_as_pos:
+        return np.sign(s).replace(0,1).replace(-1,np.nan)
+    else:
+        return np.sign(s).replace(0,np.nan).replace(-1,np.nan)
+    
+@do_on_dfs
+def is_neg(s: Union[pd.Series, pd.DataFrame],zero_as_neg:bool=1) -> Union[pd.Series, pd.DataFrame]:
+    if zero_as_neg:
+        return np.sign(s).replace(0,-1).replace(1,np.nan).replace(-1,1)
+    else:
+        return np.sign(s).replace(0,np.nan).replace(1,np.nan).replace(-1,1)
+    
+@do_on_dfs
+def get_pos_value(s: Union[pd.Series, pd.DataFrame],zero_as_pos:bool=1) -> Union[pd.Series, pd.DataFrame]:
+    return s * is_pos(s,zero_as_pos)
+
+@do_on_dfs
+def get_neg_value(s: Union[pd.Series, pd.DataFrame],zero_as_neg:bool=1) -> Union[pd.Series, pd.DataFrame]:
+    return s * is_neg(s,zero_as_neg)
