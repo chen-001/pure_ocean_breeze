@@ -32,6 +32,7 @@ from texttable import Texttable
 import cufflinks as cf
 
 cf.set_config_file(offline=True)
+from IPython.display import display
 from typing import Callable, Union, Dict, List, Tuple
 from pure_ocean_breeze.jason.data.read_data import (
     read_daily,
@@ -60,7 +61,6 @@ from pure_ocean_breeze.jason.labor.comment import (
     make_relative_comments,
     make_relative_comments_plot,
 )
-
 
 
 @do_on_dfs
@@ -204,7 +204,7 @@ def decap_industry(df: pd.DataFrame) -> pd.DataFrame:
         df = df[["fac"]]
         return df
 
-    file_name='sw_industry_level1_dummies.parquet'
+    file_name = "sw_industry_level1_dummies.parquet"
 
     if weekly:
         industry_dummy = (
@@ -310,7 +310,6 @@ def boom_four(
         twins_minus = (pure_fallmount(df_mean) + (pure_fallmount(-df_std),))()
         rtwins_minus = df_mean.rank(axis=1) - df_std.rank(axis=1)
     return df_mean, df_std, twins_add, rtwins_add, twins_minus, rtwins_minus
-
 
 
 @do_on_dfs
@@ -662,12 +661,12 @@ def show_corrs_with_old(
     pd.DataFrame
         相关系数矩阵
     """
-    files=os.listdir(homeplace.final_factor_file)
-    names=[i[:-8] for i in files]
-    files=[homeplace.final_factor_file+i for i in files]
-    files=[pd.read_parquet(i) for i in files]
+    files = os.listdir(homeplace.final_factor_file)
+    names = [i[:-8] for i in files]
+    files = [homeplace.final_factor_file + i for i in files]
+    files = [pd.read_parquet(i) for i in files]
     if df is not None:
-        corrs = show_corrs([df]+files, names, method=method)
+        corrs = show_corrs([df] + files, names, method=method)
     else:
         corrs = show_corrs(files, names, method=method)
     return corrs
@@ -696,7 +695,7 @@ def remove_unavailable(df: pd.DataFrame) -> pd.DataFrame:
     if daily:
         df = df * state
     else:
-        df = state.resample('W').first() * df
+        df = state.resample("W").first() * df
     return df
 
 
@@ -834,10 +833,9 @@ class pure_moon(object):
             col = ["code", "date"] + industry_ws
             industry_dummy.columns = col
             industry_dummy = industry_dummy[
-                industry_dummy.date >= pd.Timestamp(str(STATES['START']))
+                industry_dummy.date >= pd.Timestamp(str(STATES["START"]))
             ]
             return industry_dummy
-
 
         if not no_read_indu:
             # week_here
@@ -852,7 +850,6 @@ class pure_moon(object):
                 .last()
             )
             cls.swindustry_dummy = deal_dummy(cls.swindustry_dummy)
-                
 
     @property
     def factors_out(self):
@@ -868,16 +865,16 @@ class pure_moon(object):
         cls,
         total_cap: bool = 0,
     ):
-        states = read_daily(state=1, start=STATES['START'])
-        opens = read_daily(vwap=1, start=STATES['START'])
-        closes = read_daily(vwap=1, start=STATES['START'])
+        states = read_daily(state=1, start=STATES["START"])
+        opens = read_daily(vwap=1, start=STATES["START"])
+        closes = read_daily(vwap=1, start=STATES["START"])
         if total_cap:
             capitals = (
-                read_daily(total_cap=1, start=STATES['START']).resample(cls.freq).last()
+                read_daily(total_cap=1, start=STATES["START"]).resample(cls.freq).last()
             )
         else:
             capitals = (
-                read_daily(flow_cap=1, start=STATES['START']).resample(cls.freq).last()
+                read_daily(flow_cap=1, start=STATES["START"]).resample(cls.freq).last()
             )
         # 交易状态文件
         cls.states = states
@@ -889,18 +886,26 @@ class pure_moon(object):
         cls.capital = capitals
         cls.opens = cls.opens.replace(0, np.nan)
         cls.closes = cls.closes.replace(0, np.nan)
-        cls.states=read_daily(state=1)
-        cls.states=cls.states.resample(cls.freq).first()
+        cls.states = read_daily(state=1)
+        cls.states = cls.states.resample(cls.freq).first()
         # cls.states=np.sign(cls.states.where(cls.states==cls.states.max().max(),np.nan))
-        up_downs=read_daily(up_down_limit_status=1)
-        cls.not_ups=np.sign(up_downs.where(up_downs!=1,np.nan).abs()+1).resample(cls.freq).first()
-        cls.not_downs=np.sign(up_downs.where(up_downs!=-1,np.nan).abs()+1).resample(cls.freq).last()
+        up_downs = read_daily(up_down_limit_status=1)
+        cls.not_ups = (
+            np.sign(up_downs.where(up_downs != 1, np.nan).abs() + 1)
+            .resample(cls.freq)
+            .first()
+        )
+        cls.not_downs = (
+            np.sign(up_downs.where(up_downs != -1, np.nan).abs() + 1)
+            .resample(cls.freq)
+            .last()
+        )
 
     def set_factor_df_date_as_index(self, df: pd.DataFrame):
         """设置因子数据的dataframe，因子表列名应为股票代码，索引应为时间"""
         # week_here
         self.factors = df.resample(self.freq).last().dropna(how="all")
-        self.factors=self.factors*self.states
+        self.factors = self.factors * self.states
         self.factor_cover = np.sign(self.factors.abs() + 1).sum().sum()
         opens = self.opens[self.opens.index >= self.factors.index.min()]
         total = np.sign(opens.resample(self.freq).last()).sum().sum()
@@ -923,7 +928,7 @@ class pure_moon(object):
         cls.opens_monthly = cls.opens.resample(cls.freq).first()
         # week_here
         cls.closes_monthly = cls.closes.resample(cls.freq).last()
-        cls.rets_monthly = ((cls.closes_monthly - cls.opens_monthly) / cls.opens_monthly) 
+        cls.rets_monthly = (cls.closes_monthly - cls.opens_monthly) / cls.opens_monthly
         cls.rets_monthly = cls.rets_monthly.stack().reset_index()
         cls.rets_monthly.columns = ["date", "code", "ret"]
 
@@ -956,11 +961,9 @@ class pure_moon(object):
         cls.cap.columns = ["date", "code", "cap_size"]
         cls.cap["cap_size"] = np.log(cls.cap["cap_size"])
 
-    def get_neutral_factors(
-        self, only_cap=0
-    ):
+    def get_neutral_factors(self, only_cap=0):
         """对因子进行行业市值中性化"""
-        self.factors=self.factors.stack().reset_index()
+        self.factors = self.factors.stack().reset_index()
         self.factors.columns = ["date", "code", "fac"]
         self.factors = pd.merge(
             self.factors, self.cap, how="inner", on=["date", "code"]
@@ -973,7 +976,7 @@ class pure_moon(object):
         self.factors = self.factors.set_index(["date", "code"])
         self.factors = self.factors.groupby(["date"]).apply(self.neutralize_factors)
         self.factors = self.factors.reset_index()
-        self.factors=self.factors.pivot(index="date", columns="code",values='fac')
+        self.factors = self.factors.pivot(index="date", columns="code", values="fac")
 
     def get_ic_rankic(cls, df):
         """计算IC和RankIC"""
@@ -1032,7 +1035,6 @@ class pure_moon(object):
         df.insert(0, "group", l)
         return df
 
-
     def get_data(self, groups_num):
         """拼接因子数据和每月收益率数据，并对涨停和跌停股加以处理"""
         self.data = pd.merge(
@@ -1062,9 +1064,9 @@ class pure_moon(object):
     def to_group_ret(self, l):
         """每一组的年化收益率"""
         # week_here
-        ret = l[-1] / len(l) *self.freq_ctrl.counts_one_year
+        ret = l[-1] / len(l) * self.freq_ctrl.counts_one_year
         return ret
-    
+
     def make_start_to_one(self, l):
         """让净值序列的第一个数变成1"""
         min_date = self.factors.date.min()
@@ -1170,17 +1172,14 @@ class pure_moon(object):
         """计算多空对冲的相关评价指标
         包括年化收益率、年化波动率、信息比率、月度胜率、最大回撤率"""
         # week_here
-        self.long_short_ret_yearly = (
-            self.long_short_net_values[-1]
-            * (self.freq_ctrl.counts_one_year / len(self.long_short_net_values))
+        self.long_short_ret_yearly = self.long_short_net_values[-1] * (
+            self.freq_ctrl.counts_one_year / len(self.long_short_net_values)
         )
-        self.inner_long_ret_yearly = (
-            self.inner_long_net_values[-1]
-            * (self.freq_ctrl.counts_one_year / len(self.inner_long_net_values))
+        self.inner_long_ret_yearly = self.inner_long_net_values[-1] * (
+            self.freq_ctrl.counts_one_year / len(self.inner_long_net_values)
         )
-        self.inner_short_ret_yearly = (
-            self.inner_short_net_values[-1]
-            * (self.freq_ctrl.counts_one_year / len(self.inner_short_net_values))
+        self.inner_short_ret_yearly = self.inner_short_net_values[-1] * (
+            self.freq_ctrl.counts_one_year / len(self.inner_short_net_values)
         )
         # week_here
         self.long_short_vol_yearly = np.std(self.long_short_rets) * (
@@ -1194,7 +1193,8 @@ class pure_moon(object):
             self.long_short_rets
         )
         self.max_retreat = -(
-            (self.long_short_net_values+1) / (self.long_short_net_values+1).expanding(1).max()
+            (self.long_short_net_values + 1)
+            / (self.long_short_net_values + 1).expanding(1).max()
             - 1
         ).min()
         if on_paper:
@@ -1286,8 +1286,12 @@ class pure_moon(object):
                 ),
             ]
         )
-        self.group_mean_rets_monthly=self.group_rets.drop(columns=['long_short']).mean()
-        self.group_mean_rets_monthly=self.group_mean_rets_monthly-self.group_mean_rets_monthly.mean()
+        self.group_mean_rets_monthly = self.group_rets.drop(
+            columns=["long_short"]
+        ).mean()
+        self.group_mean_rets_monthly = (
+            self.group_mean_rets_monthly - self.group_mean_rets_monthly.mean()
+        )
 
     def plot_net_values(self, y2, filename, iplot=1, ilegend=1, without_breakpoint=0):
         """使用matplotlib来画图，y2为是否对多空组合采用双y轴"""
@@ -1304,7 +1308,7 @@ class pure_moon(object):
             if not STATES["NO_SAVE"]:
                 plt.savefig(filename_path)
         else:
-            
+
             tris = self.group_net_values
             if without_breakpoint:
                 tris = tris.dropna()
@@ -1334,21 +1338,34 @@ class pure_moon(object):
             # here=here.to_numpy().tolist()+[['信息系数','结果','绩效指标','结果']]
             table = FF.create_table(here.iloc[::-1])
             table.update_yaxes(matches=None)
-            pic2=go.Figure(go.Bar(y=list(self.group_mean_rets_monthly),x=[i.replace('roup','') for i in list(self.group_mean_rets_monthly.index)]))
+            pic2 = go.Figure(
+                go.Bar(
+                    y=list(self.group_mean_rets_monthly),
+                    x=[
+                        i.replace("roup", "")
+                        for i in list(self.group_mean_rets_monthly.index)
+                    ],
+                )
+            )
             # table=go.Figure([go.Table(header=dict(values=list(here.columns)),cells=dict(values=here.to_numpy().tolist()))])
-            pic3_data=go.Bar(y=list(self.rankics.rankic),x=list(self.rankics.index))
-            pic3=go.Figure(data=[pic3_data])
-            pic4_data=go.Line(y=list(self.rankics.rankic.cumsum()),x=list(self.rankics.index),name='y2',yaxis='y2')
-            pic4_layout=go.Layout(yaxis2=dict(title='y2',side='right'))
-            pic4=go.Figure(data=[pic4_data],layout=pic4_layout)
+            pic3_data = go.Bar(y=list(self.rankics.rankic), x=list(self.rankics.index))
+            pic3 = go.Figure(data=[pic3_data])
+            pic4_data = go.Line(
+                y=list(self.rankics.rankic.cumsum()),
+                x=list(self.rankics.index),
+                name="y2",
+                yaxis="y2",
+            )
+            pic4_layout = go.Layout(yaxis2=dict(title="y2", side="right"))
+            pic4 = go.Figure(data=[pic4_data], layout=pic4_layout)
             figs.append(table)
             figs = [figs[-1]] + figs[:-1]
             figs.append(pic2)
-            figs = [figs[0],figs[1],figs[-1],pic3]
+            figs = [figs[0], figs[1], figs[-1], pic3]
             figs[1].update_layout(
                 legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
             )
-            figs[3].update_layout(yaxis2=dict(title='y2',side='right'))
+            figs[3].update_layout(yaxis2=dict(title="y2", side="right"))
             base_layout = cf.tools.get_base_layout(figs)
 
             sp = cf.subplots(
@@ -1358,9 +1375,8 @@ class pure_moon(object):
                 vertical_spacing=0.15,
                 horizontal_spacing=0.03,
                 shared_yaxes=False,
-                
                 specs=[
-                    [   
+                    [
                         None,
                         {"rowspan": 2, "colspan": 4},
                         None,
@@ -1389,7 +1405,12 @@ class pure_moon(object):
                         None,
                     ],
                 ],
-                subplot_titles=["净值曲线", "各组月均超均收益", "Rank IC时序图", "绩效指标"],
+                subplot_titles=[
+                    "净值曲线",
+                    "各组月均超均收益",
+                    "Rank IC时序图",
+                    "绩效指标",
+                ],
             )
             sp["layout"].update(showlegend=ilegend)
             # los=sp['layout']['annotations']
@@ -1472,10 +1493,10 @@ class pure_moon(object):
         if neutralize:
             self.get_log_cap()
             self.get_neutral_factors(only_cap=only_cap)
-        self.__factors_out=self.factors.copy()
-        self.factors=self.factors.shift(1)
-        self.factors=self.factors.stack().reset_index()
-        self.factors.columns=['date','code','fac']
+        self.__factors_out = self.factors.copy()
+        self.factors = self.factors.shift(1)
+        self.factors = self.factors.stack().reset_index()
+        self.factors.columns = ["date", "code", "fac"]
         self.get_data(groups_num)
         self.get_group_rets_net_values(
             groups_num=groups_num,
@@ -1580,18 +1601,24 @@ class pure_moon(object):
                         tc[15] = str(round(tc[15], 2))
                         tc[16] = str(round(tc[16] * 100, 2)) + "%"
                         tc[17] = str(round(tc[17] * 100, 2)) + "%"
-                    tc=tc+list(self.group_mean_rets_monthly)
+                    tc = tc + list(self.group_mean_rets_monthly)
                     new_total_comments = pd.DataFrame(
-                        {sheetname: tc}, index=list(total_comments.index)+[f'第{i}组' for i in range(1,groups_num+1)]
+                        {sheetname: tc},
+                        index=list(total_comments.index)
+                        + [f"第{i}组" for i in range(1, groups_num + 1)],
                     )
                     new_total_comments.to_excel(comments_writer, sheet_name=sheetname)
-                    rankic_twins=pd.concat([self.rankics.rankic,self.rankics.rankic.cumsum()],axis=1)
-                    rankic_twins.columns=['RankIC','RankIC累积']
-                    rankic_twins.to_excel(comments_writer,sheet_name=sheetname+'RankIC')
-                else:
-                    self.total_comments.rename(columns={"评价指标": sheetname}).to_excel(
-                        comments_writer, sheet_name=sheetname
+                    rankic_twins = pd.concat(
+                        [self.rankics.rankic, self.rankics.rankic.cumsum()], axis=1
                     )
+                    rankic_twins.columns = ["RankIC", "RankIC累积"]
+                    rankic_twins.to_excel(
+                        comments_writer, sheet_name=sheetname + "RankIC"
+                    )
+                else:
+                    self.total_comments.rename(
+                        columns={"评价指标": sheetname}
+                    ).to_excel(comments_writer, sheet_name=sheetname)
             if net_values_writer:
                 groups_net_values = self.group_net_values.copy()
                 groups_net_values.index = groups_net_values.index.strftime("%Y/%m/%d")
@@ -1880,32 +1907,25 @@ class pure_moonnight(object):
         return df
 
 
-class pure_week(pure_moon):
-    ...
+class pure_week(pure_moon): ...
 
 
-class pure_moon_a(pure_moon):
-    ...
+class pure_moon_a(pure_moon): ...
 
 
-class pure_week_a(pure_moon):
-    ...
+class pure_week_a(pure_moon): ...
 
 
-class pure_moon_b(pure_moon):
-    ...
+class pure_moon_b(pure_moon): ...
 
 
-class pure_week_b(pure_moon):
-    ...
+class pure_week_b(pure_moon): ...
 
 
-class pure_moon_c(pure_moon):
-    ...
+class pure_moon_c(pure_moon): ...
 
 
-class pure_week_c(pure_moon):
-    ...
+class pure_week_c(pure_moon): ...
 
 
 class pure_fall(object):
@@ -2097,9 +2117,6 @@ class pure_fallmount(pure_fall):
         xy.columns = [i[1] for i in list(xy.columns)]
         new_pure = pure_fallmount(xy)
         return new_pure
-
-
-
 
 
 class pure_coldwinter(object):
@@ -2429,8 +2446,8 @@ class pure_newyear(object):
             每个组的年化收益率
         """
         return self.square_rets.copy()
-    
-    
+
+
 class pure_helper(object):
     def __init__(
         self,
@@ -2488,7 +2505,7 @@ class pure_helper(object):
         )
         df = df.pivot(index="date", columns="group", values="target")
         df.columns = [f"group{str(int(i+1))}" for i in list(df.columns)]
-        return df          
+        return df
 
 
 @do_on_dfs
@@ -2512,7 +2529,6 @@ def get_group(df: pd.DataFrame, group_num: int = 10) -> pd.DataFrame:
     df.columns = ["date", "code", "fac"]
     df = a.get_groups(df, group_num).pivot(index="date", columns="code", values="group")
     return df
-
 
 
 def symmetrically_orthogonalize(dfs: list[pd.DataFrame]) -> list[pd.DataFrame]:
@@ -2568,4 +2584,12 @@ def symmetrically_orthogonalize(dfs: list[pd.DataFrame]) -> list[pd.DataFrame]:
         ds.append(pd.concat(i))
     return ds
 
-        
+
+@do_on_dfs
+def sun(factor:pd.DataFrame,rolling_5:int=1):
+    if rolling_5:
+        factor=boom_one(factor)
+    shen=pure_moonnight(factor)
+    pfi=pure_snowtrain(factor)
+    shen=pure_moonnight(pfi,neutralize=1)
+    display(pfi.show_corr())

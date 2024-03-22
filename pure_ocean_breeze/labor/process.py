@@ -6947,3 +6947,5 @@ class pure_fall_nature:
             logger.success(f"暂存在questdb中的数据表格'{self.factor_file_pinyin}'已经删除")
         except Exception:
             logger.warning(f"您要删除的表格'{self.factor_file_pinyin}'已经不存在了，请检查")
+
+
