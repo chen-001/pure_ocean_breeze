@@ -36,6 +36,7 @@ from IPython.display import display
 from typing import Callable, Union, Dict, List, Tuple
 from pure_ocean_breeze.jason.data.read_data import (
     read_daily,
+    read_market,
     get_industry_dummies,
 )
 from pure_ocean_breeze.jason.state.homeplace import HomePlace
@@ -762,6 +763,7 @@ class pure_moon(object):
         "limit_downs",
         "data",
         "ic_icir_and_rank",
+        "big_small_rankic",
         "rets_monthly_limit_downs",
         "group_rets",
         "long_short_rets",
@@ -814,6 +816,11 @@ class pure_moon(object):
         "group_mean_rets_monthly",
         "not_ups",
         "not_downs",
+        "group1_ret_yearly",
+        "group10_ret_yearly",
+        "market_ret",
+        "long_minus_market_rets",
+        "long_minus_market_nets",
     ]
 
     @classmethod
@@ -876,6 +883,8 @@ class pure_moon(object):
             capitals = (
                 read_daily(flow_cap=1, start=STATES["START"]).resample(cls.freq).last()
             )
+        market=read_market(zz500=1,every_stock=0,close=1).resample(cls.freq).last()
+        cls.market_ret=market/market.shift(1)-1
         # 交易状态文件
         cls.states = states
         # Monday vwap
@@ -919,6 +928,7 @@ class pure_moon(object):
             self.factors, self.factors.shift(2), plt_plot=0
         )
         self.factor_cross_stds = self.factors.std(axis=1)
+        
 
     @classmethod
     @lru_cache(maxsize=None)
@@ -983,21 +993,27 @@ class pure_moon(object):
         df1 = df[["ret", "fac"]]
         ic = df1.corr(method="pearson").iloc[0, 1]
         rankic = df1.rank().corr().iloc[0, 1]
-        df2 = pd.DataFrame({"ic": [ic], "rankic": [rankic]})
+        small_ic=df1[df1.fac<=df1.fac.median()].rank().corr().iloc[0, 1]
+        big_ic=df1[df1.fac>=df1.fac.median()].rank().corr().iloc[0, 1]
+        df2 = pd.DataFrame({"ic": [ic], "rankic": [rankic],"small_rankic":[small_ic],"big_rankic":[big_ic]})
         return df2
 
     def get_icir_rankicir(cls, df):
         """计算ICIR和RankICIR"""
         ic = df.ic.mean()
         rankic = df.rankic.mean()
+        small_rankic=df.small_rankic.mean()
+        big_rankic=df.big_rankic.mean()
         # week_here
         icir = ic / np.std(df.ic) * (cls.freq_ctrl.counts_one_year ** (0.5))
         # week_here
         rankicir = rankic / np.std(df.rankic) * (cls.freq_ctrl.counts_one_year ** (0.5))
+        small_rankicir = small_rankic / np.std(df.small_rankic) * (cls.freq_ctrl.counts_one_year ** (0.5))
+        big_rankicir = big_rankic / np.std(df.big_rankic) * (cls.freq_ctrl.counts_one_year ** (0.5))
         return pd.DataFrame(
             {"IC": [ic], "ICIR": [icir], "RankIC": [rankic], "RankICIR": [rankicir]},
             index=["评价指标"],
-        )
+        ),pd.DataFrame({"1-5rankic":[small_rankic],"1-5ICIR":[small_rankicir],"6-10RankIC":[big_rankic],"6-10ICIR":[big_rankicir]},index=["评价指标"]).T
 
     def get_ic_icir_and_rank(cls, df):
         """计算IC、ICIR、RankIC、RankICIR"""
@@ -1006,13 +1022,14 @@ class pure_moon(object):
         cls.rankics = df1.rankic
         cls.ics = cls.ics.reset_index(drop=True, level=1).to_frame()
         cls.rankics = cls.rankics.reset_index(drop=True, level=1).to_frame()
-        df2 = cls.get_icir_rankicir(df1)
+        df2,df5 = cls.get_icir_rankicir(df1)
         df2 = df2.T
         dura = (df.date.max() - df.date.min()).days / 365
         t_value = df2.iloc[3, 0] * (dura ** (1 / 2))
         df3 = pd.DataFrame({"评价指标": [t_value]}, index=["RankIC.t"])
         df4 = pd.concat([df2, df3])
-        return df4
+        df
+        return df4,df5
 
     @classmethod
     def get_groups(cls, df, groups_num):
@@ -1040,7 +1057,7 @@ class pure_moon(object):
         self.data = pd.merge(
             self.rets_monthly, self.factors, how="inner", on=["date", "code"]
         )
-        self.ic_icir_and_rank = self.get_ic_icir_and_rank(self.data)
+        self.ic_icir_and_rank,self.big_small_rankic = self.get_ic_icir_and_rank(self.data)
         self.data = self.data.groupby("date").apply(
             lambda x: self.get_groups(x, groups_num)
         )
@@ -1134,6 +1151,8 @@ class pure_moon(object):
         self.long_short_net_values = self.make_start_to_one(
             self.long_short_rets.cumsum()
         )
+        self.long_minus_market_rets=self.group_rets.group1-self.market_ret
+        
         if self.long_short_net_values[-1] <= self.long_short_net_values[0]:
             self.long_short_rets = (
                 self.group_rets["group" + str(groups_num)] - self.group_rets["group1"]
@@ -1145,6 +1164,8 @@ class pure_moon(object):
                 self.group_rets["group" + str(groups_num)] - self.rets_all
             )
             self.inner_rets_short = self.rets_all - self.group_rets.group1
+            self.long_minus_market_rets=self.group_rets['group'+str(groups_num)]-self.market_ret
+        self.long_minus_market_nets=self.make_start_to_one(self.long_minus_market_rets.dropna().cumsum())
         self.inner_long_net_values = self.make_start_to_one(
             self.inner_rets_long.cumsum()
         )
@@ -1180,6 +1201,12 @@ class pure_moon(object):
         )
         self.inner_short_ret_yearly = self.inner_short_net_values[-1] * (
             self.freq_ctrl.counts_one_year / len(self.inner_short_net_values)
+        )
+        self.group1_ret_yearly= self.group_net_values["group1"][-1] * (
+            self.freq_ctrl.counts_one_year / len(self.group_net_values.group1)
+        )
+        self.group10_ret_yearly = self.group_net_values["group10"][-1] * (
+            self.freq_ctrl.counts_one_year / len(self.group_net_values.group10)
         )
         # week_here
         self.long_short_vol_yearly = np.std(self.long_short_rets) * (
@@ -1284,8 +1311,22 @@ class pure_moon(object):
                         "一阶自相关性",
                     ],
                 ),
+                self.big_small_rankic,
+                pd.DataFrame(
+                    {
+                        "评价指标": [
+                            self.group1_ret_yearly,
+                            self.group10_ret_yearly,
+                        ]
+                    },
+                    index=[
+                        "1组年化收益",
+                        "10组年化收益",
+                    ]
+                )
             ]
         )
+        # print(self.total_comments)
         self.group_mean_rets_monthly = self.group_rets.drop(
             columns=["long_short"]
         ).mean()
@@ -1309,13 +1350,13 @@ class pure_moon(object):
                 plt.savefig(filename_path)
         else:
 
-            tris = self.group_net_values
+            tris = self.group_net_values.drop(columns=['long_short'])
             if without_breakpoint:
                 tris = tris.dropna()
             figs = cf.figures(
                 tris,
                 [
-                    dict(kind="line", y=list(self.group_net_values.columns)),
+                    dict(kind="line", y=list(tris.columns)),
                     # dict(kind="bar", y="各组月均超均收益"),
                     # dict(kind="bar", y="rankic"),
                 ],
@@ -1330,11 +1371,12 @@ class pure_moon(object):
                 [
                     comments.iloc[:6, :].reset_index(drop=True),
                     comments.iloc[6:12, :].reset_index(drop=True),
-                    comments.iloc[12:, :].reset_index(drop=True),
+                    comments.iloc[12:18, :].reset_index(drop=True),
+                    comments.iloc[18:, :].reset_index(drop=True),
                 ],
                 axis=1,
             )
-            here.columns = ["信息系数", "结果", "绩效指标", "结果", "其他指标", "结果"]
+            here.columns = ["信息系数", "结果", "绩效指标", "结果", "其他指标", "结果","单侧","结果"]
             # here=here.to_numpy().tolist()+[['信息系数','结果','绩效指标','结果']]
             table = FF.create_table(here.iloc[::-1])
             table.update_yaxes(matches=None)
@@ -1348,16 +1390,16 @@ class pure_moon(object):
                 )
             )
             # table=go.Figure([go.Table(header=dict(values=list(here.columns)),cells=dict(values=here.to_numpy().tolist()))])
-            pic3_data = go.Bar(y=list(self.rankics.rankic), x=list(self.rankics.index))
+            pic3_data = go.Bar(y=list(self.rankics.rankic), x=list(self.rankics.index),marker_color="red")
             pic3 = go.Figure(data=[pic3_data])
-            pic4_data = go.Line(
+            pic5_data = go.Line(
                 y=list(self.rankics.rankic.cumsum()),
                 x=list(self.rankics.index),
                 name="y2",
                 yaxis="y2",
             )
-            pic4_layout = go.Layout(yaxis2=dict(title="y2", side="right"))
-            pic4 = go.Figure(data=[pic4_data], layout=pic4_layout)
+            pic5_layout = go.Layout(yaxis2=dict(title="y2", side="right"))
+            pic5 = go.Figure(data=[pic5_data], layout=pic5_layout)
             figs.append(table)
             figs = [figs[-1]] + figs[:-1]
             figs.append(pic2)
@@ -1366,24 +1408,33 @@ class pure_moon(object):
                 legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
             )
             figs[3].update_layout(yaxis2=dict(title="y2", side="right"))
+            # twins=pd.concat([self.long_short_net_values,self.long_minus_market_nets],axis=1)
+            pic4=go.Figure()
+            figs.append(pic4)
+            figs[4].add_trace(go.Line(x=self.long_short_net_values.index,y=self.long_short_net_values,name='long_short'))
+            figs[4].add_trace(go.Line(x=self.long_minus_market_nets.index,y=self.long_minus_market_nets,name='long_minus_market'))
+            figs.append(pic5)
             base_layout = cf.tools.get_base_layout(figs)
 
             sp = cf.subplots(
                 figs,
-                shape=(2, 12),
+                shape=(2, 14),
                 base_layout=base_layout,
                 vertical_spacing=0.15,
                 horizontal_spacing=0.03,
                 shared_yaxes=False,
                 specs=[
                     [
+                        # None,
+                        {"rowspan": 2, "colspan": 5},
                         None,
-                        {"rowspan": 2, "colspan": 4},
                         None,
                         None,
                         None,
-                        {"rowspan": 2, "colspan": 4},
+                        {"rowspan": 2, "colspan": 3},
                         None,
+                        None,
+                        {"colspan": 3},
                         None,
                         None,
                         {"colspan": 3},
@@ -1391,6 +1442,7 @@ class pure_moon(object):
                         None,
                     ],
                     [
+                        # None,
                         None,
                         None,
                         None,
@@ -1398,6 +1450,8 @@ class pure_moon(object):
                         None,
                         None,
                         None,
+                        None,
+                        {"colspan": 3},
                         None,
                         None,
                         {"colspan": 3},
@@ -1412,7 +1466,8 @@ class pure_moon(object):
                     "绩效指标",
                 ],
             )
-            sp["layout"].update(showlegend=ilegend)
+            sp["layout"].update(showlegend=ilegend,width=1800,height=230)
+            # sp['colors']=['#FF5733', '#33FF57', '#3357FF']
             # los=sp['layout']['annotations']
             # los[0]['font']['color']='#000000'
             # los[1]['font']['color']='#000000'
@@ -1711,7 +1766,7 @@ class pure_moonnight(object):
         no_read_indu: bool = 0,
         only_cap: bool = 0,
         iplot: bool = 1,
-        ilegend: bool = 1,
+        ilegend: bool = 0,
         without_breakpoint: bool = 0,
         total_cap: bool = 0,
     ) -> None:
