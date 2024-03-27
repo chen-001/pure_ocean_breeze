@@ -1013,7 +1013,7 @@ class pure_moon(object):
         return pd.DataFrame(
             {"IC": [ic], "ICIR": [icir], "RankIC": [rankic], "RankICIR": [rankicir]},
             index=["评价指标"],
-        ),pd.DataFrame({"1-5rankic":[small_rankic],"1-5ICIR":[small_rankicir],"6-10RankIC":[big_rankic],"6-10ICIR":[big_rankicir]},index=["评价指标"]).T
+        ),pd.DataFrame({"1-5RankIC":[small_rankic],"1-5ICIR":[small_rankicir],"6-10RankIC":[big_rankic],"6-10ICIR":[big_rankicir]},index=["评价指标"]).T
 
     def get_ic_icir_and_rank(cls, df):
         """计算IC、ICIR、RankIC、RankICIR"""

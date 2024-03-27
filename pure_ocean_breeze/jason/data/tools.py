@@ -978,6 +978,28 @@ def lu计算连续期数2(
     continuous_ones = reset_cumsum * is_one
     return continuous_ones.replace(0, nan_value)
 
+
+def lu计算连续期数长度(s:Union[pd.Series,pd.DataFrame],final_mean=1)->Union[float,pd.Series,pd.DataFrame]:
+    if isinstance(s,pd.DataFrame):
+        return s.apply(lambda x:lu计算连续期数长度(x,final_mean))
+    else:
+        # 标识非 NaN 值
+        not_nan = s.notnull()
+
+        # 计算连续非 NaN 值的分组
+        groups = not_nan.ne(not_nan.shift()).cumsum()[not_nan]
+
+        # 计算每段连续非 NaN 值的长度
+        segment_lengths = groups.value_counts().sort_index()
+
+        # 计算平均长度
+        average_length = segment_lengths.mean()
+        if not final_mean:
+            return segment_lengths.values
+        else:
+            return segment_lengths.mean()
+
+
 @do_on_dfs
 def is_pos(s: Union[pd.Series, pd.DataFrame],zero_as_pos:bool=1) -> Union[pd.Series, pd.DataFrame]:
     if zero_as_pos:
@@ -993,9 +1015,9 @@ def is_neg(s: Union[pd.Series, pd.DataFrame],zero_as_neg:bool=1) -> Union[pd.Ser
         return np.sign(s).replace(0,np.nan).replace(1,np.nan).replace(-1,1)
     
 @do_on_dfs
-def get_pos_value(s: Union[pd.Series, pd.DataFrame],zero_as_pos:bool=1) -> Union[pd.Series, pd.DataFrame]:
-    return s * is_pos(s,zero_as_pos)
+def get_pos_value(s: Union[pd.Series, pd.DataFrame],judge_sign:Union[float,pd.Series, pd.DataFrame],zero_as_pos:bool=1) -> Union[pd.Series, pd.DataFrame]:
+    return s * is_pos(s-judge_sign,zero_as_pos)
 
 @do_on_dfs
-def get_neg_value(s: Union[pd.Series, pd.DataFrame],zero_as_neg:bool=1) -> Union[pd.Series, pd.DataFrame]:
-    return s * is_neg(s,zero_as_neg)
+def get_neg_value(s: Union[pd.Series, pd.DataFrame],judge_sign:Union[float,pd.Series, pd.DataFrame],zero_as_neg:bool=1) -> Union[pd.Series, pd.DataFrame]:
+    return s * is_neg(s-judge_sign,zero_as_neg)
