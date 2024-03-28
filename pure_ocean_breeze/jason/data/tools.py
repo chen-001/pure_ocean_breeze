@@ -979,6 +979,55 @@ def lu计算连续期数2(
     return continuous_ones.replace(0, nan_value)
 
 
+def lu计算连续期数奇正偶反(s:Union[pd.Series,pd.DataFrame])->Union[pd.Series,pd.DataFrame]:
+    if isinstance(s,pd.DataFrame):
+        return s.apply(lu计算连续期数奇正偶反)
+    else:
+        s=s.reset_index(drop=True)
+        # 用于标记每个连续非NaN片段
+        s_diff = (~s.isna()).astype(int).diff().fillna(1).cumsum()
+
+        # 对每个连续片段进行编号（1开始）
+        segment_nums = s_diff[s_diff.diff().fillna(1) != 0].cumsum()
+
+        # 将连续片段编号映射回原始序列
+        s_mapped = segment_nums.reindex_like(s).ffill().fillna(0)
+
+        # 对每个连续非NaN片段生成顺序序列
+        order = s.groupby(s_mapped).cumcount() + 1
+
+        # 计算每个连续非NaN片段的长度
+        segment_lengths = s.groupby(s_mapped).transform('count')
+
+        # 对偶数编号的片段进行逆序排列
+        s[s.notna()] = np.where(s_mapped % 2 == 1, order, segment_lengths[s_mapped == s_mapped] - order + 1)
+        return s.values
+    
+def lu计算连续期数偶正奇反(s:Union[pd.Series,pd.DataFrame])->Union[pd.Series,pd.DataFrame]:
+    if isinstance(s,pd.DataFrame):
+        return s.apply(lu计算连续期数偶正奇反)
+    else:
+        s=s.reset_index(drop=True)
+        # 用于标记每个连续非NaN片段
+        s_diff = (~s.isna()).astype(int).diff().fillna(1).cumsum()
+
+        # 对每个连续片段进行编号（1开始）
+        segment_nums = s_diff[s_diff.diff().fillna(1) != 0].cumsum()
+
+        # 将连续片段编号映射回原始序列
+        s_mapped = segment_nums.reindex_like(s).ffill().fillna(0)
+
+        # 对每个连续非NaN片段生成顺序序列
+        order = s.groupby(s_mapped).cumcount() + 1
+
+        # 计算每个连续非NaN片段的长度
+        segment_lengths = s.groupby(s_mapped).transform('count')
+
+        # 对偶数编号的片段进行逆序排列
+        s[s.notna()] = np.where(s_mapped % 2 == 1, segment_lengths[s_mapped == s_mapped] - order + 1, order)
+        return s.values
+
+
 def lu计算连续期数长度(s:Union[pd.Series,pd.DataFrame],final_mean=1)->Union[float,pd.Series,pd.DataFrame]:
     if isinstance(s,pd.DataFrame):
         return s.apply(lambda x:lu计算连续期数长度(x,final_mean))
@@ -999,6 +1048,71 @@ def lu计算连续期数长度(s:Union[pd.Series,pd.DataFrame],final_mean=1)->Un
         else:
             return segment_lengths.mean()
 
+
+def lu标记连续片段(s:Union[pd.Series,pd.DataFrame],label_nan=0)->Union[pd.Series,pd.DataFrame]:
+    not_nan = ~s.isna()
+    segment_starts = not_nan.diff().fillna(True)  # 对序列首个元素填充True，因为diff会产生NaN
+
+    # 为每个连续片段分配一个唯一标识符
+    segments = segment_starts.cumsum()
+
+    # 仅对非NaN片段应用标识符，NaN值保持不变
+    if not label_nan:
+        return segments*np.sign(s.abs()+1)
+    else:
+        return segments
+    
+def lu删去连续片段中的最大值(s:Union[pd.Series,pd.DataFrame])->Union[pd.Series,pd.DataFrame]:
+    if isinstance(s,pd.DataFrame):
+        return s.apply(lu删去连续片段中的最大值)
+    else:
+        # 生成连续片段的标识符
+        s_diff = s.isna().astype(int).diff().fillna(0).ne(0).cumsum()
+
+        # 对每个片段使用transform找到最大值
+        max_vals = s.groupby(s_diff).transform('max')
+
+        # 将原始序列中等于最大值的元素替换为NaN
+        s[s == max_vals] = np.nan
+        return s
+
+
+def lu仅保留连续片段中的最大值(s:Union[pd.Series,pd.DataFrame])->Union[pd.Series,pd.DataFrame]:
+    if isinstance(s,pd.DataFrame):
+        return s.apply(lu删去连续片段中的最大值)
+    else:
+        # 生成连续片段的标识符
+        s_diff = s.isna().astype(int).diff().fillna(0).ne(0).cumsum()
+
+        # 对每个片段使用transform找到最大值
+        max_vals = s.groupby(s_diff).transform('max')
+
+        # 将原始序列中等于最大值的元素替换为NaN
+        s[s != max_vals] = np.nan
+        return s
+
+def lu删去连续片段中的最大值及其后面的值(s:Union[pd.Series,pd.DataFrame])->Union[pd.Series,pd.DataFrame]:
+    if isinstance(s,pd.DataFrame):
+        return s.apply(lu删去连续片段中的最大值及其后面的值)
+    else:
+        # 生成连续片段的标识符
+        s_diff = s.isna().astype(int).diff().fillna(0).ne(0).cumsum()
+
+        # 对每个片段使用transform找到最大值
+        max_vals = s.groupby(s_diff).transform('max')
+
+        # 使用cummax标记最大值及其之后的值
+        max_flag = (s.groupby(s_diff).cummax() == max_vals).astype(int)
+
+        # 使用cumsum在每个片段内生成标记，从最大值开始累加
+        max_flag_cum = max_flag.groupby(s_diff).cumsum()
+
+        # 将标记的值替换为NaN
+        s[max_flag_cum > 0] = np.nan
+        return s
+    
+def lu删去连续片段中的最大值及其前面的值(s:Union[pd.Series,pd.DataFrame])->Union[pd.Series,pd.DataFrame]:
+    return lu删去连续片段中的最大值及其后面的值(s[::-1])[::-1]
 
 @do_on_dfs
 def is_pos(s: Union[pd.Series, pd.DataFrame],zero_as_pos:bool=1) -> Union[pd.Series, pd.DataFrame]:

@@ -1378,7 +1378,7 @@ class pure_moon(object):
             )
             here.columns = ["信息系数", "结果", "绩效指标", "结果", "其他指标", "结果","单侧","结果"]
             # here=here.to_numpy().tolist()+[['信息系数','结果','绩效指标','结果']]
-            table = FF.create_table(here.iloc[::-1])
+            table = FF.create_table(here.iloc[::-1],xgap=0)
             table.update_yaxes(matches=None)
             pic2 = go.Figure(
                 go.Bar(
@@ -1421,7 +1421,7 @@ class pure_moon(object):
                 shape=(2, 14),
                 base_layout=base_layout,
                 vertical_spacing=0.15,
-                horizontal_spacing=0.03,
+                horizontal_spacing=0.025,
                 shared_yaxes=False,
                 specs=[
                     [
@@ -1466,7 +1466,7 @@ class pure_moon(object):
                     "绩效指标",
                 ],
             )
-            sp["layout"].update(showlegend=ilegend,width=1800,height=230)
+            sp["layout"].update(showlegend=ilegend,width=1780,height=230,margin=dict(l=0, r=0, b=0, t=0, pad=0))
             # sp['colors']=['#FF5733', '#33FF57', '#3357FF']
             # los=sp['layout']['annotations']
             # los[0]['font']['color']='#000000'
