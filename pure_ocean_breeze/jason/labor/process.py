@@ -821,6 +821,8 @@ class pure_moon(object):
         "market_ret",
         "long_minus_market_rets",
         "long_minus_market_nets",
+        "inner_rets_long",
+        "inner_rets_short",
     ]
 
     @classmethod
@@ -1887,6 +1889,11 @@ class pure_moonnight(object):
                 )
             elif freq == "W":
                 self.shen = pure_week(
+                    freq=freq,
+                    no_read_indu=no_read_indu,
+                )
+            elif freq == "D":
+                self.shen = pure_moon(
                     freq=freq,
                     no_read_indu=no_read_indu,
                 )

@@ -965,6 +965,10 @@ def lu计算连续期数2(
     judge_number: float = 1,
     nan_value: float = np.nan,
 ) -> Union[pd.Series, pd.DataFrame]:
+    """
+    <<注意！使用此函数时，目标df的值必须全为1或nan！！！>>
+    """
+      
     # 将Series中的值转换为布尔值，1为True，其余为False
     is_one = s == judge_number
 
@@ -977,6 +981,13 @@ def lu计算连续期数2(
     # 在每个连续的1区块内，使用cumsum计算连续1的个数
     continuous_ones = reset_cumsum * is_one
     return continuous_ones.replace(0, nan_value)
+
+
+def lu计算连续期数2片段递增(s:Union[pd.Series,pd.DataFrame])->Union[pd.Series,pd.DataFrame]:
+    return lu计算连续期数2(s)+lu标记连续片段(s)
+
+def lu计算连续期数2片段递减(s:Union[pd.Series,pd.DataFrame])->Union[pd.Series,pd.DataFrame]:
+    return lu计算连续期数2(s)-lu标记连续片段(s)
 
 
 def lu计算连续期数奇正偶反(s:Union[pd.Series,pd.DataFrame])->Union[pd.Series,pd.DataFrame]:
@@ -1049,7 +1060,7 @@ def lu计算连续期数长度(s:Union[pd.Series,pd.DataFrame],final_mean=1)->Un
             return segment_lengths.mean()
 
 
-def lu标记连续片段(s:Union[pd.Series,pd.DataFrame],label_nan=0)->Union[pd.Series,pd.DataFrame]:
+def lu标记连续片段(s:Union[pd.Series,pd.DataFrame],label_nan=0,number_continuous=1)->Union[pd.Series,pd.DataFrame]:
     not_nan = ~s.isna()
     segment_starts = not_nan.diff().fillna(True)  # 对序列首个元素填充True，因为diff会产生NaN
 
@@ -1058,9 +1069,10 @@ def lu标记连续片段(s:Union[pd.Series,pd.DataFrame],label_nan=0)->Union[pd.
 
     # 仅对非NaN片段应用标识符，NaN值保持不变
     if not label_nan:
-        return segments*np.sign(s.abs()+1)
-    else:
-        return segments
+        segments=segments*np.sign(s.abs()+1)
+    if number_continuous:
+        segments=(segments+1)//2
+    return segments
     
 def lu删去连续片段中的最大值(s:Union[pd.Series,pd.DataFrame])->Union[pd.Series,pd.DataFrame]:
     if isinstance(s,pd.DataFrame):
@@ -1076,6 +1088,9 @@ def lu删去连续片段中的最大值(s:Union[pd.Series,pd.DataFrame])->Union[
         s[s == max_vals] = np.nan
         return s
 
+def lu删去连续片段中的最小值(s:Union[pd.Series,pd.DataFrame])->Union[pd.Series,pd.DataFrame]:
+    return -lu删去连续片段中的最大值(-s)
+
 
 def lu仅保留连续片段中的最大值(s:Union[pd.Series,pd.DataFrame])->Union[pd.Series,pd.DataFrame]:
     if isinstance(s,pd.DataFrame):
@@ -1090,6 +1105,9 @@ def lu仅保留连续片段中的最大值(s:Union[pd.Series,pd.DataFrame])->Uni
         # 将原始序列中等于最大值的元素替换为NaN
         s[s != max_vals] = np.nan
         return s
+
+def lu仅保留连续片段中的最小值(s:Union[pd.Series,pd.DataFrame])->Union[pd.Series,pd.DataFrame]:
+    return -lu仅保留连续片段中的最大值(-s)
 
 def lu删去连续片段中的最大值及其后面的值(s:Union[pd.Series,pd.DataFrame])->Union[pd.Series,pd.DataFrame]:
     if isinstance(s,pd.DataFrame):
@@ -1111,8 +1129,15 @@ def lu删去连续片段中的最大值及其后面的值(s:Union[pd.Series,pd.D
         s[max_flag_cum > 0] = np.nan
         return s
     
+def lu删去连续片段中的最小值及其后面的值(s:Union[pd.Series,pd.DataFrame])->Union[pd.Series,pd.DataFrame]:
+    return -lu删去连续片段中的最大值及其后面的值(-s)
+
 def lu删去连续片段中的最大值及其前面的值(s:Union[pd.Series,pd.DataFrame])->Union[pd.Series,pd.DataFrame]:
     return lu删去连续片段中的最大值及其后面的值(s[::-1])[::-1]
+
+def lu删去连续片段中的最小值及其前面的值(s:Union[pd.Series,pd.DataFrame])->Union[pd.Series,pd.DataFrame]:
+    return -lu删去连续片段中的最大值及其前面的值(-s)
+
 
 @do_on_dfs
 def is_pos(s: Union[pd.Series, pd.DataFrame],zero_as_pos:bool=1) -> Union[pd.Series, pd.DataFrame]:
@@ -1135,3 +1160,7 @@ def get_pos_value(s: Union[pd.Series, pd.DataFrame],judge_sign:Union[float,pd.Se
 @do_on_dfs
 def get_neg_value(s: Union[pd.Series, pd.DataFrame],judge_sign:Union[float,pd.Series, pd.DataFrame],zero_as_neg:bool=1) -> Union[pd.Series, pd.DataFrame]:
     return s * is_neg(s-judge_sign,zero_as_neg)
+
+@do_on_dfs
+def count_pos_neg(s:Union[pd.Series,pd.DataFrame]):
+    print("正数个数:",is_pos(s).sum().sum(),"负数个数:",is_neg(s).sum().sum())
