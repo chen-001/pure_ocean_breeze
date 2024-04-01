@@ -10,9 +10,9 @@ import tqdm.auto
 import scipy.stats as ss
 from scipy.optimize import linprog
 import statsmodels.formula.api as smf
-import matplotlib as mpl
+# import matplotlib as mpl
 
-mpl.rcParams.update(mpl.rcParamsDefault)
+# mpl.rcParams.update(mpl.rcParamsDefault)
 import matplotlib.pyplot as plt
 
 plt.rcParams["axes.unicode_minus"] = False

@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: pure-ocean-breeze
-Version: 4.1.0
+Version: 4.1.7
 Summary: stock factor test
 Home-page: https://github.com/chen-001/pure_ocean_breeze.git
 Author: chenzongwei
@@ -9,10 +9,43 @@ License: MIT
 Project-URL: Documentation, https://chen-001.github.io/pure_ocean_breeze/
 Requires-Python: >=3
 Description-Content-Type: text/markdown
-Provides-Extra: windows
-Provides-Extra: macos
-Provides-Extra: linux
 License-File: LICENSE
+Requires-Dist: pandas<=1.5.3
+Requires-Dist: scipy
+Requires-Dist: statsmodels
+Requires-Dist: plotly
+Requires-Dist: pyarrow
+Requires-Dist: loguru
+Requires-Dist: knockknock
+Requires-Dist: dcube
+Requires-Dist: tenacity
+Requires-Dist: pickledb
+Requires-Dist: pymysql
+Requires-Dist: sqlalchemy
+Requires-Dist: requests
+Requires-Dist: bs4
+Requires-Dist: wrapt_timeout_decorator
+Requires-Dist: pyfinance
+Requires-Dist: texttable
+Requires-Dist: numpy_ext
+Requires-Dist: xpinyin
+Requires-Dist: cufflinks
+Requires-Dist: clickhouse_sqlalchemy
+Requires-Dist: tradetime
+Requires-Dist: deprecation
+Requires-Dist: questdb
+Requires-Dist: mpire
+Requires-Dist: py7zr
+Requires-Dist: unrar
+Requires-Dist: rarfile
+Requires-Dist: chardet
+Requires-Dist: psycopg2-binary
+Provides-Extra: windows
+Requires-Dist: psycopg2; extra == "windows"
+Provides-Extra: macos
+Requires-Dist: psycopg2-binary; extra == "macos"
+Provides-Extra: linux
+Requires-Dist: psycopg2-binary; extra == "linux"
 
 # pure_ocean_breeze 
 #### **众人的因子框架**
