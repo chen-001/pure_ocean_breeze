@@ -2649,6 +2649,7 @@ def symmetrically_orthogonalize(dfs: list[pd.DataFrame]) -> list[pd.DataFrame]:
 
 @do_on_dfs
 def sun(factor:pd.DataFrame,rolling_5:int=1):
+    '''先单因子测试，再测试其与常用风格之间的关系'''
     if rolling_5:
         factor=boom_one(factor)
     shen=pure_moonnight(factor)
