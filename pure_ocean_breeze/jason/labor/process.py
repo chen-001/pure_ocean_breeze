@@ -954,14 +954,15 @@ class pure_moon(object):
             ols_result = smf.ols("fac~cap_size+" + industry_codes_str, data=df).fit()
         else:
             ols_result = smf.ols("fac~cap_size", data=df).fit()
-        ols_w = ols_result.params["cap_size"]
-        ols_b = ols_result.params["Intercept"]
-        ols_bs = {}
-        for ind in industry_codes:
-            ols_bs[ind] = ols_result.params[ind]
-        df.fac = df.fac - ols_w * df.cap_size - ols_b
-        for k, v in ols_bs.items():
-            df.fac = df.fac - v * df[k]
+        # ols_w = ols_result.params["cap_size"]
+        # ols_b = ols_result.params["Intercept"]
+        # ols_bs = {}
+        # for ind in industry_codes:
+        #     ols_bs[ind] = ols_result.params[ind]
+        # df.fac = df.fac - ols_w * df.cap_size - ols_b
+        # for k, v in ols_bs.items():
+        #     df.fac = df.fac - v * df[k]
+        df.fac=ols_result.resid
         df = df[["fac"]]
         return df
 
@@ -986,7 +987,7 @@ class pure_moon(object):
             )
 
         self.factors = self.factors.set_index(["date", "code"])
-        self.factors = self.factors.groupby(["date"]).apply(self.neutralize_factors)
+        self.factors = self.factors.groupby(["date"],as_index=False).apply(self.neutralize_factors)
         self.factors = self.factors.reset_index()
         self.factors = self.factors.pivot(index="date", columns="code", values="fac")
 
@@ -2357,11 +2358,14 @@ class pure_coldwinter(object):
         """获得纯净因子"""
         self.snow_fac = (
             self.corr_pri.set_index(["date", "code"])
-            .groupby(["date"])
+            .groupby(["date"],as_index=False)
             .apply(self.ols_in_group)
         )
-        self.snow_fac = self.snow_fac.unstack()
-        self.snow_fac.columns = list(map(lambda x: x[1], list(self.snow_fac.columns)))
+        if 'date' in self.snow_fac.columns:
+            self.snow_fac=self.snow_fac.rename(columns={'date':'old_date'})
+        # self.snow_fac = self.snow_fac.unstack()
+        # self.snow_fac.columns = list(map(lambda x: x[1], list(self.snow_fac.columns)))
+        self.snow_fac=self.snow_fac.reset_index().pivot(index='date',columns='code',values='fac')
 
 
 @do_on_dfs
