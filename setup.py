@@ -42,7 +42,7 @@ install_requires = [
     "clickhouse_sqlalchemy",
     "tradetime",
     "deprecation",
-    "questdb",
+    "questdb==1.1.0",
     "mpire",
     "py7zr",
     "unrar",
