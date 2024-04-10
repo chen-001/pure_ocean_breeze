@@ -305,7 +305,7 @@ class Questdb(DriverOfPostgre):
     def __addapt_numpy_int64(self, numpy_int64):
         return AsIs(numpy_int64)
 
-    # @retry(stop=stop_after_attempt(10), wait=wait_fixed(3))
+    @retry(stop=stop_after_attempt(10), wait=wait_fixed(3))
     def write_via_df(
         self,
         df: pd.DataFrame,

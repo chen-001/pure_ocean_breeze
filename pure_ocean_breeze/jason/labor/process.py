@@ -26,6 +26,7 @@ import plotly.express as pe
 import plotly.io as pio
 from plotly.tools import FigureFactory as FF
 import plotly.graph_objects as go
+import mpire
 
 from texttable import Texttable
 
@@ -944,9 +945,10 @@ class pure_moon(object):
         cls.rets_monthly = cls.rets_monthly.stack().reset_index()
         cls.rets_monthly.columns = ["date", "code", "ret"]
 
-    @classmethod
-    def neutralize_factors(cls, df):
+    # @classmethod
+    def neutralize_factors(self, date):
         """组内对因子进行市值中性化"""
+        df=self.factors[self.factors.date==date].set_index(['date','code'])
         industry_codes = list(df.columns)
         industry_codes = [i for i in industry_codes if i.startswith("w")]
         industry_codes_str = "+".join(industry_codes)
@@ -954,14 +956,6 @@ class pure_moon(object):
             ols_result = smf.ols("fac~cap_size+" + industry_codes_str, data=df).fit()
         else:
             ols_result = smf.ols("fac~cap_size", data=df).fit()
-        # ols_w = ols_result.params["cap_size"]
-        # ols_b = ols_result.params["Intercept"]
-        # ols_bs = {}
-        # for ind in industry_codes:
-        #     ols_bs[ind] = ols_result.params[ind]
-        # df.fac = df.fac - ols_w * df.cap_size - ols_b
-        # for k, v in ols_bs.items():
-        #     df.fac = df.fac - v * df[k]
         df.fac=ols_result.resid
         df = df[["fac"]]
         return df
@@ -986,8 +980,10 @@ class pure_moon(object):
                 self.factors, self.swindustry_dummy, on=["date", "code"]
             )
 
-        self.factors = self.factors.set_index(["date", "code"])
-        self.factors = self.factors.groupby(["date"],as_index=False).apply(self.neutralize_factors)
+        dates=list(set(self.factors.date))
+        with mpire.WorkerPool(30) as pool:
+            res=pool.map(self.neutralize_factors,dates)
+        self.factors = pd.concat(res)
         self.factors = self.factors.reset_index()
         self.factors = self.factors.pivot(index="date", columns="code", values="fac")
 
@@ -2281,13 +2277,13 @@ class pure_coldwinter(object):
             barras = {k: v for k, v in barras.items() if k != "booktoprice"}
             rename_dict = {k: v for k, v in rename_dict.items() if k != "booktoprice"}
         facs_dict = {
-            "反转_20天收益率均值": boom_one(read_daily(ret=1)),
+            "反转_5天收益率均值": boom_one(read_daily(ret=1)),
             "波动_20天收益率标准差": read_daily(ret=1)
             .rolling(20, min_periods=10)
             .std()
             .resample("W")
             .last(),
-            "换手_20天换手率均值": boom_one(read_daily(tr=1)),
+            "换手_5天换手率均值": boom_one(read_daily(tr=1)),
         }
         barras.update(facs_dict)
         rename_dict.update({k: k for k in facs_dict.keys()})
@@ -2338,35 +2334,45 @@ class pure_coldwinter(object):
         """
         return self.__corr.copy()
 
-    def ols_in_group(self, df):
+    def ols_in_group(self, date):
         """对每个时间段进行回归，并计算残差"""
+        df=self.corr_pri[self.corr_pri.date==date].set_index(['date','code'])
         xs = list(df.columns)
         xs = [i for i in xs if i != "fac"]
         xs_join = "+".join(xs)
         ols_formula = "fac~" + xs_join
         ols_result = smf.ols(ols_formula, data=df).fit()
-        ols_ws = {i: ols_result.params[i] for i in xs}
-        ols_b = ols_result.params["Intercept"]
-        to_minus = [ols_ws[i] * df[i] for i in xs]
-        to_minus = reduce(lambda x, y: x + y, to_minus)
-        df = df.assign(snow_fac=df.fac - to_minus - ols_b)
-        df = df[["snow_fac"]]
-        df = df.rename(columns={"snow_fac": "fac"})
-        return df
+        df.fac = ols_result.resid
+        return df[['fac']]
 
     def get_snow_fac(self):
         """获得纯净因子"""
-        self.snow_fac = (
-            self.corr_pri.set_index(["date", "code"])
-            .groupby(["date"],as_index=False)
-            .apply(self.ols_in_group)
-        )
+        dates=list(set(self.corr_pri.date))
+        # dates=[self.corr_pri[self.corr_pri.date==i].set_index(['date','code']) for i in dates]
+        # print(dates[0])
+        with mpire.WorkerPool(30) as pool:
+            res=pool.map(self.ols_in_group,dates)
+        self.snow_fac = pd.concat(res)
+        # self.snow_fac = (
+        #     self.corr_pri.set_index(["date", "code"])
+        #     .groupby(["date"],as_index=False)
+        #     .apply(self.ols_in_group)
+        # )
         if 'date' in self.snow_fac.columns:
             self.snow_fac=self.snow_fac.rename(columns={'date':'old_date'})
         # self.snow_fac = self.snow_fac.unstack()
         # self.snow_fac.columns = list(map(lambda x: x[1], list(self.snow_fac.columns)))
         self.snow_fac=self.snow_fac.reset_index().pivot(index='date',columns='code',values='fac')
 
+def ols_in_group(df):
+    """对每个时间段进行回归，并计算残差"""
+    xs = list(df.columns)
+    xs = [i for i in xs if i != "fac"]
+    xs_join = "+".join(xs)
+    ols_formula = "fac~" + xs_join
+    ols_result = smf.ols(ols_formula, data=df).fit()
+    df.fac = ols_result.resid
+    return df[['fac']]
 
 @do_on_dfs
 class pure_snowtrain(object):
