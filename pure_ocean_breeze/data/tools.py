@@ -99,7 +99,7 @@ def convert_code(x: str) -> Tuple[str, str]:
 
 
 @do_on_dfs
-def add_suffix(code:str)->str:
+def add_suffix(code: str) -> str:
     """给股票代码加上后缀
 
     Parameters
@@ -111,7 +111,7 @@ def add_suffix(code:str)->str:
     -------
     str
         添加完后缀后的股票代码，如000001.SZ
-    """    
+    """
     if not isinstance(code, str):
         code = str(code)
     if len(code) < 6:
@@ -288,8 +288,6 @@ def add_suffix(code: str) -> str:
     else:
         code = code + ".UN"
     return code
-
-
 
 
 @do_on_dfs
@@ -537,7 +535,7 @@ class pure_dawn(object):
                 old_date = old.index.max()
                 if old_date == self.fac.date.max():
                     logger.info(f"本地文件已经是最新的了，无需计算")
-                    self.fac=old
+                    self.fac = old
                 else:
                     try:
                         new_date = self.find_begin(
@@ -624,9 +622,13 @@ class pure_dawn(object):
                 self.fac.to_parquet(homeplace.update_data_file + history_file)
                 logger.success(f"本地文件已经写入完成")
         else:
-            logger.warning("您本次计算没有指定任何本地文件路径，这很可能会导致大量的重复计算和不必要的时间浪费，请注意！")
+            logger.warning(
+                "您本次计算没有指定任何本地文件路径，这很可能会导致大量的重复计算和不必要的时间浪费，请注意！"
+            )
             if daily:
-                logger.warning("您指定的是日频计算，非月频计算，因此强烈建议您指定history_file参数！！")
+                logger.warning(
+                    "您指定的是日频计算，非月频计算，因此强烈建议您指定history_file参数！！"
+                )
             if whole_cross:
                 for end_date in tqdm.auto.tqdm(iter_item):
                     start_date = self.find_begin(self.tradedays, end_date, self.backsee)
@@ -930,7 +932,9 @@ def func_two_daily(
                 logger.info(f"已经更新至{new_end}")
             return cors
     else:
-        logger.warning("您本次计算没有指定任何本地文件路径，这很可能会导致大量的重复计算和不必要的时间浪费，请注意！")
+        logger.warning(
+            "您本次计算没有指定任何本地文件路径，这很可能会导致大量的重复计算和不必要的时间浪费，请注意！"
+        )
         twins = merge_many([df1, df2])
         tqdm.auto.tqdm.pandas()
         corrs = twins.groupby(["code"]).progress_apply(func_rolling)
@@ -1098,7 +1102,7 @@ def detect_nan(df: pd.DataFrame) -> bool:
 
 
 @do_on_dfs
-def get_abs(df: pd.DataFrame, quantile: float=None, square: bool = 0) -> pd.DataFrame:
+def get_abs(df: pd.DataFrame, quantile: float = None, square: bool = 0) -> pd.DataFrame:
     """均值距离化：计算因子与截面均值的距离
 
     Parameters
@@ -1452,7 +1456,9 @@ def feather_to_parquet_all():
     feather_to_parquet(homeplace.final_factor_file)
     feather_to_parquet(homeplace.update_data_file)
     feather_to_parquet(homeplace.factor_data_file)
-    logger.success("数据库中的feather文件全部被转化为了parquet文件，您可以手动删除所有的feather文件了")
+    logger.success(
+        "数据库中的feather文件全部被转化为了parquet文件，您可以手动删除所有的feather文件了"
+    )
 
 
 def zip_many_dfs(dfs: List[pd.DataFrame]) -> pd.DataFrame:
@@ -1886,7 +1892,9 @@ def clip_mad(
             df = df.reset_index()
         except Exception:
             ...
-        df = df.drop_duplicates(subset=['date','code']).pivot(index="date", columns="code", values="fac")
+        df = df.drop_duplicates(subset=["date", "code"]).pivot(
+            index="date", columns="code", values="fac"
+        )
         return df
     elif replace:
 

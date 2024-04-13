@@ -498,6 +498,7 @@ def show_corrs(
         factor_names = [f"fac{i}" for i in list(range(1, len(factors) + 1))]
     corrs = pd.DataFrame(corrs, columns=factor_names, index=factor_names)
     np.fill_diagonal(corrs.to_numpy(), 1)
+    corrs=pd.DataFrame(corrs.fillna(0).to_numpy()+corrs.fillna(0).to_numpy().T-np.diag(np.diag(corrs)),index=corrs.index,columns=corrs.columns)
     if show_percent:
         pcorrs = corrs.applymap(to_percent)
     else:
