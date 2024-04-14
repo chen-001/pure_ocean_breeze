@@ -32,7 +32,10 @@ from texttable import Texttable
 
 import cufflinks as cf
 
-cf.set_config_file(offline=True)
+try:
+    cf.set_config_file(offline=True)
+except Exception:
+    pass
 from IPython.display import display
 from typing import Callable, Union, Dict, List, Tuple
 from pure_ocean_breeze.jason.data.read_data import (

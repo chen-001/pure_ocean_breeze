@@ -951,7 +951,7 @@ def jason_to_wind(df: pd.DataFrame):
     df1 = df.copy()
     df1.index = pd.to_datetime(df1.index.astype(str))
     df1.columns = [add_suffix(i) for i in df1.columns]
-    return df
+    return df1
 
 
 @do_on_dfs
