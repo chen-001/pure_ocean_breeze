@@ -13,6 +13,7 @@ import numpy as np
 import scipy.stats as ss
 from functools import reduce, partial
 from typing import Callable, Union, Dict, List, Tuple
+import joblib
 
 from pure_ocean_breeze.jason.state.homeplace import HomePlace
 from pure_ocean_breeze.jason.state.decorators import do_on_dfs
@@ -704,7 +705,7 @@ def zip_many_dfs(dfs: List[pd.DataFrame]) -> pd.DataFrame:
     return df
 
 
-def get_values(df: pd.DataFrame) -> List[pd.DataFrame]:
+def get_values(df: pd.DataFrame,n_jobs:int=40) -> List[pd.DataFrame]:
     """从一个values为列表的dataframe中，一次性取出所有值，分别设置为一个dataframe，并依照顺序存储在列表中
 
     Parameters
@@ -720,7 +721,11 @@ def get_values(df: pd.DataFrame) -> List[pd.DataFrame]:
     d = df.dropna(how="all", axis=1)
     d = d.iloc[:, 0].dropna()
     num = len(d.iloc[0])
-    facs = list(map(lambda x: get_value(df, x), range(num)))
+    if n_jobs>1:
+        facs=joblib.Parallel(n_jobs=40)(joblib.delayed(get_value)(df, x) for x in tqdm.auto.tqdm(list(range(num))))
+    else:
+        facs = list(map(lambda x: get_value(df, x), range(num)))
+
     return facs
 
 
