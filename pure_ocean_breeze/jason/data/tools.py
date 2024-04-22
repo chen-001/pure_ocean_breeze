@@ -14,6 +14,7 @@ import scipy.stats as ss
 from functools import reduce, partial
 from typing import Callable, Union, Dict, List, Tuple
 import joblib
+import mpire
 
 from pure_ocean_breeze.jason.state.homeplace import HomePlace
 from pure_ocean_breeze.jason.state.decorators import do_on_dfs
@@ -1231,3 +1232,40 @@ def get_neg_value(
 @do_on_dfs
 def count_pos_neg(s: Union[pd.Series, pd.DataFrame]):
     print("正数个数:", is_pos(s).sum().sum(), "负数个数:", is_neg(s).sum().sum())
+
+
+
+def de_cross(
+    y: pd.DataFrame, xs: Union[List[pd.DataFrame], pd.DataFrame]
+) -> pd.DataFrame:
+    """使用若干因子对某个因子进行正交化处理
+
+    Parameters
+    ----------
+    y : pd.DataFrame
+        研究的目标，回归中的y
+    xs : Union[List[pd.DataFrame],pd.DataFrame]
+        用于正交化的若干因子，回归中的x
+
+    Returns
+    -------
+    pd.DataFrame
+        正交化之后的因子
+    """
+    if not isinstance(xs, list):
+        xs = [xs]
+    # y = pure_fallmount(y)
+    # xs = [pure_fallmount(i) for i in xs]
+    # return (y - xs)()
+    df=merge_many([y]+xs)
+    xs_str='+'.join([f'fac{i+2}' for i in range(len(xs))])
+    def sing(date:pd.Timestamp):
+        df0=df[df.date==date].set_index(['date','code'])
+        ols=smf.ols('fac1~'+xs_str,data=df0).fit()
+        df0.fac1=ols.resid
+        return df0[['fac1']]
+    dates=list(set(df.date))
+    with mpire.WorkerPool(20) as pool:
+        dfs=pool.map(sing,dates)
+    dfs=pd.concat(dfs).reset_index().pivot(index='date',columns='code',values='fac1')
+    return dfs

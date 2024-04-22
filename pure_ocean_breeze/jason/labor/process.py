@@ -623,30 +623,6 @@ def show_covs(
     return corrs
 
 
-def de_cross(
-    y: pd.DataFrame, xs: Union[List[pd.DataFrame], pd.DataFrame]
-) -> pd.DataFrame:
-    """使用若干因子对某个因子进行正交化处理
-
-    Parameters
-    ----------
-    y : pd.DataFrame
-        研究的目标，回归中的y
-    xs : Union[List[pd.DataFrame],pd.DataFrame]
-        用于正交化的若干因子，回归中的x
-
-    Returns
-    -------
-    pd.DataFrame
-        正交化之后的因子
-    """
-    if not isinstance(xs, list):
-        xs = [xs]
-    y = pure_fallmount(y)
-    xs = [pure_fallmount(i) for i in xs]
-    return (y - xs)()
-
-
 @do_on_dfs
 def show_corrs_with_old(
     df: pd.DataFrame = None,
