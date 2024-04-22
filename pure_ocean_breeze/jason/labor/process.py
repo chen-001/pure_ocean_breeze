@@ -985,7 +985,7 @@ class pure_moon(object):
             )
 
         dates=list(set(self.factors.date))
-        with mpire.WorkerPool(30) as pool:
+        with mpire.WorkerPool(20) as pool:
             res=pool.map(self.neutralize_factors,dates)
         self.factors = pd.concat(res)
         self.factors = self.factors.reset_index()
@@ -2354,7 +2354,7 @@ class pure_coldwinter(object):
         dates=list(set(self.corr_pri.date))
         # dates=[self.corr_pri[self.corr_pri.date==i].set_index(['date','code']) for i in dates]
         # print(dates[0])
-        with mpire.WorkerPool(30) as pool:
+        with mpire.WorkerPool(20) as pool:
             res=pool.map(self.ols_in_group,dates)
         self.snow_fac = pd.concat(res)
         # self.snow_fac = (
