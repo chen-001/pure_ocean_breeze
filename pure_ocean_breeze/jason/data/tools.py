@@ -15,6 +15,7 @@ from functools import reduce, partial
 from typing import Callable, Union, Dict, List, Tuple
 import joblib
 import mpire
+import statsmodels.formula.api as smf
 
 from pure_ocean_breeze.jason.state.homeplace import HomePlace
 from pure_ocean_breeze.jason.state.decorators import do_on_dfs
@@ -1257,13 +1258,14 @@ def de_cross(
     # y = pure_fallmount(y)
     # xs = [pure_fallmount(i) for i in xs]
     # return (y - xs)()
-    df=merge_many([y]+xs)
+    df=merge_many([y]+xs,how='inner')
     xs_str='+'.join([f'fac{i+2}' for i in range(len(xs))])
     def sing(date:pd.Timestamp):
         df0=df[df.date==date].set_index(['date','code'])
-        ols=smf.ols('fac1~'+xs_str,data=df0).fit()
-        df0.fac1=ols.resid
-        return df0[['fac1']]
+        if df0.shape[0]>0:
+            ols=smf.ols('fac1~'+xs_str,data=df0).fit()
+            df0.fac1=ols.resid
+            return df0[['fac1']]
     dates=list(set(df.date))
     with mpire.WorkerPool(20) as pool:
         dfs=pool.map(sing,dates)
