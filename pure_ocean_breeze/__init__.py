@@ -3,7 +3,7 @@
 """
 
 __updated__ = "2023-07-18 14:49:23"
-__version__ = "4.2.1"
+__version__ = "4.2.2"
 __author__ = "chenzongwei"
 __author_email__ = "winterwinter999@163.com"
 __url__ = "https://github.com/chen-001/pure_ocean_breeze"
@@ -236,7 +236,8 @@ try:
 
         from pure_ocean_breeze.mail.email import *
 except Exception:
-    print('您可能正在初始化；如果不是在初始化，则路径设置文件已经清除，请检查。')
+    # print('您可能正在初始化；如果不是在初始化，则路径设置文件已经清除，请检查。')
+    ...
 
 
 

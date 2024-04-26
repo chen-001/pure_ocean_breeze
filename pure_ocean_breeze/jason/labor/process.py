@@ -1309,9 +1309,13 @@ class pure_moon(object):
         self.group_mean_rets_monthly = self.group_rets.drop(
             columns=["long_short"]
         ).mean()
+        # self.group_mean_rets_monthly = (
+        #     self.group_mean_rets_monthly - self.group_mean_rets_monthly.mean()
+        # )
+        mar=self.market_ret.loc[self.factors_out.index]
         self.group_mean_rets_monthly = (
-            self.group_mean_rets_monthly - self.group_mean_rets_monthly.mean()
-        )
+            self.group_mean_rets_monthly - mar.mean()
+        )*self.freq_ctrl.counts_one_year
 
     def plot_net_values(self, y2, filename, iplot=1, ilegend=1, without_breakpoint=0):
         """使用matplotlib来画图，y2为是否对多空组合采用双y轴"""
