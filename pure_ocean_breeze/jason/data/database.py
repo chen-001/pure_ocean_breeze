@@ -333,6 +333,7 @@ class Questdb(DriverOfPostgre):
         else:
             for t in tuple_col:
                 df[t] = df[t].apply(str)
+
         if symbols is not None:
             with qdbing.Sender(self.host, 9009) as sender:
             # with qdbing.Sender.from_conf(f"http::addr={self.host}:{self.port};") as sender:
@@ -340,6 +341,7 @@ class Questdb(DriverOfPostgre):
         else:
             with qdbing.Sender(self.host, 9009) as sender:
                 sender.dataframe(df, table_name=table_name)
+
 
     @retry(stop=stop_after_attempt(10), wait=wait_fixed(3))
     def get_data_with_tuple(

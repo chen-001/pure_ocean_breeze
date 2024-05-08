@@ -2646,7 +2646,8 @@ def sun(factor:pd.DataFrame,rolling_5:int=1):
     '''先单因子测试，再测试其与常用风格之间的关系'''
     if rolling_5:
         factor=boom_one(factor)
+        ractor=boom_one(factor.rank(axis=1))
     shen=pure_moonnight(factor)
-    pfi=pure_snowtrain(factor)
+    pfi=pure_snowtrain(ractor)
     shen=pure_moonnight(pfi,neutralize=1)
     display(pfi.show_corr())
