@@ -9,6 +9,7 @@ from typing import Any, Union, Dict, Tuple
 from pure_ocean_breeze.jason.state.states import STATES
 from pure_ocean_breeze.jason.state.homeplace import HomePlace
 from pure_ocean_breeze.jason.state.decorators import *
+from cachier import cachier
 
 try:
     homeplace = HomePlace()
@@ -16,6 +17,7 @@ except Exception:
     print("您暂未初始化，功能将受限")
 
 
+@cachier()
 def read_daily(
     open: bool = 0,
     close: bool = 0,
@@ -333,6 +335,7 @@ def database_read_primary_factors(name: str) -> pd.DataFrame:
     df = pd.read_parquet(homeplace.factor_data_file + name+'.parquet')
     return df
 
+@cachier()
 def read_market(
     open: bool = 0,
     close: bool = 0,
@@ -406,3 +409,40 @@ def read_market(
         tr = read_daily(tr=1, start=start)
         df = pd.DataFrame({k: list(df) for k in list(tr.columns)}, index=df.index)
     return df
+
+
+@cachier()
+def moon_read_dummy(freq):
+    def deal_dummy(industry_dummy):
+            industry_dummy = industry_dummy.drop(columns=["code"]).reset_index()
+            industry_ws = [f"w{i}" for i in range(1, industry_dummy.shape[1] - 1)]
+            col = ["code", "date"] + industry_ws
+            industry_dummy.columns = col
+            industry_dummy = industry_dummy[
+                industry_dummy.date >= pd.Timestamp(str(STATES["START"]))
+            ]
+            return industry_dummy
+
+            # week_here
+    swindustry_dummy = (
+        pd.read_parquet(
+            homeplace.daily_data_file + "sw_industry_level1_dummies.parquet"
+        )
+        .fillna(0)
+        .set_index("date")
+        .groupby("code")
+        .resample(freq)
+        .last()
+        )
+    return deal_dummy(swindustry_dummy)
+
+@cachier()
+def moon_read_barra():
+    styles = os.listdir(homeplace.barra_data_file)
+    styles = [i for i in styles if (i.endswith(".parquet")) and (i[0] != ".")]
+    barras = {}
+    for s in styles:
+        k = s.split(".")[0]
+        v = pd.read_parquet(homeplace.barra_data_file + s).resample("W").last()
+        barras[k] = v
+    return barras

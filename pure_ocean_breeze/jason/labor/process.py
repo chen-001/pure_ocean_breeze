@@ -42,6 +42,8 @@ from pure_ocean_breeze.jason.data.read_data import (
     read_daily,
     read_market,
     get_industry_dummies,
+    moon_read_dummy,
+    moon_read_barra,
 )
 from pure_ocean_breeze.jason.state.homeplace import HomePlace
 
@@ -817,29 +819,30 @@ class pure_moon(object):
         cls.freq = freq
         cls.freq_ctrl = frequency_controller(freq)
 
-        def deal_dummy(industry_dummy):
-            industry_dummy = industry_dummy.drop(columns=["code"]).reset_index()
-            industry_ws = [f"w{i}" for i in range(1, industry_dummy.shape[1] - 1)]
-            col = ["code", "date"] + industry_ws
-            industry_dummy.columns = col
-            industry_dummy = industry_dummy[
-                industry_dummy.date >= pd.Timestamp(str(STATES["START"]))
-            ]
-            return industry_dummy
+        # def deal_dummy(industry_dummy):
+        #     industry_dummy = industry_dummy.drop(columns=["code"]).reset_index()
+        #     industry_ws = [f"w{i}" for i in range(1, industry_dummy.shape[1] - 1)]
+        #     col = ["code", "date"] + industry_ws
+        #     industry_dummy.columns = col
+        #     industry_dummy = industry_dummy[
+        #         industry_dummy.date >= pd.Timestamp(str(STATES["START"]))
+        #     ]
+        #     return industry_dummy
 
         if not no_read_indu:
             # week_here
-            cls.swindustry_dummy = (
-                pd.read_parquet(
-                    cls.homeplace.daily_data_file + "sw_industry_level1_dummies.parquet"
-                )
-                .fillna(0)
-                .set_index("date")
-                .groupby("code")
-                .resample(freq)
-                .last()
-            )
-            cls.swindustry_dummy = deal_dummy(cls.swindustry_dummy)
+            # cls.swindustry_dummy = (
+            #     pd.read_parquet(
+            #         cls.homeplace.daily_data_file + "sw_industry_level1_dummies.parquet"
+            #     )
+            #     .fillna(0)
+            #     .set_index("date")
+            #     .groupby("code")
+            #     .resample(freq)
+            #     .last()
+            # )
+            # cls.swindustry_dummy = deal_dummy(cls.swindustry_dummy)
+            cls.swindustry_dummy=moon_read_dummy(freq)
 
     @property
     def factors_out(self):
@@ -1181,12 +1184,7 @@ class pure_moon(object):
         self.inner_short_ret_yearly = self.inner_short_net_values[-1] * (
             self.freq_ctrl.counts_one_year / len(self.inner_short_net_values)
         )
-        self.group1_ret_yearly= self.group_net_values["group1"][-1] * (
-            self.freq_ctrl.counts_one_year / len(self.group_net_values.group1)
-        )
-        self.group10_ret_yearly = self.group_net_values["group10"][-1] * (
-            self.freq_ctrl.counts_one_year / len(self.group_net_values.group10)
-        )
+        
         # week_here
         self.long_short_vol_yearly = np.std(self.long_short_rets) * (
             self.freq_ctrl.counts_one_year**0.5
@@ -1256,6 +1254,18 @@ class pure_moon(object):
             ].mean()
         else:
             self.factor_turnover_rate = self.factor_turnover_rates["group1"].mean()
+        self.group_mean_rets_monthly = self.group_rets.drop(
+            columns=["long_short"]
+        ).mean()
+        # self.group_mean_rets_monthly = (
+        #     self.group_mean_rets_monthly - self.group_mean_rets_monthly.mean()
+        # )
+        mar=self.market_ret.loc[self.factors_out.index]
+        self.group_mean_rets_monthly = (
+            self.group_mean_rets_monthly - mar.mean()
+        )*self.freq_ctrl.counts_one_year
+        self.group1_ret_yearly= self.group_mean_rets_monthly.loc['group1']
+        self.group10_ret_yearly = self.group_mean_rets_monthly.loc['group10']
         self.total_comments = pd.concat(
             [
                 self.ic_icir_and_rank,
@@ -1306,16 +1316,7 @@ class pure_moon(object):
             ]
         )
         # print(self.total_comments)
-        self.group_mean_rets_monthly = self.group_rets.drop(
-            columns=["long_short"]
-        ).mean()
-        # self.group_mean_rets_monthly = (
-        #     self.group_mean_rets_monthly - self.group_mean_rets_monthly.mean()
-        # )
-        mar=self.market_ret.loc[self.factors_out.index]
-        self.group_mean_rets_monthly = (
-            self.group_mean_rets_monthly - mar.mean()
-        )*self.freq_ctrl.counts_one_year
+        
 
     def plot_net_values(self, y2, filename, iplot=1, ilegend=1, without_breakpoint=0):
         """使用matplotlib来画图，y2为是否对多空组合采用双y轴"""
@@ -2209,13 +2210,14 @@ class pure_coldwinter(object):
         """
         cls.homeplace = HomePlace()
         # barra因子数据
-        styles = os.listdir(cls.homeplace.barra_data_file)
-        styles = [i for i in styles if (i.endswith(".parquet")) and (i[0] != ".")]
-        barras = {}
-        for s in styles:
-            k = s.split(".")[0]
-            v = pd.read_parquet(cls.homeplace.barra_data_file + s).resample("W").last()
-            barras[k] = v
+        # styles = os.listdir(cls.homeplace.barra_data_file)
+        # styles = [i for i in styles if (i.endswith(".parquet")) and (i[0] != ".")]
+        # barras = {}
+        # for s in styles:
+        #     k = s.split(".")[0]
+        #     v = pd.read_parquet(cls.homeplace.barra_data_file + s).resample("W").last()
+        #     barras[k] = v
+        barras=moon_read_barra()
         rename_dict = {
             "size": "市值",
             "nonlinearsize": "非线性市值",
@@ -2642,11 +2644,10 @@ def symmetrically_orthogonalize(dfs: list[pd.DataFrame]) -> list[pd.DataFrame]:
 
 
 @do_on_dfs
-def sun(factor:pd.DataFrame,rolling_5:int=1):
+def sun(factor:pd.DataFrame,rolling_days:int=10):
     '''先单因子测试，再测试其与常用风格之间的关系'''
-    if rolling_5:
-        factor=boom_one(factor)
-        ractor=boom_one(factor.rank(axis=1))
+    ractor=boom_one(factor.rank(axis=1),rolling_days)
+    factor=boom_one(factor,rolling_days)
     shen=pure_moonnight(factor)
     pfi=pure_snowtrain(ractor)
     shen=pure_moonnight(pfi,neutralize=1)
