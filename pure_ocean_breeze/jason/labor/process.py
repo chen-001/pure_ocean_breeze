@@ -806,6 +806,8 @@ class pure_moon(object):
         "long_minus_market_nets",
         "inner_rets_long",
         "inner_rets_short",
+        "big_rankics",
+        "small_rankics",
     ]
 
     @classmethod
@@ -1004,6 +1006,8 @@ class pure_moon(object):
         cls.rankics = df1.rankic
         cls.ics = cls.ics.reset_index(drop=True, level=1).to_frame()
         cls.rankics = cls.rankics.reset_index(drop=True, level=1).to_frame()
+        cls.small_rankics = df1.small_rankic.reset_index(drop=True, level=1).to_frame()
+        cls.big_rankics = df1.big_rankic.reset_index(drop=True, level=1).to_frame()
         df2,df5 = cls.get_icir_rankicir(df1)
         df2 = df2.T
         dura = (df.date.max() - df.date.min()).days / 365
@@ -1374,14 +1378,24 @@ class pure_moon(object):
                 )
             )
             # table=go.Figure([go.Table(header=dict(values=list(here.columns)),cells=dict(values=here.to_numpy().tolist()))])
-            pic3_data = go.Bar(y=list(self.rankics.rankic), x=list(self.rankics.index),marker_color="red")
-            pic3 = go.Figure(data=[pic3_data])
-            pic5_data = go.Line(
-                y=list(self.rankics.rankic.cumsum()),
-                x=list(self.rankics.index),
-                name="y2",
-                yaxis="y2",
-            )
+            if self.rankics.rankic.mean()<0:
+                pic3_data = go.Bar(y=list(self.small_rankics.small_rankic), x=list(self.small_rankics.index),marker_color="red")
+                pic3 = go.Figure(data=[pic3_data])
+                pic5_data = go.Line(
+                    y=list(self.small_rankics.small_rankic.cumsum()),
+                    x=list(self.small_rankics.index),
+                    name="y2",
+                    yaxis="y2",
+                )
+            else:
+                pic3_data = go.Bar(y=list(self.big_rankics.big_rankic), x=list(self.big_rankics.index),marker_color="red")
+                pic3 = go.Figure(data=[pic3_data])
+                pic5_data = go.Line(
+                    y=list(self.big_rankics.big_rankic.cumsum()),
+                    x=list(self.big_rankics.index),
+                    name="y2",
+                    yaxis="y2",
+                )
             pic5_layout = go.Layout(yaxis2=dict(title="y2", side="right"))
             pic5 = go.Figure(data=[pic5_data], layout=pic5_layout)
             figs.append(table)
