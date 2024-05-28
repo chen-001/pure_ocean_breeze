@@ -1378,7 +1378,7 @@ class pure_moon(object):
                 )
             )
             # table=go.Figure([go.Table(header=dict(values=list(here.columns)),cells=dict(values=here.to_numpy().tolist()))])
-            if self.rankics.rankic.mean()<0:
+            if self.group1_ret_yearly>self.group10_ret_yearly:
                 pic3_data = go.Bar(y=list(self.small_rankics.small_rankic), x=list(self.small_rankics.index),marker_color="red")
                 pic3 = go.Figure(data=[pic3_data])
                 pic5_data = go.Line(
