@@ -1381,23 +1381,29 @@ class pure_moon(object):
             if self.group1_ret_yearly>self.group10_ret_yearly:
                 pic3_data = go.Bar(y=list(self.small_rankics.small_rankic), x=list(self.small_rankics.index),marker_color="red")
                 pic3 = go.Figure(data=[pic3_data])
-                pic5_data = go.Line(
+                pic5_data1 = go.Line(
                     y=list(self.small_rankics.small_rankic.cumsum()),
                     x=list(self.small_rankics.index),
-                    name="y2",
+                    name="long_only_rankic",
                     yaxis="y2",
                 )
             else:
                 pic3_data = go.Bar(y=list(self.big_rankics.big_rankic), x=list(self.big_rankics.index),marker_color="red")
                 pic3 = go.Figure(data=[pic3_data])
-                pic5_data = go.Line(
+                pic5_data1 = go.Line(
                     y=list(self.big_rankics.big_rankic.cumsum()),
                     x=list(self.big_rankics.index),
-                    name="y2",
+                    name="long_only_rankic",
                     yaxis="y2",
                 )
+            pic5_data2 = go.Line(
+                y=list(self.rankics.rankic.cumsum()),
+                x=list(self.rankics.index),
+                name="rankic",
+                yaxis="y2",
+            )
             pic5_layout = go.Layout(yaxis2=dict(title="y2", side="right"))
-            pic5 = go.Figure(data=[pic5_data], layout=pic5_layout)
+            pic5 = go.Figure(layout=pic5_layout)
             figs.append(table)
             figs = [figs[-1]] + figs[:-1]
             figs.append(pic2)
@@ -1412,6 +1418,8 @@ class pure_moon(object):
             figs[4].add_trace(go.Line(x=self.long_short_net_values.index,y=self.long_short_net_values,name='long_short'))
             figs[4].add_trace(go.Line(x=self.long_minus_market_nets.index,y=self.long_minus_market_nets,name='long_minus_market'))
             figs.append(pic5)
+            figs[5].add_trace(pic5_data1)
+            figs[5].add_trace(pic5_data2)
             base_layout = cf.tools.get_base_layout(figs)
 
             sp = cf.subplots(
