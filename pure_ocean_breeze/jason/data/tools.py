@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2023-07-10 12:46:10"
+__updated__ = "2024-08-01 18:55:29"
 
 import os
 import pandas as pd
@@ -16,6 +16,8 @@ from typing import Callable, Union, Dict, List, Tuple
 import joblib
 import mpire
 import statsmodels.formula.api as smf
+import polars as pl
+import polars_ols as pls
 
 from pure_ocean_breeze.jason.state.homeplace import HomePlace
 from pure_ocean_breeze.jason.state.decorators import do_on_dfs
@@ -316,6 +318,20 @@ def standardlize(df: pd.DataFrame, all_pos: bool = 0) -> pd.DataFrame:
         df = (df.T - df.T.min()).T
     return df
 
+
+@do_on_dfs
+def boom_one(
+    df: pd.DataFrame, backsee: int = 5, daily: bool = 0, min_periods: int = None
+) -> pd.DataFrame:
+    if min_periods is None:
+        min_periods = int(backsee * 0.5)
+    if not daily:
+        df_mean = (
+            df.rolling(backsee, min_periods=min_periods).mean().resample("W").last()
+        )
+    else:
+        df_mean = df.rolling(backsee, min_periods=min_periods).mean()
+    return df_mean
 
 @do_on_dfs
 def count_value(df: pd.DataFrame, with_zero: bool = 0) -> int:
@@ -1236,7 +1252,7 @@ def count_pos_neg(s: Union[pd.Series, pd.DataFrame]):
 
 
 
-def de_cross(
+def de_cross_old(
     y: pd.DataFrame, xs: Union[List[pd.DataFrame], pd.DataFrame]
 ) -> pd.DataFrame:
     """使用若干因子对某个因子进行正交化处理
@@ -1271,3 +1287,199 @@ def de_cross(
         dfs=pool.map(sing,dates)
     dfs=pd.concat(dfs).reset_index().pivot(index='date',columns='code',values='fac1')
     return dfs
+
+
+def de_cross(
+    y: Union[pd.DataFrame, pl.DataFrame],
+    xs: Union[list[pd.DataFrame], list[pl.DataFrame]],
+) -> pd.DataFrame:
+    """因子正交函数，使用polars库实现
+    速度：10个barra因子、2016-2022、大约11.5秒
+
+    Parameters
+    ----------
+    y : Union[pd.DataFrame, pl.DataFrame]
+        要研究的因子，形式与h5存数据的形式相同，index是时间，columns是股票
+    xs : Union[list[pd.DataFrame], list[pl.DataFrame]]
+        要被正交掉的干扰因子们，传入一个列表，每个都是h5存储的那种形式的df，index是时间，columns是股票
+
+    Returns
+    -------
+    pd.DataFrame
+        正交后的残差，形式与y相同，index是时间，columns是股票
+    """
+    if isinstance(y, pd.DataFrame):
+        y.index.name='date'
+        y = pl.from_pandas(y.reset_index())
+    if isinstance(xs[0], pd.DataFrame):
+        for i in range(len(xs)):
+            xs[i].index.name='date'
+        xs = [pl.from_pandas(x.reset_index()) for x in xs]
+    y = y.unpivot(index="date", variable_name="code").drop_nulls()
+    xs = [x.unpivot(index="date", variable_name="code").drop_nulls() for x in xs]
+    for num, i in enumerate(xs):
+        y = y.join(i, on=["date", "code"], suffix=f"_{num}")
+    y = (
+        y.select(
+            "date",
+            "code",
+            pl.col("value")
+            .least_squares.ols(
+                *[pl.col(f"value_{i}") for i in range(len(xs))],
+                add_intercept=True,
+                mode="residuals",
+            )
+            .over("date")
+            .alias("resid"),
+        )
+        .pivot("code", index="date", values="resid")
+        .sort('date')
+        .to_pandas()
+        .set_index("date")
+    )
+    return y
+
+
+def de_cross_special_for_barra_daily_jason(
+    y: Union[pd.DataFrame, pl.DataFrame],
+) -> pd.DataFrame:
+    """因子正交函数，但固定了xs为barra数据
+    速度：10个barra因子、2016-2022、大约3.2秒
+
+    Parameters
+    ----------
+    y : Union[pd.DataFrame, pl.DataFrame]
+        要研究的因子，形式与h5存数据的形式相同，index是时间，columns是股票
+
+    Returns
+    -------
+    pd.DataFrame
+        正交后的残差，形式与y相同，index是时间，columns是股票
+    """    
+    if isinstance(y, pd.DataFrame):
+        y.index.name='date'
+        y = pl.from_pandas(y.reset_index())
+    y = y.unpivot(index="date", variable_name="code").drop_nulls()
+    xs = pl.read_parquet(
+        homeplace.barra_data_file+"barra_daily_together.parquet" # 我这个数据缺2020-08-04 和 2020-08-05，给你的版本可能不缺？不过测速用无伤大雅
+    )
+    y = y.join(xs, on=["date", "code"])
+    cols = y.columns[3:]
+    y = (
+        y.select(
+            "date",
+            "code",
+            pl.col("value")
+            .least_squares.ols(
+                *[pl.col(i) for i in cols],
+                add_intercept=True,
+                mode="residuals",
+            )
+            .over("date")
+            .alias("resid"),
+        )
+        .pivot("code", index="date", values="resid")
+        .to_pandas()
+        .set_index("date")
+        .sort_index()
+    )
+    return y
+
+
+def de_cross_special_for_barra_daily_jason(
+    y: Union[pd.DataFrame, pl.DataFrame],
+) -> pd.DataFrame:
+    """因子正交函数，但固定了xs为barra数据
+    速度：10个barra因子、2016-2022、大约3.2秒
+
+    Parameters
+    ----------
+    y : Union[pd.DataFrame, pl.DataFrame]
+        要研究的因子，形式与h5存数据的形式相同，index是时间，columns是股票
+
+    Returns
+    -------
+    pd.DataFrame
+        正交后的残差，形式与y相同，index是时间，columns是股票
+    """    
+    if isinstance(y, pd.DataFrame):
+        y.index.name='date'
+        y = pl.from_pandas(y.reset_index())
+    y = y.unpivot(index="date", variable_name="code").drop_nulls()
+    xs = pl.read_parquet(
+        homeplace.barra_data_file+"barra_daily_together_jason.parquet" # 我这个数据缺2020-08-04 和 2020-08-05，给你的版本可能不缺？不过测速用无伤大雅
+    )
+    y = y.join(xs, on=["date", "code"])
+    cols = y.columns[3:]
+    y = (
+        y.select(
+            "date",
+            "code",
+            pl.col("value")
+            .least_squares.ols(
+                *[pl.col(i) for i in cols],
+                add_intercept=True,
+                mode="residuals",
+            )
+            .over("date")
+            .alias("resid"),
+        )
+        .pivot("code", index="date", values="resid")
+        .to_pandas()
+        .set_index("date")
+        .sort_index()
+    )
+    return y
+
+
+def de_cross_special_for_barra_weekly(
+    y: Union[pd.DataFrame, pl.DataFrame],with_corr:int=1
+) -> pd.DataFrame:
+    """因子正交函数，但固定了xs为barra数据
+    速度：10个barra因子、2016-2022、大约3.2秒
+
+    Parameters
+    ----------
+    y : Union[pd.DataFrame, pl.DataFrame]
+        要研究的因子，形式与h5存数据的形式相同，index是时间，columns是股票
+
+    Returns
+    -------
+    pd.DataFrame
+        正交后的残差，形式与y相同，index是时间，columns是股票
+    """    
+    if isinstance(y, pd.DataFrame):
+        y.index.name='date'
+        y = pl.from_pandas(y.reset_index())
+    y = y.unpivot(index="date", variable_name="code").drop_nulls()
+    xs = pl.read_parquet(
+        homeplace.barra_data_file+"barra_industry_weekly_together.parquet" # 我这个数据缺2020-08-04 和 2020-08-05，给你的版本可能不缺？不过测速用无伤大雅
+    )
+    y = y.join(xs, on=["date", "code"])
+    cols = y.columns[3:]
+    yresid = (
+        y.select(
+            "date",
+            "code",
+            pl.col("value")
+            .least_squares.ols(
+                *[pl.col(i) for i in cols],
+                add_intercept=True,
+                mode="residuals",
+            )
+            .over("date")
+            .alias("resid"),
+        )
+        .pivot("code", index="date", values="resid")
+        .to_pandas()
+        .set_index("date")
+        .sort_index()
+    )
+    if with_corr:
+        colss=y.columns[3:16]
+        corr=y[y.columns[:16]].select(*[pl.corr('value',i).over('date').mean().alias(i) for i in colss]).to_pandas()
+        corr.index=['相关系数']
+        corr=corr.applymap(to_percent)
+        return yresid,corr
+    else:
+        return yresid

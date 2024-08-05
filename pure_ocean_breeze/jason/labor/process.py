@@ -62,6 +62,8 @@ from pure_ocean_breeze.jason.data.tools import (
     select_max,
     select_min,
     merge_many,
+    boom_one,
+    de_cross_special_for_barra_weekly,
 )
 from pure_ocean_breeze.jason.labor.comment import (
     comments_on_twins,
@@ -261,19 +263,7 @@ def deboth(df: pd.DataFrame) -> pd.DataFrame:
     return shen()
 
 
-@do_on_dfs
-def boom_one(
-    df: pd.DataFrame, backsee: int = 5, daily: bool = 0, min_periods: int = None
-) -> pd.DataFrame:
-    if min_periods is None:
-        min_periods = int(backsee * 0.5)
-    if not daily:
-        df_mean = (
-            df.rolling(backsee, min_periods=min_periods).mean().resample("W").last()
-        )
-    else:
-        df_mean = df.rolling(backsee, min_periods=min_periods).mean()
-    return df_mean
+
 
 
 @do_on_dfs
@@ -1264,7 +1254,7 @@ class pure_moon(object):
         # self.group_mean_rets_monthly = (
         #     self.group_mean_rets_monthly - self.group_mean_rets_monthly.mean()
         # )
-        mar=self.market_ret.loc[self.factors_out.index]
+        mar=self.market_ret.reindex(self.factors_out.index)
         self.group_mean_rets_monthly = (
             self.group_mean_rets_monthly - mar.mean()
         )*self.freq_ctrl.counts_one_year
@@ -2666,11 +2656,12 @@ def symmetrically_orthogonalize(dfs: list[pd.DataFrame]) -> list[pd.DataFrame]:
 
 
 @do_on_dfs
-def sun(factor:pd.DataFrame,rolling_days:int=10):
+def sun(factor:pd.DataFrame,rolling_days:int=10,with_pri:bool=1):
     '''先单因子测试，再测试其与常用风格之间的关系'''
     ractor=boom_one(factor.rank(axis=1),rolling_days)
-    factor=boom_one(factor,rolling_days)
-    shen=pure_moonnight(factor)
-    pfi=pure_snowtrain(ractor)
-    shen=pure_moonnight(pfi,neutralize=1)
-    display(pfi.show_corr())
+    if with_pri:
+        factor=boom_one(factor,rolling_days)
+        shen=pure_moonnight(factor)
+    pfi=de_cross_special_for_barra_weekly(ractor)
+    shen=pure_moonnight(pfi[0],neutralize=1)
+    display(pfi[1])
