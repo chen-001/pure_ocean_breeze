@@ -64,6 +64,7 @@ from pure_ocean_breeze.jason.data.tools import (
     merge_many,
     boom_one,
     de_cross_special_for_barra_weekly,
+    de_cross_special_for_barra_weekly1,
 )
 from pure_ocean_breeze.jason.labor.comment import (
     comments_on_twins,
@@ -1312,7 +1313,7 @@ class pure_moon(object):
         # print(self.total_comments)
         
 
-    def plot_net_values(self, y2, filename, iplot=1, ilegend=1, without_breakpoint=0):
+    def plot_net_values(self, y2, filename, iplot=1, ilegend=1, without_breakpoint=0,output_six_figures=0):
         """使用matplotlib来画图，y2为是否对多空组合采用双y轴"""
         if not iplot:
             fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(33, 8))
@@ -1371,98 +1372,160 @@ class pure_moon(object):
             if self.group1_ret_yearly>self.group10_ret_yearly:
                 pic3_data = go.Bar(y=list(self.small_rankics.small_rankic), x=list(self.small_rankics.index),marker_color="red")
                 pic3 = go.Figure(data=[pic3_data])
-                pic5_data1 = go.Line(
+                pic5_data1 = go.Scatter(
                     y=list(self.small_rankics.small_rankic.cumsum()),
                     x=list(self.small_rankics.index),
                     name="long_only_rankic",
                     yaxis="y2",
+                    mode="lines",
+                    line=dict(color="blue"),
                 )
             else:
                 pic3_data = go.Bar(y=list(self.big_rankics.big_rankic), x=list(self.big_rankics.index),marker_color="red")
                 pic3 = go.Figure(data=[pic3_data])
-                pic5_data1 = go.Line(
+                pic5_data1 = go.Scatter(
                     y=list(self.big_rankics.big_rankic.cumsum()),
                     x=list(self.big_rankics.index),
                     name="long_only_rankic",
                     yaxis="y2",
+                    mode="lines",
+                    line=dict(color="blue"),
                 )
-            pic5_data2 = go.Line(
+            pic5_data2 = go.Scatter(
                 y=list(self.rankics.rankic.cumsum()),
                 x=list(self.rankics.index),
+                mode="lines",
                 name="rankic",
                 yaxis="y2",
+                line=dict(color="red"),
             )
             pic5_layout = go.Layout(yaxis2=dict(title="y2", side="right"))
             pic5 = go.Figure(layout=pic5_layout)
             figs.append(table)
             figs = [figs[-1]] + figs[:-1]
             figs.append(pic2)
-            figs = [figs[0], figs[1], figs[-1], pic3]
+            if output_six_figures:
+                figs = [figs[0], figs[1], figs[-1], pic3]
+                figs[3].update_layout(yaxis2=dict(title="y2", side="right"))
+                pic4=go.Figure()
+                figs.append(pic4)
+                figs[4].add_trace(go.Line(x=self.long_short_net_values.index,y=self.long_short_net_values,name='long_short'))
+                figs[4].add_trace(go.Line(x=self.long_minus_market_nets.index,y=self.long_minus_market_nets,name='long_minus_market'))
+                figs.append(pic5)
+                figs[5].add_trace(pic5_data1)
+                figs[5].add_trace(pic5_data2)
+            else:
+                figs = [figs[0], figs[1], figs[-1]]
+                figs.append(pic5)
+                figs[3].add_trace(pic5_data1)
+                figs[3].add_trace(pic5_data2)
             figs[1].update_layout(
                 legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
             )
-            figs[3].update_layout(yaxis2=dict(title="y2", side="right"))
+            
             # twins=pd.concat([self.long_short_net_values,self.long_minus_market_nets],axis=1)
-            pic4=go.Figure()
-            figs.append(pic4)
-            figs[4].add_trace(go.Line(x=self.long_short_net_values.index,y=self.long_short_net_values,name='long_short'))
-            figs[4].add_trace(go.Line(x=self.long_minus_market_nets.index,y=self.long_minus_market_nets,name='long_minus_market'))
-            figs.append(pic5)
-            figs[5].add_trace(pic5_data1)
-            figs[5].add_trace(pic5_data2)
+                
+            
             base_layout = cf.tools.get_base_layout(figs)
 
-            sp = cf.subplots(
-                figs,
-                shape=(2, 14),
-                base_layout=base_layout,
-                vertical_spacing=0.15,
-                horizontal_spacing=0.025,
-                shared_yaxes=False,
-                specs=[
-                    [
-                        # None,
-                        {"rowspan": 2, "colspan": 5},
-                        None,
-                        None,
-                        None,
-                        None,
-                        {"rowspan": 2, "colspan": 3},
-                        None,
-                        None,
-                        {"colspan": 3},
-                        None,
-                        None,
-                        {"colspan": 3},
-                        None,
-                        None,
+            if output_six_figures:
+                sp = cf.subplots(
+                    figs,
+                    shape=(2, 14),
+                    base_layout=base_layout,
+                    vertical_spacing=0.15,
+                    horizontal_spacing=0.025,
+                    shared_yaxes=False,
+                    specs=[
+                        [
+                            # None,
+                            {"rowspan": 2, "colspan": 5},
+                            None,
+                            None,
+                            None,
+                            None,
+                            {"rowspan": 2, "colspan": 3},
+                            None,
+                            None,
+                            {"colspan": 3},
+                            None,
+                            None,
+                            {"colspan": 3},
+                            None,
+                            None,
+                        ],
+                        [
+                            # None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            {"colspan": 3},
+                            None,
+                            None,
+                            {"colspan": 3},
+                            None,
+                            None,
+                        ],
                     ],
-                    [
-                        # None,
-                        None,
-                        None,
-                        None,
-                        None,
-                        None,
-                        None,
-                        None,
-                        None,
-                        {"colspan": 3},
-                        None,
-                        None,
-                        {"colspan": 3},
-                        None,
-                        None,
+                    subplot_titles=[
+                        "净值曲线",
+                        "各组月均超均收益",
+                        "Rank IC时序图",
+                        "绩效指标",
                     ],
-                ],
-                subplot_titles=[
-                    "净值曲线",
-                    "各组月均超均收益",
-                    "Rank IC时序图",
-                    "绩效指标",
-                ],
-            )
-            sp["layout"].update(showlegend=ilegend,width=1780,height=230,margin=dict(l=0, r=0, b=0, t=0, pad=0))
+                )
+                sp["layout"].update(showlegend=ilegend,width=1780,height=230,margin=dict(l=0, r=0, b=0, t=0, pad=0))
+            else:
+                sp = cf.subplots(
+                    figs,
+                    shape=(2, 11),
+                    base_layout=base_layout,
+                    vertical_spacing=0.15,
+                    horizontal_spacing=0.025,
+                    shared_yaxes=False,
+                    specs=[
+                        [
+                            # None,
+                            {"rowspan": 2, "colspan": 5},
+                            None,
+                            None,
+                            None,
+                            None,
+                            {"rowspan": 2, "colspan": 3},
+                            None,
+                            None,
+                            {"colspan": 3},
+                            None,
+                            None,
+                        ],
+                        [
+                            # None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            {"colspan": 3},
+                            None,
+                            None,
+                        ],
+                    ],
+                    subplot_titles=[
+                        "净值曲线",
+                        "各组月均超均收益",
+                        "Rank IC时序图",
+                        "绩效指标",
+                    ],
+                )
+                sp["layout"].update(showlegend=ilegend,width=1350,height=230,margin=dict(l=0, r=0, b=0, t=0, pad=0))
             # sp['colors']=['#FF5733', '#33FF57', '#3357FF']
             # los=sp['layout']['annotations']
             # los[0]['font']['color']='#000000'
@@ -1533,6 +1596,7 @@ class pure_moon(object):
         ilegend=1,
         without_breakpoint=0,
         beauty_comments=0,
+        output_six_figures=0,
     ):
         """运行回测部分"""
         if comments_writer and not (comments_sheetname or sheetname):
@@ -1606,8 +1670,9 @@ class pure_moon(object):
                         iplot=iplot,
                         ilegend=bool(ilegend),
                         without_breakpoint=without_breakpoint,
+                        output_six_figures=output_six_figures,
                     )
-                plt.show()
+                # plt.show()
         if plotly_plot:
             if not STATES["NO_PLOT"]:
                 if filename:
@@ -2656,7 +2721,7 @@ def symmetrically_orthogonalize(dfs: list[pd.DataFrame]) -> list[pd.DataFrame]:
 
 
 @do_on_dfs
-def sun(factor:pd.DataFrame,rolling_days:int=10,with_pri:bool=1):
+def sun1(factor:pd.DataFrame,rolling_days:int=10,with_pri:bool=1):
     '''先单因子测试，再测试其与常用风格之间的关系'''
     ractor=boom_one(factor.rank(axis=1),rolling_days)
     if with_pri:
@@ -2664,4 +2729,16 @@ def sun(factor:pd.DataFrame,rolling_days:int=10,with_pri:bool=1):
         shen=pure_moonnight(factor)
     pfi=de_cross_special_for_barra_weekly(ractor)
     shen=pure_moonnight(pfi[0],neutralize=1)
+    display(pfi[1])
+    
+
+@do_on_dfs
+def sun(factor:pd.DataFrame,rolling_days:int=10,with_pri:bool=1):
+    '''先单因子测试，再测试其与常用风格之间的关系'''
+    ractor=boom_one(factor.rank(axis=1),rolling_days)
+    if with_pri:
+        factor=boom_one(factor,rolling_days)
+        shen=pure_moonnight(factor)
+    pfi=de_cross_special_for_barra_weekly1(ractor)
+    shen=pure_moonnight(pfi[0])
     display(pfi[1])

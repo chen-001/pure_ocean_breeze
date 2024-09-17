@@ -1483,3 +1483,55 @@ def de_cross_special_for_barra_weekly(
         return yresid,corr
     else:
         return yresid
+    
+def de_cross_special_for_barra_weekly1(
+    y: Union[pd.DataFrame, pl.DataFrame],with_corr:int=1
+) -> pd.DataFrame:
+    """因子正交函数，但固定了xs为barra数据
+    速度：10个barra因子、2016-2022、大约3.2秒
+
+    Parameters
+    ----------
+    y : Union[pd.DataFrame, pl.DataFrame]
+        要研究的因子，形式与h5存数据的形式相同，index是时间，columns是股票
+
+    Returns
+    -------
+    pd.DataFrame
+        正交后的残差，形式与y相同，index是时间，columns是股票
+    """    
+    if isinstance(y, pd.DataFrame):
+        y.index.name='date'
+        y = pl.from_pandas(y.reset_index())
+    y = y.unpivot(index="date", variable_name="code").drop_nulls()
+    xs = pl.read_parquet(
+        homeplace.barra_data_file+"barra_industry_weekly_together1.parquet" # 我这个数据缺2020-08-04 和 2020-08-05，给你的版本可能不缺？不过测速用无伤大雅
+    )
+    y = y.join(xs, on=["date", "code"])
+    cols = y.columns[3:]
+    yresid = (
+        y.select(
+            "date",
+            "code",
+            pl.col("value")
+            .least_squares.ols(
+                *[pl.col(i) for i in cols],
+                add_intercept=True,
+                mode="residuals",
+            )
+            .over("date")
+            .alias("resid"),
+        )
+        .pivot("code", index="date", values="resid")
+        .to_pandas()
+        .set_index("date")
+        .sort_index()
+    )
+    if with_corr:
+        colss=y.columns[3:14]
+        corr=y[y.columns[:14]].select(*[pl.corr('value',i).over('date').mean().alias(i) for i in colss]).to_pandas()
+        corr.index=['相关系数']
+        corr=corr.applymap(to_percent)
+        return yresid,corr
+    else:
+        return yresid
