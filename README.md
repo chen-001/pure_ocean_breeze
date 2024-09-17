@@ -9,7 +9,4 @@
 
 #### 相关链接🔗
 >* [PyPi](https://pypi.org/project/pure-ocean-breeze/)
->* [pure_ocean_breeze说明文档](https://chen-001.github.io/pure_ocean_breeze/)
 >* [Github同步到Pypi操作手册](https://github.com/chen-001/pure_ocean_breeze/blob/master/Github同步Pypi操作手册/Github同步Pypi操作手册.md)
->* [更新日志](https://github.com/chen-001/pure_ocean_breeze/blob/master/更新日志/更新日志.md)
-
