@@ -49,6 +49,10 @@ install_requires = [
     "rarfile",
     # "zipfile",
     "chardet",
+    "cachier",
+    "polars",
+    "polars_ols",
+    "python_docx",
 ]
 if sys.platform.startswith("win"):
     install_requires = install_requires + ["psycopg2"]

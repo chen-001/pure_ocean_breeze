@@ -2738,7 +2738,7 @@ def sun(factor:pd.DataFrame,rolling_days:int=10,with_pri:bool=1):
     ractor=boom_one(factor.rank(axis=1),rolling_days)
     if with_pri:
         factor=boom_one(factor,rolling_days)
-        shen=pure_moonnight(factor)
+        shen=pure_moonnight(factor,time_start=20170101)
     pfi=de_cross_special_for_barra_weekly1(ractor)
-    shen=pure_moonnight(pfi[0])
+    shen=pure_moonnight(pfi[0],time_start=20170101)
     display(pfi[1])
