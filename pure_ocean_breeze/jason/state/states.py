@@ -9,7 +9,7 @@ STATES = {
     "NO_COMMENT": False,
     "NO_SAVE": True,
     "NO_PLOT": False,
-    "START": 20160101,
+    "START": 20170101,
 }
 
 COMMENTS_WRITER=None

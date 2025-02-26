@@ -1,9 +1,10 @@
-__updated__ = "2024-08-01 18:57:24"
+__updated__ = "2025-02-26 10:53:14"
 
 import os
 import numpy as np
 import pandas as pd
 import datetime
+import mpire
 from typing import Any, Union, Dict, Tuple
 
 from pure_ocean_breeze.jason.state.states import STATES
@@ -301,41 +302,6 @@ def get_industry_dummies(
     return ress
 
 
-def database_read_final_factors(name: str = None) -> pd.DataFrame:
-    """根据因子名字，或因子序号，读取最终因子的因子值
-
-    Parameters
-    ----------
-    name : str, optional
-        因子的名字, by default None
-
-    Returns
-    -------
-    `pd.DataFrame`
-        最终因子值和文件路径
-    """
-    homeplace = HomePlace()
-    df=pd.read_parquet(homeplace.final_factor_file+name+'.parquet')
-    return df
-
-
-def database_read_primary_factors(name: str) -> pd.DataFrame:
-    """根据因子名字，读取初级因子的因子值
-
-    Parameters
-    ----------
-    name : str, optional
-        因子的名字, by default None
-
-    Returns
-    -------
-    `pd.DataFrame`
-        初级因子的因子值
-    """
-    homeplace = HomePlace()
-    df = pd.read_parquet(homeplace.factor_data_file + name+'.parquet')
-    return df
-
 @cachier()
 def read_market(
     open: bool = 0,
@@ -471,3 +437,6 @@ def moon_read_barra():
     barras.update(facs_dict)
     
     return barras
+
+
+

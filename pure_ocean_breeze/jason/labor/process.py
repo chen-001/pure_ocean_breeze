@@ -1,4 +1,4 @@
-__updated__ = "2023-10-14 15:31:01"
+__updated__ = "2025-02-26 11:32:51"
 
 import warnings
 
@@ -616,35 +616,6 @@ def show_covs(
     return corrs
 
 
-@do_on_dfs
-def show_corrs_with_old(
-    df: pd.DataFrame = None,
-    method: str = "pearson",
-) -> pd.DataFrame:
-    """计算新因子和已有因子的相关系数
-
-    Parameters
-    ----------
-    df : pd.DataFrame, optional
-        新因子, by default None
-    method : str, optional
-        求相关系数的方法, by default 'pearson'
-
-
-    Returns
-    -------
-    pd.DataFrame
-        相关系数矩阵
-    """
-    files = os.listdir(homeplace.final_factor_file)
-    names = [i[:-8] for i in files]
-    files = [homeplace.final_factor_file + i for i in files]
-    files = [pd.read_parquet(i) for i in files]
-    if df is not None:
-        corrs = show_corrs([df] + files, names, method=method)
-    else:
-        corrs = show_corrs(files, names, method=method)
-    return corrs
 
 
 @do_on_dfs
@@ -799,6 +770,8 @@ class pure_moon(object):
         "inner_rets_short",
         "big_rankics",
         "small_rankics",
+        'longside_ret_eachyear',
+        'longside_ret',
     ]
 
     @classmethod
@@ -893,10 +866,9 @@ class pure_moon(object):
         """设置因子数据的dataframe，因子表列名应为股票代码，索引应为时间"""
         # week_here
         self.factors = df.resample(self.freq).last().dropna(how="all")
-        self.factors = self.factors * self.states
-        self.factor_cover = np.sign(self.factors.abs() + 1).sum().sum()
-        opens = self.opens[self.opens.index >= self.factors.index.min()]
-        total = np.sign(opens.resample(self.freq).last()).sum().sum()
+        self.factors = (self.factors * self.states).dropna(how="all")
+        self.factor_cover = self.factors.count().sum()
+        total = self.opens.resample(self.freq).last().reindex(self.factors.index).count().sum()
         self.factor_cover = min(self.factor_cover / total, 1)
         self.factor_cross_skew = self.factors.skew(axis=1).mean()
         pos_num = ((self.factors > 0) + 0).sum().sum()
@@ -966,47 +938,51 @@ class pure_moon(object):
     def get_ic_rankic(cls, df):
         """计算IC和RankIC"""
         df1 = df[["ret", "fac"]]
-        ic = df1.corr(method="pearson").iloc[0, 1]
+        # ic = df1.corr(method="pearson").iloc[0, 1]
         rankic = df1.rank().corr().iloc[0, 1]
         small_ic=df1[df1.fac<=df1.fac.median()].rank().corr().iloc[0, 1]
         big_ic=df1[df1.fac>=df1.fac.median()].rank().corr().iloc[0, 1]
-        df2 = pd.DataFrame({"ic": [ic], "rankic": [rankic],"small_rankic":[small_ic],"big_rankic":[big_ic]})
+        # df2 = pd.DataFrame({"ic": [ic], "rankic": [rankic],"small_rankic":[small_ic],"big_rankic":[big_ic]})
+        df2 = pd.DataFrame({"rankic": [rankic],"small_rankic":[small_ic],"big_rankic":[big_ic]})
         return df2
 
     def get_icir_rankicir(cls, df):
         """计算ICIR和RankICIR"""
-        ic = df.ic.mean()
+        # ic = df.ic.mean()
         rankic = df.rankic.mean()
         small_rankic=df.small_rankic.mean()
         big_rankic=df.big_rankic.mean()
         # week_here
-        icir = ic / np.std(df.ic) * (cls.freq_ctrl.counts_one_year ** (0.5))
+        # icir = ic / np.std(df.ic) * (cls.freq_ctrl.counts_one_year ** (0.5))
         # week_here
-        rankicir = rankic / np.std(df.rankic) * (cls.freq_ctrl.counts_one_year ** (0.5))
-        small_rankicir = small_rankic / np.std(df.small_rankic) * (cls.freq_ctrl.counts_one_year ** (0.5))
-        big_rankicir = big_rankic / np.std(df.big_rankic) * (cls.freq_ctrl.counts_one_year ** (0.5))
+        # rankicir = rankic / np.std(df.rankic) * (cls.freq_ctrl.counts_one_year ** (0.5))
+        # small_rankicir = small_rankic / np.std(df.small_rankic) * (cls.freq_ctrl.counts_one_year ** (0.5))
+        # big_rankicir = big_rankic / np.std(df.big_rankic) * (cls.freq_ctrl.counts_one_year ** (0.5))
+        # return pd.DataFrame(
+        #     {"IC": [ic], "ICIR": [icir], "RankIC": [rankic], "RankICIR": [rankicir]},
+        #     index=["评价指标"],
+        # ),pd.DataFrame({"1-5RankIC":[small_rankic],"1-5ICIR":[small_rankicir],"6-10RankIC":[big_rankic],"6-10ICIR":[big_rankicir]},index=["评价指标"]).T
         return pd.DataFrame(
-            {"IC": [ic], "ICIR": [icir], "RankIC": [rankic], "RankICIR": [rankicir]},
+            {"IC": [rankic]},
             index=["评价指标"],
-        ),pd.DataFrame({"1-5RankIC":[small_rankic],"1-5ICIR":[small_rankicir],"6-10RankIC":[big_rankic],"6-10ICIR":[big_rankicir]},index=["评价指标"]).T
+        ),pd.DataFrame({"1-5IC":[small_rankic],"6-10IC":[big_rankic]},index=["评价指标"]).T
 
     def get_ic_icir_and_rank(cls, df):
         """计算IC、ICIR、RankIC、RankICIR"""
         df1 = df.groupby("date").apply(cls.get_ic_rankic)
-        cls.ics = df1.ic
+        # cls.ics = df1.ic
         cls.rankics = df1.rankic
-        cls.ics = cls.ics.reset_index(drop=True, level=1).to_frame()
+        # cls.ics = cls.ics.reset_index(drop=True, level=1).to_frame()
         cls.rankics = cls.rankics.reset_index(drop=True, level=1).to_frame()
         cls.small_rankics = df1.small_rankic.reset_index(drop=True, level=1).to_frame()
         cls.big_rankics = df1.big_rankic.reset_index(drop=True, level=1).to_frame()
         df2,df5 = cls.get_icir_rankicir(df1)
         df2 = df2.T
-        dura = (df.date.max() - df.date.min()).days / 365
-        t_value = df2.iloc[3, 0] * (dura ** (1 / 2))
-        df3 = pd.DataFrame({"评价指标": [t_value]}, index=["RankIC.t"])
-        df4 = pd.concat([df2, df3])
-        df
-        return df4,df5
+        # dura = (df.date.max() - df.date.min()).days / 365
+        # t_value = df2.iloc[3, 0] * (dura ** (1 / 2))
+        # df3 = pd.DataFrame({"评价指标": [t_value]}, index=["RankIC.t"])
+        # df4 = pd.concat([df2, df3])
+        return df2,df5
 
     @classmethod
     def get_groups(cls, df, groups_num):
@@ -1039,20 +1015,20 @@ class pure_moon(object):
             lambda x: self.get_groups(x, groups_num)
         )
         self.wind_out = self.data.copy()
-        self.factor_turnover_rates = self.data.pivot(
-            index="date", columns="code", values="group"
-        )
-        rates = []
-        for i in range(1, groups_num + 1):
-            son = (self.factor_turnover_rates == i) + 0
-            son1 = son.diff()
-            # self.factor_turnover_rates = self.factor_turnover_rates.diff()
-            change = ((np.abs(np.sign(son1)) == 1) + 0).sum(axis=1)
-            still = (((son1 == 0) + 0) * son).sum(axis=1)
-            rate = change / (change + still)
-            rates.append(rate.to_frame(f"group{i}"))
-        rates = pd.concat(rates, axis=1).fillna(0)
-        self.factor_turnover_rates = rates
+        # self.factor_turnover_rates = self.data.pivot(
+        #     index="date", columns="code", values="group"
+        # )
+        # rates = []
+        # for i in range(1, groups_num + 1):
+        #     son = (self.factor_turnover_rates == i) + 0
+        #     son1 = son.diff()
+        #     # self.factor_turnover_rates = self.factor_turnover_rates.diff()
+        #     change = ((np.abs(np.sign(son1)) == 1) + 0).sum(axis=1)
+        #     still = (((son1 == 0) + 0) * son).sum(axis=1)
+        #     rate = change / (change + still)
+        #     rates.append(rate.to_frame(f"group{i}"))
+        # rates = pd.concat(rates, axis=1).fillna(0)
+        # self.factor_turnover_rates = rates
         self.data = self.data.reset_index(drop=True)
 
     def to_group_ret(self, l):
@@ -1111,13 +1087,14 @@ class pure_moon(object):
         ]
         self.group_rets.columns = list(map(str, list(self.group_rets.columns)))
         self.group_rets = self.group_rets.add_prefix("group")
-        self.group_rets = (
-            self.group_rets - self.factor_turnover_rates * trade_cost_double_side
-        )
-        self.rets_all = (
-            self.rets_all
-            - self.factor_turnover_rates.mean(axis=1) * trade_cost_double_side
-        ).dropna()
+        # self.group_rets = (
+        #     self.group_rets - self.factor_turnover_rates * trade_cost_double_side
+        # )
+        # self.rets_all = (
+        #     self.rets_all
+        #     - self.factor_turnover_rates.mean(axis=1) * trade_cost_double_side
+        # ).dropna()
+        self.rets_all=self.rets_all.dropna()
         self.long_short_rets = (
             self.group_rets["group1"] - self.group_rets["group" + str(groups_num)]
         )
@@ -1187,15 +1164,15 @@ class pure_moon(object):
         self.long_short_info_ratio = (
             self.long_short_ret_yearly / self.long_short_vol_yearly
         )
-        self.long_short_win_times = len(self.long_short_rets[self.long_short_rets > 0])
-        self.long_short_win_ratio = self.long_short_win_times / len(
-            self.long_short_rets
-        )
-        self.max_retreat = -(
-            (self.long_short_net_values + 1)
-            / (self.long_short_net_values + 1).expanding(1).max()
-            - 1
-        ).min()
+        # self.long_short_win_times = len(self.long_short_rets[self.long_short_rets > 0])
+        # self.long_short_win_ratio = self.long_short_win_times / len(
+        #     self.long_short_rets
+        # )
+        # self.max_retreat = -(
+        #     (self.long_short_net_values + 1)
+        #     / (self.long_short_net_values + 1).expanding(1).max()
+        #     - 1
+        # ).min()
         if on_paper:
             self.long_short_comments = pd.DataFrame(
                 {
@@ -1223,32 +1200,32 @@ class pure_moon(object):
                         self.long_short_ret_yearly,
                         self.long_short_vol_yearly,
                         self.long_short_info_ratio,
-                        self.long_short_win_ratio,
-                        self.max_retreat,
+                        # self.long_short_win_ratio,
+                        # self.max_retreat,
                     ]
                 },
                 # week_here
                 index=[
-                    "年化收益率",
-                    "年化波动率",
-                    "信息比率",
-                    f"{self.freq_ctrl.comment_name}度胜率",
-                    "最大回撤率",
+                    "收益率",
+                    "波动率",
+                    "信息比",
+                    # f"{self.freq_ctrl.comment_name}度胜率",
+                    # "最大回撤率",
                 ],
             )
 
     def get_total_comments(self, groups_num):
         """综合IC、ICIR、RankIC、RankICIR,年化收益率、年化波动率、信息比率、胜率、最大回撤率"""
         rankic = self.rankics.mean()
-        rankic_win = self.rankics[self.rankics * rankic > 0]
-        rankic_win_ratio = rankic_win.dropna().shape[0] / self.rankics.dropna().shape[0]
+        # rankic_win = self.rankics[self.rankics * rankic > 0]
+        # rankic_win_ratio = rankic_win.dropna().shape[0] / self.rankics.dropna().shape[0]
         self.factor_cross_skew_after_neu = self.__factors_out.skew(axis=1).mean()
-        if self.ic_icir_and_rank.iloc[2, 0] > 0:
-            self.factor_turnover_rate = self.factor_turnover_rates[
-                f"group{groups_num}"
-            ].mean()
-        else:
-            self.factor_turnover_rate = self.factor_turnover_rates["group1"].mean()
+        # if self.ic_icir_and_rank.iloc[2, 0] > 0:
+        #     self.factor_turnover_rate = self.factor_turnover_rates[
+        #         f"group{groups_num}"
+        #     ].mean()
+        # else:
+        #     self.factor_turnover_rate = self.factor_turnover_rates["group1"].mean()
         self.group_mean_rets_monthly = self.group_rets.drop(
             columns=["long_short"]
         ).mean()
@@ -1261,38 +1238,43 @@ class pure_moon(object):
         )*self.freq_ctrl.counts_one_year
         self.group1_ret_yearly= self.group_mean_rets_monthly.loc['group1']
         self.group10_ret_yearly = self.group_mean_rets_monthly.loc['group10']
+        if self.group1_ret_yearly>self.group10_ret_yearly:
+            self.longside_ret=self.group_rets.group1-mar
+        else:
+            self.longside_ret=self.group_rets.group10-mar
+        self.longside_ret_eachyear=self.longside_ret.resample('Y').mean()*self.freq_ctrl.counts_one_year
         self.total_comments = pd.concat(
             [
                 self.ic_icir_and_rank,
-                pd.DataFrame(
-                    {"评价指标": [rankic_win_ratio]},
-                    index=["RankIC胜率"],
-                ),
+                # pd.DataFrame(
+                #     {"评价指标": [rankic_win_ratio]},
+                #     index=["RankIC胜率"],
+                # ),
                 self.long_short_comments,
                 # week_here
                 pd.DataFrame(
                     {
                         "评价指标": [
-                            self.factor_turnover_rate,
-                            self.factor_cover,
+                            # self.factor_turnover_rate,
                             self.pos_neg_rate,
                             self.factor_cross_skew,
-                            self.inner_long_ret_yearly,
-                            self.inner_long_ret_yearly
-                            / (
-                                self.inner_long_ret_yearly + self.inner_short_ret_yearly
-                            ),
+                            # self.inner_long_ret_yearly,
+                            # self.inner_long_ret_yearly
+                            # / (
+                            #     self.inner_long_ret_yearly + self.inner_short_ret_yearly
+                            # ),
                             self.corr_itself,
+                            self.factor_cover,
                         ]
                     },
                     index=[
-                        f"多头{self.freq_ctrl.comment_name}均换手",
-                        "因子覆盖率",
-                        "因子正值占比",
-                        "因子截面偏度",
-                        "多头超均收益",
-                        "多头收益占比",
-                        "一阶自相关性",
+                        # f"多头{self.freq_ctrl.comment_name}均换手",
+                        "正值占比",
+                        "截面偏度",
+                        # "多头超均收益",
+                        # "多头收益占比",
+                        "自相关性",
+                        "覆盖率",
                     ],
                 ),
                 self.big_small_rankic,
@@ -1304,8 +1286,8 @@ class pure_moon(object):
                         ]
                     },
                     index=[
-                        "1组年化收益",
-                        "10组年化收益",
+                        "1组收益",
+                        "10组收益",
                     ]
                 )
             ]
@@ -1343,19 +1325,19 @@ class pure_moon(object):
             )
             comments = (
                 self.total_comments.applymap(lambda x: round(x, 4))
-                .rename(index={"RankIC均值t值": "RankIC.t"})
+                # .rename(index={"RankIC均值t值": "RankIC.t"})
                 .reset_index()
             )
             here = pd.concat(
                 [
-                    comments.iloc[:6, :].reset_index(drop=True),
-                    comments.iloc[6:12, :].reset_index(drop=True),
-                    comments.iloc[12:18, :].reset_index(drop=True),
-                    comments.iloc[18:, :].reset_index(drop=True),
+                    comments.iloc[1:7, :].reset_index(drop=True),
+                    comments.iloc[[7,0,8,9,10,11], :].reset_index(drop=True),
+                    # comments.iloc[8:, :].reset_index(drop=True),
+                    # comments.iloc[18:, :].reset_index(drop=True),
                 ],
                 axis=1,
             )
-            here.columns = ["信息系数", "结果", "绩效指标", "结果", "其他指标", "结果","单侧","结果"]
+            here.columns = ["绩效", "结果", "多与空", "结果"]
             # here=here.to_numpy().tolist()+[['信息系数','结果','绩效指标','结果']]
             table = FF.create_table(here.iloc[::-1],xgap=0)
             table.update_yaxes(matches=None)
@@ -1366,6 +1348,7 @@ class pure_moon(object):
                         i.replace("roup", "")
                         for i in list(self.group_mean_rets_monthly.index)
                     ],
+                    name='各组收益'
                 )
             )
             # table=go.Figure([go.Table(header=dict(values=list(here.columns)),cells=dict(values=here.to_numpy().tolist()))])
@@ -1375,7 +1358,7 @@ class pure_moon(object):
                 pic5_data1 = go.Scatter(
                     y=list(self.small_rankics.small_rankic.cumsum()),
                     x=list(self.small_rankics.index),
-                    name="long_only_rankic",
+                    name="多头ic",
                     yaxis="y2",
                     mode="lines",
                     line=dict(color="blue"),
@@ -1386,7 +1369,7 @@ class pure_moon(object):
                 pic5_data1 = go.Scatter(
                     y=list(self.big_rankics.big_rankic.cumsum()),
                     x=list(self.big_rankics.index),
-                    name="long_only_rankic",
+                    name="多头ic",
                     yaxis="y2",
                     mode="lines",
                     line=dict(color="blue"),
@@ -1399,28 +1382,30 @@ class pure_moon(object):
                 yaxis="y2",
                 line=dict(color="red"),
             )
-            pic5_layout = go.Layout(yaxis2=dict(title="y2", side="right"))
-            pic5 = go.Figure(layout=pic5_layout)
+            # pic5_layout = go.Layout(yaxis2=dict(title="y2", side="right"))
+            # pic5 = go.Figure()
             figs.append(table)
             figs = [figs[-1]] + figs[:-1]
             figs.append(pic2)
-            if output_six_figures:
-                figs = [figs[0], figs[1], figs[-1], pic3]
-                figs[3].update_layout(yaxis2=dict(title="y2", side="right"))
-                pic4=go.Figure()
-                figs.append(pic4)
-                figs[4].add_trace(go.Line(x=self.long_short_net_values.index,y=self.long_short_net_values,name='long_short'))
-                figs[4].add_trace(go.Line(x=self.long_minus_market_nets.index,y=self.long_minus_market_nets,name='long_minus_market'))
-                figs.append(pic5)
-                figs[5].add_trace(pic5_data1)
-                figs[5].add_trace(pic5_data2)
-            else:
-                figs = [figs[0], figs[1], figs[-1]]
-                figs.append(pic5)
-                figs[3].add_trace(pic5_data1)
-                figs[3].add_trace(pic5_data2)
+            # if output_six_figures:
+            figs = [figs[0], figs[1], figs[-1], go.Figure()]
+            figs[3].add_trace(pic5_data1)
+            figs[3].add_trace(pic5_data2)
+
+            pic4=go.Figure()
+            figs.append(pic4)
+            # figs[4].add_trace(go.Line(x=self.long_short_net_values.index,y=self.long_short_net_values,name='long_short'))
+            # figs[4].add_trace(go.Line(x=self.long_minus_market_nets.index,y=self.long_minus_market_nets,name='long_minus_market'))
+            figs[4].add_trace(go.Bar(x=[str(i) for i in self.longside_ret_eachyear.index.year],y=self.longside_ret_eachyear,name='各年收益'))            
+            # figs.append(pic5)
+            # figs[5].add_trace(go.Bar(x=self.longside_ret.index,y=self.longside_ret,name='longside_ret',marker_color="red"))
+            # else:
+            #     figs = [figs[0], figs[1], figs[-1]]
+            #     figs.append(pic5)
+            #     figs[3].add_trace(pic5_data1)
+            #     figs[3].add_trace(pic5_data2)
             figs[1].update_layout(
-                legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
+                legend=dict(yanchor="top", y=0.99, xanchor="right", x=0.99)
             )
             
             # twins=pd.concat([self.long_short_net_values,self.long_minus_market_nets],axis=1)
@@ -1428,104 +1413,126 @@ class pure_moon(object):
             
             base_layout = cf.tools.get_base_layout(figs)
 
-            if output_six_figures:
-                sp = cf.subplots(
-                    figs,
-                    shape=(2, 14),
-                    base_layout=base_layout,
-                    vertical_spacing=0.15,
-                    horizontal_spacing=0.025,
-                    shared_yaxes=False,
-                    specs=[
-                        [
-                            # None,
-                            {"rowspan": 2, "colspan": 5},
-                            None,
-                            None,
-                            None,
-                            None,
-                            {"rowspan": 2, "colspan": 3},
-                            None,
-                            None,
-                            {"colspan": 3},
-                            None,
-                            None,
-                            {"colspan": 3},
-                            None,
-                            None,
-                        ],
-                        [
-                            # None,
-                            None,
-                            None,
-                            None,
-                            None,
-                            None,
-                            None,
-                            None,
-                            None,
-                            {"colspan": 3},
-                            None,
-                            None,
-                            {"colspan": 3},
-                            None,
-                            None,
-                        ],
+            # if output_six_figures:
+            sp = cf.subplots(
+                figs,
+                shape=(3, 10),
+                base_layout=base_layout,
+                vertical_spacing=0.15,
+                horizontal_spacing=0.045,
+                shared_yaxes=False,
+                specs=[
+                    [
+                        # None,
+                        # None,
+                        {"rowspan": 3, "colspan": 3},
+                        None,
+                        # None,
+                        # None,
+                        None,
+                        {"rowspan": 3, "colspan": 3},
+                        # None,
+                        None,
+                        None,
+                        {"colspan": 3},
+                        None,
+                        None,
+                        None,
                     ],
-                    subplot_titles=[
-                        "净值曲线",
-                        "各组月均超均收益",
-                        "Rank IC时序图",
-                        "绩效指标",
+                    [
+                        # None,
+                        # None,
+                        # None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        {"colspan": 3},
+                        None,
+                        None,
+                        None,
                     ],
-                )
-                sp["layout"].update(showlegend=ilegend,width=1780,height=230,margin=dict(l=0, r=0, b=0, t=0, pad=0))
-            else:
-                sp = cf.subplots(
-                    figs,
-                    shape=(2, 11),
-                    base_layout=base_layout,
-                    vertical_spacing=0.15,
-                    horizontal_spacing=0.025,
-                    shared_yaxes=False,
-                    specs=[
-                        [
-                            # None,
-                            {"rowspan": 2, "colspan": 5},
-                            None,
-                            None,
-                            None,
-                            None,
-                            {"rowspan": 2, "colspan": 3},
-                            None,
-                            None,
-                            {"colspan": 3},
-                            None,
-                            None,
-                        ],
-                        [
-                            # None,
-                            None,
-                            None,
-                            None,
-                            None,
-                            None,
-                            None,
-                            None,
-                            None,
-                            {"colspan": 3},
-                            None,
-                            None,
-                        ],
+                    [
+                        # None,
+                        # None,
+                        # None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        {"colspan": 3},
+                        None,
+                        None,
+                        None,
                     ],
-                    subplot_titles=[
-                        "净值曲线",
-                        "各组月均超均收益",
-                        "Rank IC时序图",
-                        "绩效指标",
-                    ],
-                )
-                sp["layout"].update(showlegend=ilegend,width=1350,height=230,margin=dict(l=0, r=0, b=0, t=0, pad=0))
+                ],
+                subplot_titles=[
+                    "净值曲线",
+                    "各组月均超均收益",
+                    "Rank IC时序图",
+                    # "绩效指标",
+                ],
+            )
+            sp["layout"].update(showlegend=ilegend,width=1100,height=200,margin=dict(l=0, r=0, b=0, t=0, pad=0),font=dict(size=12),legend=dict(
+        # 可选值：
+        # 'left', 'center', 'right' 
+        # 'top', 'middle', 'bottom'
+        xanchor="right",    # 图例的x锚点
+        yanchor="top",     # 图例的y锚点
+        x=1,              # x位置（0到1之间）
+        y=1               # y位置（0到1之间）
+    ))
+            cf.iplot(sp)
+            # else:
+            #     sp = cf.subplots(
+            #         figs,
+            #         shape=(2, 11),
+            #         base_layout=base_layout,
+            #         vertical_spacing=0.15,
+            #         horizontal_spacing=0.025,
+            #         shared_yaxes=False,
+            #         specs=[
+            #             [
+            #                 # None,
+            #                 {"rowspan": 2, "colspan": 5},
+            #                 None,
+            #                 None,
+            #                 None,
+            #                 None,
+            #                 {"rowspan": 2, "colspan": 3},
+            #                 None,
+            #                 None,
+            #                 {"colspan": 3},
+            #                 None,
+            #                 None,
+            #             ],
+            #             [
+            #                 # None,
+            #                 None,
+            #                 None,
+            #                 None,
+            #                 None,
+            #                 None,
+            #                 None,
+            #                 None,
+            #                 None,
+            #                 {"colspan": 3},
+            #                 None,
+            #                 None,
+            #             ],
+            #         ],
+            #         subplot_titles=[
+            #             "净值曲线",
+            #             "各组月均超均收益",
+            #             "Rank IC时序图",
+            #             "绩效指标",
+            #         ],
+            #     )
+            #     sp["layout"].update(showlegend=ilegend,width=1350,height=230,margin=dict(l=0, r=0, b=0, t=0, pad=0))
             # sp['colors']=['#FF5733', '#33FF57', '#3357FF']
             # los=sp['layout']['annotations']
             # los[0]['font']['color']='#000000'
@@ -1548,7 +1555,7 @@ class pure_moon(object):
             # print(sp['layout']['annotations'])
             # sp['layout']['annotations'][0]['yanchor']='top'
 
-            cf.iplot(sp)
+            # cf.iplot(sp)
             # tris=pd.concat([self.group_net_values,self.rankics,self.factor_turnover_rates],axis=1).rename(columns={0:'turnover_rate'})
             # sp=plyoo.make_subplots(rows=2,cols=8,vertical_spacing=.15,horizontal_spacing=.03,
             #                specs=[[{'rowspan':2,'colspan':2,'type':'domain'},None,{'rowspan':2,'colspan':4,'type':'xy'},None,None,None,{'colspan':2,'type':'xy'},None],
@@ -1597,6 +1604,7 @@ class pure_moon(object):
         without_breakpoint=0,
         beauty_comments=0,
         output_six_figures=0,
+        show_more_than=0.025,
     ):
         """运行回测部分"""
         if comments_writer and not (comments_sheetname or sheetname):
@@ -1653,36 +1661,48 @@ class pure_moon(object):
 
         if plt_plot:
             if not STATES["NO_PLOT"]:
-                if filename:
-                    self.plot_net_values(
-                        y2=y2,
-                        filename=filename,
-                        iplot=iplot,
-                        ilegend=bool(ilegend),
-                        without_breakpoint=without_breakpoint,
-                    )
+                if filename:    
+                    if (show_more_than is None) or (show_more_than < max(self.group1_ret_yearly,self.group10_ret_yearly)):
+                        self.plot_net_values(
+                            y2=y2,
+                            filename=filename,
+                            iplot=iplot,
+                            ilegend=bool(ilegend),
+                            without_breakpoint=without_breakpoint,
+                        )
+                    else:
+                        logger.info(f'多头收益率为{round(max(self.group1_ret_yearly,self.group10_ret_yearly),3)}, ic为{round(self.rankics.rankic.mean(),3)}，表现太差，不展示了')
                 else:
-                    self.plot_net_values(
-                        y2=y2,
-                        filename=self.factors_file.split(".")[-2].split("/")[-1]
-                        + str(groups_num)
-                        + "分组",
-                        iplot=iplot,
-                        ilegend=bool(ilegend),
-                        without_breakpoint=without_breakpoint,
-                        output_six_figures=output_six_figures,
-                    )
+                    if (show_more_than is None) or (show_more_than < max(self.group1_ret_yearly,self.group10_ret_yearly)):
+                        self.plot_net_values(
+                            y2=y2,
+                            filename=self.factors_file.split(".")[-2].split("/")[-1]
+                            + str(groups_num)
+                            + "分组",
+                            iplot=iplot,
+                            ilegend=bool(ilegend),
+                            without_breakpoint=without_breakpoint,
+                            output_six_figures=output_six_figures,
+                        )
+                    else:
+                        logger.info(f'多头收益率为{round(max(self.group1_ret_yearly,self.group10_ret_yearly),3)}, ic为{round(self.rankics.rankic.mean(),3)}，表现太差，不展示了')
                 # plt.show()
         if plotly_plot:
             if not STATES["NO_PLOT"]:
                 if filename:
-                    self.plotly_net_values(filename=filename)
+                    if (show_more_than is None) or (show_more_than < max(self.group1_ret_yearly,self.group10_ret_yearly)):
+                        self.plotly_net_values(filename=filename)
+                    else:
+                        logger.info(f'多头收益率为{round(max(self.group1_ret_yearly,self.group10_ret_yearly),3)}, ic为{round(self.rankics.rankic.mean(),3)}，表现太差，不展示了')
                 else:
-                    self.plotly_net_values(
-                        filename=self.factors_file.split(".")[-2].split("/")[-1]
-                        + str(groups_num)
-                        + "分组"
-                    )
+                    if (show_more_than is None) or (show_more_than < max(self.group1_ret_yearly,self.group10_ret_yearly)):
+                        self.plotly_net_values(
+                            filename=self.factors_file.split(".")[-2].split("/")[-1]
+                            + str(groups_num)
+                            + "分组"
+                        )
+                    else:
+                        logger.info(f'多头收益率为{round(max(self.group1_ret_yearly,self.group10_ret_yearly),3)}, ic为{round(self.rankics.rankic.mean(),3)}，表现太差，不展示了')
         if print_comments:
             if not STATES["NO_COMMENT"]:
                 tb = Texttable()
@@ -1827,9 +1847,10 @@ class pure_moonnight(object):
         no_read_indu: bool = 0,
         only_cap: bool = 0,
         iplot: bool = 1,
-        ilegend: bool = 0,
+        ilegend: bool = 1,
         without_breakpoint: bool = 0,
         total_cap: bool = 0,
+        show_more_than: float = 0.025,
     ) -> None:
         """一键回测框架，测试单因子的月频调仓的分组表现
         每月月底计算因子值，月初第一天开盘时买入，月末收盘最后一天收盘时卖出
@@ -1893,31 +1914,33 @@ class pure_moonnight(object):
             画图的时候是否去除间断点, by default 0
         total_cap : bool, optional
             加权和行业市值中性化时使用总市值, by default 0
+        show_more_than : float, optional
+            展示收益率大于多少的因子，默认展示大于0.025的因子, by default 0.025
         """
 
         if not isinstance(factors, pd.DataFrame):
             factors = factors()
         if comments_writer is None and sheetname is not None:
-            from pure_ocean_breeze.state.states import COMMENTS_WRITER
+            from pure_ocean_breeze.jason.state.states import COMMENTS_WRITER
 
             comments_writer = COMMENTS_WRITER
         if net_values_writer is None and sheetname is not None:
-            from pure_ocean_breeze.state.states import NET_VALUES_WRITER
+            from pure_ocean_breeze.jason.state.states import NET_VALUES_WRITER
 
             net_values_writer = NET_VALUES_WRITER
         if not on_paper:
-            from pure_ocean_breeze.state.states import ON_PAPER
+            from pure_ocean_breeze.jason.state.states import ON_PAPER
 
             on_paper = ON_PAPER
         if time_start is None:
-            from pure_ocean_breeze.state.states import MOON_START
+            from pure_ocean_breeze.jason.state.states import MOON_START
 
             if MOON_START is not None:
                 factors = factors[factors.index >= pd.Timestamp(str(MOON_START))]
         else:
             factors = factors[factors.index >= pd.Timestamp(str(time_start))]
         if time_end is None:
-            from pure_ocean_breeze.state.states import MOON_END
+            from pure_ocean_breeze.jason.state.states import MOON_END
 
             if MOON_END is not None:
                 factors = factors[factors.index <= pd.Timestamp(str(MOON_END))]
@@ -1983,6 +2006,7 @@ class pure_moonnight(object):
             iplot=iplot,
             ilegend=ilegend,
             without_breakpoint=without_breakpoint,
+            show_more_than=show_more_than,
         )
 
     def __call__(self) -> pd.DataFrame:
@@ -2286,14 +2310,6 @@ class pure_coldwinter(object):
             是否删去账面市值比因子, by default 1
         """
         cls.homeplace = HomePlace()
-        # barra因子数据
-        # styles = os.listdir(cls.homeplace.barra_data_file)
-        # styles = [i for i in styles if (i.endswith(".parquet")) and (i[0] != ".")]
-        # barras = {}
-        # for s in styles:
-        #     k = s.split(".")[0]
-        #     v = pd.read_parquet(cls.homeplace.barra_data_file + s).resample("W").last()
-        #     barras[k] = v
         barras=moon_read_barra()
         rename_dict = {
             "size": "市值",
@@ -2733,12 +2749,15 @@ def sun1(factor:pd.DataFrame,rolling_days:int=10,with_pri:bool=1):
     
 
 @do_on_dfs
-def sun(factor:pd.DataFrame,rolling_days:int=10,with_pri:bool=1):
+def sun(factor:pd.DataFrame,rolling_days:int=10,with_pri:bool=1,time_start:int=20170101,show_more_than:float=0.025):
     '''先单因子测试，再测试其与常用风格之间的关系'''
     ractor=boom_one(factor.rank(axis=1),rolling_days)
     if with_pri:
         factor=boom_one(factor,rolling_days)
-        shen=pure_moonnight(factor,time_start=20170101)
     pfi=de_cross_special_for_barra_weekly1(ractor)
-    shen=pure_moonnight(pfi[0],time_start=20170101)
-    display(pfi[1])
+    logger.info('这是中性化之后的表现')
+    shen=pure_moonnight(pfi[0],time_start=time_start,show_more_than=show_more_than)
+    logger.info('这是原始值')
+    if max(shen.shen.group1_ret_yearly,shen.shen.group10_ret_yearly) > show_more_than:
+        shen=pure_moonnight(factor,time_start=time_start,show_more_than=None)
+        display(pfi[1])
