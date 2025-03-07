@@ -25,11 +25,19 @@ def ini():
         barra_data_file = input("请设置barra数据存放路径(请最终以斜杠结尾，请不要输入反斜杠'',请都替换为'/')：")
     if barra_data_file[-1] != "/":
         barra_data_file = barra_data_file + "/"
+    # 更新数据路径
+    update_data_file = input("请设置更新数据存放路径(请最终以斜杠结尾，请不要输入反斜杠'',请都替换为'/')：")
+    while "/" not in update_data_file:
+        print("请不要输入反斜杠''，请替换为'/'，并以'/'结尾")
+        update_data_file = input("请设置更新数据存放路径(请最终以斜杠结尾，请不要输入反斜杠'',请都替换为'/')：")
+    if update_data_file[-1] != "/":
+        update_data_file = update_data_file + "/"
     # use all parts
     save_dict = {
         "daily_data_file": daily_data_file,
         "factor_data_file": factor_data_file,
         "barra_data_file": barra_data_file,
+        "update_data_file": update_data_file,
     }
     save_dict_file = open(user_file + "paths.settings", "wb")
     pickle.dump(save_dict, save_dict_file)

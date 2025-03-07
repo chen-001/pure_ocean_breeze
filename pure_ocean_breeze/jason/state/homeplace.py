@@ -2,7 +2,7 @@
 初始化时保存的路径
 """
 
-__updated__ = "2025-02-26 10:54:51"
+__updated__ = "2025-02-26 15:17:06"
 
 import os
 import pickle
@@ -14,6 +14,7 @@ class HomePlace(object):
     daily_data_file: 日频数据存放位置
     factor_data_file: （辅助、初级）因子数据存放位置
     barra_data_file: 十种常用风格因子的存放位置
+    update_data_file: 更新数据存放位置
     ```
     """
 
@@ -21,6 +22,7 @@ class HomePlace(object):
         "daily_data_file",
         "factor_data_file",
         "barra_data_file",
+        "update_data_file",
     ]
 
     def __init__(self):
