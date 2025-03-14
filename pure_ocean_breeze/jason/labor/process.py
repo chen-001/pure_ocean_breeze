@@ -1,4 +1,4 @@
-__updated__ = "2025-02-26 11:32:51"
+__updated__ = "2025-03-11 00:21:22"
 
 import warnings
 
@@ -65,6 +65,7 @@ from pure_ocean_breeze.jason.data.tools import (
     boom_one,
     de_cross_special_for_barra_weekly,
     de_cross_special_for_barra_weekly1,
+    de_cross_special_for_barra_weekly_fast,
 )
 from pure_ocean_breeze.jason.labor.comment import (
     comments_on_twins,
@@ -2754,10 +2755,11 @@ def sun(factor:pd.DataFrame,rolling_days:int=10,with_pri:bool=1,time_start:int=2
     ractor=boom_one(factor.rank(axis=1),rolling_days)
     if with_pri:
         factor=boom_one(factor,rolling_days)
-    pfi=de_cross_special_for_barra_weekly1(ractor)
+    pfi=de_cross_special_for_barra_weekly_fast(ractor)
     logger.info('这是中性化之后的表现')
-    shen=pure_moonnight(pfi[0],time_start=time_start,show_more_than=show_more_than)
-    logger.info('这是原始值')
+    shen=pure_moonnight(pfi,time_start=time_start,show_more_than=show_more_than)
     if max(shen.shen.group1_ret_yearly,shen.shen.group10_ret_yearly) > show_more_than:
+        logger.info('这是原始值')
         shen=pure_moonnight(factor,time_start=time_start,show_more_than=None)
-        display(pfi[1])
+    return bool(max(shen.shen.group1_ret_yearly,shen.shen.group10_ret_yearly) > show_more_than)
+        # display(pfi[1])

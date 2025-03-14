@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2025-02-26 15:21:59"
+__updated__ = "2025-03-07 16:46:12"
 
 import os
 import pandas as pd
@@ -21,12 +21,13 @@ import polars_ols as pls
 
 from pure_ocean_breeze.jason.state.homeplace import HomePlace
 from pure_ocean_breeze.jason.state.decorators import do_on_dfs
+import rust_pyfunc as rp
 
 try:
     homeplace = HomePlace()
 except Exception:
     print("您暂未初始化，功能将受限")
-
+xs=pd.read_parquet(homeplace.barra_data_file+"barra_industry_weekly_together.parquet")
 
 def is_notebook() -> bool:
     try:
@@ -1431,6 +1432,35 @@ def de_cross_special_for_barra_daily_jason(
     )
     return y
 
+
+
+def de_cross_special_for_barra_weekly_fast(
+    y: Union[pd.DataFrame, pl.DataFrame],with_corr:int=1
+) -> pd.DataFrame:
+    """因子正交函数，但固定了xs为barra数据
+    速度：10个barra因子、2016-2022、大约3.2秒
+
+    Parameters
+    ----------
+    y : Union[pd.DataFrame, pl.DataFrame]
+        要研究的因子，形式与h5存数据的形式相同，index是时间，columns是股票
+
+    Returns
+    -------
+    pd.DataFrame
+        正交后的残差，形式与y相同，index是时间，columns是股票
+    """
+    if isinstance(y, pd.DataFrame):
+        y.index.name='date'
+    y=y.stack().reset_index()
+    y.columns=['date','code','fac']
+    yx=pd.merge(y,xs,on=['date','code'])
+    def ols_sing(df:pd.DataFrame)->pd.DataFrame:
+        betas=rp.ols(df[df.columns[3:]].to_numpy(dtype=float),df['fac'].to_numpy(dtype=float),False)
+        df.fac=df.fac-betas[0]-betas[1]*df[df.columns[3]]-betas[2]*df[df.columns[4]]-betas[3]*df[df.columns[5]]-betas[4]*df[df.columns[6]]-betas[5]*df[df.columns[7]]-betas[6]*df[df.columns[8]]-betas[7]*df[df.columns[9]]-betas[8]*df[df.columns[10]]-betas[9]*df[df.columns[11]]-betas[10]*df[df.columns[12]]-betas[11]*df[df.columns[13]]
+        return df[['date','code','fac']]
+    yresid=yx.dropna().groupby('date').apply(ols_sing).pivot(index='date',columns='code',values='fac')
+    return yresid
 
 def de_cross_special_for_barra_weekly(
     y: Union[pd.DataFrame, pl.DataFrame],with_corr:int=1
