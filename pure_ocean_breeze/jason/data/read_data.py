@@ -1,11 +1,9 @@
-__updated__ = "2025-02-26 10:53:14"
+__updated__ = "2025-03-19 00:36:18"
 
 import os
 import numpy as np
 import pandas as pd
-import datetime
-import mpire
-from typing import Any, Union, Dict, Tuple
+from typing import Union
 
 from pure_ocean_breeze.jason.state.states import STATES
 from pure_ocean_breeze.jason.state.homeplace import HomePlace
@@ -252,7 +250,7 @@ def get_industry_dummies(
     daily: bool = 0,
     weekly: bool = 0,
     start: int = STATES["START"],
-) -> Dict:
+) -> dict:
     """生成30/31个行业的哑变量矩阵，返回一个字典
 
     Parameters
@@ -403,40 +401,7 @@ def moon_read_dummy(freq):
         )
     return deal_dummy(swindustry_dummy)
 
-@cachier()
-def moon_read_barra():
-    styles = os.listdir(homeplace.barra_data_file)
-    styles = [i for i in styles if (i.endswith(".parquet")) and (i[0] != ".")]
-    styles=[i for i in styles if 'together' not in i]
-    rename_dict = {
-        "size": "市值",
-        "nonlinearsize": "非线性市值",
-        "booktoprice": "估值",
-        "earningsyield": "盈利",
-        "growth": "成长",
-        "leverage": "杠杆",
-        "liquidity": "流动性",
-        "momentum": "动量",
-        "residualvolatility": "波动率",
-        "beta": "贝塔",
-    }
-    facs_dict = {
-        "反转_5天收益率均值": boom_one(read_daily(ret=1)),
-        "波动_20天收益率标准差": read_daily(ret=1)
-        .rolling(20, min_periods=10)
-        .std()
-        .resample("W")
-        .last(),
-        "换手_5天换手率均值": boom_one(read_daily(tr=1)),
-    }
-    barras = {}
-    for s in styles:
-        k = s.split(".")[0]
-        v = pd.read_parquet(homeplace.barra_data_file + s).resample("W").last()
-        barras[rename_dict[k]] = v
-    barras.update(facs_dict)
-    
-    return barras
+
 
 
 

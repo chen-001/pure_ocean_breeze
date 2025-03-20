@@ -1,4 +1,4 @@
-__updated__ = "2023-03-16 18:52:29"
+__updated__ = "2025-03-19 01:50:20"
 
 import numpy as np
 import pandas as pd
@@ -15,48 +15,6 @@ from pure_ocean_breeze.jason.data.read_data import (
 from pure_ocean_breeze.jason.state.decorators import do_on_dfs
 from pure_ocean_breeze.jason.state.states import STATES
 
-
-def comment_on_rets_and_nets(
-    rets: pd.Series, nets: pd.Series, name: str = "绩效", counts_one_year: int = 50
-) -> pd.DataFrame:
-    """输入月频的收益率序列和净值序列，输出年化收益、年化波动、信息比率、月度胜率和最大回撤率
-    输入2个pd.Series，时间是索引
-
-    Parameters
-    ----------
-    rets : pd.Series
-        收益率序列，index为时间
-    nets : pd.Series
-        净值序列，index为时间
-    name : str, optional
-        绩效指标列名字, by default '绩效'
-    counts_one_year : int
-        一年内有多少次交易, by default 50
-
-    Returns
-    -------
-    `pd.DataFrame`
-        包含年化收益、年化波动、信息比率、月度胜率和最大回撤率的评价指标
-    """
-    duration_nets = (nets.index[-1] - nets.index[0]).days
-    year_nets = duration_nets / 365
-    ret_yearly = nets.iloc[-1] /year_nets
-    max_draw = ((nets.cummax() - nets) / nets.cummax()).max()
-    vol = np.std(rets) * (counts_one_year**0.5)
-    info_rate = ret_yearly / vol
-    win_rate = len(rets[rets > 0]) / len(rets)
-    names = "胜率"
-    comments = pd.DataFrame(
-        {
-            "年化收益率": ret_yearly,
-            "年化波动率": vol,
-            "信息比率": info_rate,
-            names: win_rate,
-            "最大回撤率": max_draw,
-        },
-        index=[name],
-    ).T
-    return comments
 
 
 def comments_on_twins(

@@ -1,4 +1,4 @@
-__updated__ = "2023-07-14 15:12:11"
+__updated__ = "2025-03-19 01:47:42"
 
 from setuptools import setup
 import setuptools
@@ -20,39 +20,16 @@ install_requires = [
     # "numpy",
     "pandas<=1.5.3",
     "scipy",
-    "statsmodels",
     "plotly",
     # "matplotlib",
     "pyarrow",
     "loguru",
-    "knockknock",
-    "dcube",
     "tenacity",
     "pickledb",
-    "pymysql",
-    "sqlalchemy",
-    "requests",
-    "bs4",
-    "wrapt_timeout_decorator",
-    "pyfinance",
-    "texttable",
-    "numpy_ext",
-    "xpinyin",
     "cufflinks",
-    "clickhouse_sqlalchemy",
-    "tradetime",
-    "deprecation",
-    "questdb==1.1.0",
-    "mpire",
-    "py7zr",
-    "unrar",
-    "rarfile",
-    # "zipfile",
-    "chardet",
     "cachier",
     "polars",
     "polars_ols",
-    "python_docx",
 ]
 if sys.platform.startswith("win"):
     install_requires = install_requires + ["psycopg2"]

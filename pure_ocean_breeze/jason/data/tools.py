@@ -2,26 +2,26 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2025-03-07 16:46:12"
+__updated__ = "2025-03-20 14:07:55"
 
 import os
 import pandas as pd
 import tqdm.auto
 import datetime
-import scipy.io as scio
 import numpy as np
 import scipy.stats as ss
 from functools import reduce, partial
 from typing import Callable, Union, Dict, List, Tuple
 import joblib
-import mpire
-import statsmodels.formula.api as smf
 import polars as pl
 import polars_ols as pls
+import mpire
 
 from pure_ocean_breeze.jason.state.homeplace import HomePlace
 from pure_ocean_breeze.jason.state.decorators import do_on_dfs
 import rust_pyfunc as rp
+from pandarallel import pandarallel
+pandarallel.initialize(progress_bar=False, nb_workers=10)
 
 try:
     homeplace = HomePlace()
@@ -1253,44 +1253,8 @@ def count_pos_neg(s: Union[pd.Series, pd.DataFrame]):
 
 
 
-def de_cross_old(
-    y: pd.DataFrame, xs: Union[List[pd.DataFrame], pd.DataFrame]
-) -> pd.DataFrame:
-    """使用若干因子对某个因子进行正交化处理
 
-    Parameters
-    ----------
-    y : pd.DataFrame
-        研究的目标，回归中的y
-    xs : Union[List[pd.DataFrame],pd.DataFrame]
-        用于正交化的若干因子，回归中的x
-
-    Returns
-    -------
-    pd.DataFrame
-        正交化之后的因子
-    """
-    if not isinstance(xs, list):
-        xs = [xs]
-    # y = pure_fallmount(y)
-    # xs = [pure_fallmount(i) for i in xs]
-    # return (y - xs)()
-    df=merge_many([y]+xs,how='inner')
-    xs_str='+'.join([f'fac{i+2}' for i in range(len(xs))])
-    def sing(date:pd.Timestamp):
-        df0=df[df.date==date].set_index(['date','code'])
-        if df0.shape[0]>0:
-            ols=smf.ols('fac1~'+xs_str,data=df0).fit()
-            df0.fac1=ols.resid
-            return df0[['fac1']]
-    dates=list(set(df.date))
-    with mpire.WorkerPool(20) as pool:
-        dfs=pool.map(sing,dates)
-    dfs=pd.concat(dfs).reset_index().pivot(index='date',columns='code',values='fac1')
-    return dfs
-
-
-def de_cross(
+def de_cross_polars(
     y: Union[pd.DataFrame, pl.DataFrame],
     xs: Union[list[pd.DataFrame], list[pl.DataFrame]],
 ) -> pd.DataFrame:
@@ -1341,50 +1305,32 @@ def de_cross(
     return y
 
 
-def de_cross_special_for_barra_daily_jason(
-    y: Union[pd.DataFrame, pl.DataFrame],
-) -> pd.DataFrame:
-    """因子正交函数，但固定了xs为barra数据
-    速度：10个barra因子、2016-2022、大约3.2秒
+def de_cross(y, x_list):
+    """
+    因子正交化函数。
 
-    Parameters
-    ----------
-    y : Union[pd.DataFrame, pl.DataFrame]
-        要研究的因子，形式与h5存数据的形式相同，index是时间，columns是股票
+    参数：
+    y：pandas DataFrame，因变量。
+    x_list：包含 pandas DataFrame 的列表，自变量。
 
-    Returns
-    -------
-    pd.DataFrame
-        正交后的残差，形式与y相同，index是时间，columns是股票
-    """    
-    if isinstance(y, pd.DataFrame):
-        y.index.name='date'
-        y = pl.from_pandas(y.reset_index())
-    y = y.unpivot(index="date", variable_name="code").drop_nulls()
-    xs = pl.read_parquet(
-        homeplace.barra_data_file+"barra_daily_together.parquet" # 我这个数据缺2020-08-04 和 2020-08-05，给你的版本可能不缺？不过测速用无伤大雅
-    )
-    y = y.join(xs, on=["date", "code"])
-    cols = y.columns[3:]
-    y = (
-        y.select(
-            "date",
-            "code",
-            pl.col("value")
-            .least_squares.ols(
-                *[pl.col(i) for i in cols],
-                add_intercept=True,
-                mode="residuals",
-            )
-            .over("date")
-            .alias("resid"),
-        )
-        .pivot("code", index="date", values="resid")
-        .to_pandas()
-        .set_index("date")
-        .sort_index()
-    )
-    return y
+    返回：
+    pandas DataFrame，正交化后的残差。
+    """
+    index_list = [df.index for df in [y]+x_list]
+    dates = reduce(lambda x, y: x.intersection(y), index_list)
+    def one(timestamp):
+        y_series=y.loc[timestamp]
+        xs=pd.concat([x.loc[timestamp].to_frame(str(num)) for num,x in enumerate(x_list)],axis=1)
+        yxs=pd.concat([y_series.to_frame('haha'),xs],axis=1).dropna()
+        betas=rp.ols(yxs[xs.columns].to_numpy(dtype=float),yxs['haha'].to_numpy(dtype=float),False)
+        yresi=y_series-sum([betas[i+1]*xs[str(i)] for i in range(len(betas)-1)])-betas[0]
+        yresi=yresi.to_frame('haha').T
+        yresi.index=[timestamp]
+        return yresi
+        
+    with mpire.WorkerPool(n_jobs=10) as pool:
+        residual_df=pd.concat(pool.map(one, dates)).sort_index()
+    return residual_df
 
 
 def de_cross_special_for_barra_daily_jason(
@@ -1459,7 +1405,7 @@ def de_cross_special_for_barra_weekly_fast(
         betas=rp.ols(df[df.columns[3:]].to_numpy(dtype=float),df['fac'].to_numpy(dtype=float),False)
         df.fac=df.fac-betas[0]-betas[1]*df[df.columns[3]]-betas[2]*df[df.columns[4]]-betas[3]*df[df.columns[5]]-betas[4]*df[df.columns[6]]-betas[5]*df[df.columns[7]]-betas[6]*df[df.columns[8]]-betas[7]*df[df.columns[9]]-betas[8]*df[df.columns[10]]-betas[9]*df[df.columns[11]]-betas[10]*df[df.columns[12]]-betas[11]*df[df.columns[13]]
         return df[['date','code','fac']]
-    yresid=yx.dropna().groupby('date').apply(ols_sing).pivot(index='date',columns='code',values='fac')
+    yresid=yx.dropna().groupby('date').parallel_apply(ols_sing).pivot(index='date',columns='code',values='fac')
     return yresid
 
 def de_cross_special_for_barra_weekly(
