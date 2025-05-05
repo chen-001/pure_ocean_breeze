@@ -1,4 +1,4 @@
-__updated__ = "2025-03-19 02:14:33"
+__updated__ = "2025-04-26 03:00:58"
 
 import warnings
 
@@ -40,6 +40,20 @@ from pure_ocean_breeze.jason.data.tools import (
     boom_one,
     de_cross_special_for_barra_weekly_fast,
 )
+import altair as alt
+from IPython.display import display
+barras={}
+barras['beta']=boom_one(pd.read_parquet(homeplace.barra_data_file+'beta.parquet'),10)
+barras['book_to_price']=boom_one(pd.read_parquet(homeplace.barra_data_file+'booktoprice.parquet'),10)
+barras['earnings_yield']=boom_one(pd.read_parquet(homeplace.barra_data_file+'earningsyield.parquet'),10)
+barras['growth']=boom_one(pd.read_parquet(homeplace.barra_data_file+'growth.parquet'),10)
+barras['leverage']=boom_one(pd.read_parquet(homeplace.barra_data_file+'leverage.parquet'),10)
+barras['liquidity']=boom_one(pd.read_parquet(homeplace.barra_data_file+'liquidity.parquet'),10)
+barras['momentum']=boom_one(pd.read_parquet(homeplace.barra_data_file+'momentum.parquet'),10)
+barras['non_linear_size']=boom_one(pd.read_parquet(homeplace.barra_data_file+'nonlinearsize.parquet'),10)
+barras['residual_volatility']=boom_one(pd.read_parquet(homeplace.barra_data_file+'residualvolatility.parquet'),10)
+barras['size']=boom_one(pd.read_parquet(homeplace.barra_data_file+'size.parquet'),10)
+barras['stock_return']=boom_one(pd.read_parquet(homeplace.barra_data_file+'stockreturn.parquet'),10)
 
 
 @do_on_dfs
@@ -654,7 +668,380 @@ class pure_moon(object):
             y=1               # y位置（0到1之间）
         ))
         cf.iplot(sp)
+        
+    def check_chart_size(self, chart, unit='KB'):
+        """
+        检查Altair图表占用的存储空间
+        
+        Parameters
+        ----------
+        chart : alt.Chart
+            要检查大小的Altair图表对象
+        unit : str, optional
+            显示单位，可选 'B', 'KB', 'MB', by default 'KB'
+        
+        Returns
+        -------
+        float
+            图表大小（以指定单位表示）
+        """
+        import json
+        
+        # 将图表转换为JSON规范
+        chart_json = json.dumps(chart.to_dict())
+        size_bytes = len(chart_json.encode('utf-8'))
+        
+        if unit.upper() == 'B':
+            return size_bytes
+        elif unit.upper() == 'KB':
+            return size_bytes / 1024
+        elif unit.upper() == 'MB':
+            return size_bytes / (1024 * 1024)
+        else:
+            raise ValueError("单位必须是 'B', 'KB' 或 'MB'")
 
+    def compare_chart_sizes(self, charts, chart_names=None, unit='KB'):
+        """
+        比较多个Altair图表的存储空间大小
+        
+        Parameters
+        ----------
+        charts : list
+            要比较的Altair图表对象列表
+        chart_names : list, optional
+            图表名称列表，by default None
+        unit : str, optional
+            显示单位，可选 'B', 'KB', 'MB', by default 'KB'
+        
+        Returns
+        -------
+        pd.DataFrame
+            包含每个图表大小的数据框
+        """
+        import pandas as pd
+        
+        if chart_names is None:
+            chart_names = [f"图表{i+1}" for i in range(len(charts))]
+        
+        sizes = [self.check_chart_size(chart, unit) for chart in charts]
+        
+        result = pd.DataFrame({
+            "图表名称": chart_names,
+            f"大小({unit})": sizes
+        })
+        
+        return result.sort_values(f"大小({unit})", ascending=False)
+
+    def plot_net_values_altair(self, ilegend=1, without_breakpoint=0, min_size=False, return_size=False):
+        """使用Altair库实现相同的可视化效果，布局与原Plotly版本相似"""
+        # import altair as alt
+        
+        # 禁用最大行限制，避免大数据集的问题
+        alt.data_transformers.disable_max_rows()
+        
+        # 使用默认的数据转换器以确保兼容性
+        try:
+            # 使用默认的数据转换器但调整一些参数减小数据大小
+            alt.data_transformers.enable('default', max_rows=None)
+        except:
+            pass
+        
+        # 设置全局宽度和颜色方案
+        chart_width = 160 if min_size else 200  # 净值曲线宽度
+        bar_width = 160 if min_size else 200    # 柱状图宽度
+        ic_width = 160 if min_size else 200     # IC图宽度
+        table_width = 160 if min_size else 200  # 表格宽度
+        
+        # 精简色彩方案
+        color_scheme = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', 
+                        '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+        
+        # 准备净值曲线数据（包含多空净值）
+        tris = self.group_net_values.copy()
+        if without_breakpoint:
+            tris = tris.dropna()
+            
+        # 数据降采样（如果ipynb保存大量图表，可以启用）
+        if min_size:
+            sample_step = max(1, len(tris) // 60)  # 最多保留60个数据点
+            tris = tris.iloc[::sample_step].copy()
+        
+        # 重置索引并获取日期列名
+        tris_reset = tris.reset_index()
+        date_col = tris_reset.columns[0]
+        
+        # 分组净值数据（排除多空）
+        group_cols = [c for c in tris.columns if c != 'long_short']
+        # 减少分组如果min_size为True
+        # if min_size and len(group_cols) > 4:
+        keep_groups = ['group1', 'group5', 'group10'] if 'group10' in group_cols else [group_cols[0], group_cols[-1]]
+        keep_groups = [g for g in keep_groups if g in group_cols]
+        group_cols = keep_groups
+            
+        group_data = pd.melt(tris_reset, id_vars=date_col, value_vars=group_cols, var_name='分组', value_name='净值')
+        group_data = group_data.rename(columns={date_col: 'date'})
+        # 减少小数精度
+        group_data['净值'] = group_data['净值']  # 进一步减少精度到2位小数
+        
+        # 多空净值数据（去除缺失以保证连续）
+        ls_data = tris_reset[[date_col, 'long_short']].rename(columns={date_col: 'date', 'long_short': '多空净值'}).dropna(subset=['多空净值'])
+        ls_data['多空净值'] = ls_data['多空净值']  # 进一步减少精度到2位小数
+        
+        # 分组净值曲线 - 简化轴和网格线设置
+        net_group_chart = alt.Chart(group_data).mark_line(strokeWidth=1).encode(
+            x=alt.X('date:T', axis=alt.Axis(
+                labelAngle=-45, 
+                labelFontSize=8,  # 减小字体
+                title=None, 
+                grid=False,  # 移除网格线
+                tickCount=5  # 减少刻度数量
+            )),
+            y=alt.Y('净值:Q', title='净值', axis=alt.Axis(
+                labelFontSize=8,  # 减小字体
+                titleFontSize=9,  # 减小标题字体
+                grid=True,
+                tickCount=5  # 减少刻度数量
+            )),
+            color=alt.Color('分组:N', scale=alt.Scale(range=color_scheme[:len(group_cols)]), legend=None),
+        )
+        # 多空净值曲线（第二 Y 轴）
+        net_ls_chart = alt.Chart(ls_data).mark_line(color='black', strokeWidth=1).encode(
+            x='date:T',
+            y=alt.Y('多空净值:Q', title='多空净值', axis=alt.Axis(
+                titleFontSize=9,  # 减小标题字体
+                labelFontSize=8,  # 减小字体
+                orient='right',
+                tickCount=5  # 减少刻度数量
+            ))
+        )
+        # 合并双轴图层
+        net_value_chart = alt.layer(net_group_chart, net_ls_chart).resolve_scale(y='independent').properties(
+            width=chart_width,
+            height=120 if min_size else 130,
+            title=alt.TitleParams('净值曲线', fontSize=10, anchor='middle')
+        )
+        
+        # 准备表格数据
+        comments = self.total_comments.applymap(lambda x: round(x, 3)).reset_index()  # 减少小数精度到2位
+        
+        # 创建转置表格数据
+        # 先按原来方式整理数据
+        table_data_orig = pd.concat(
+            [
+                comments.iloc[1:7, :].reset_index(drop=True),
+                comments.iloc[[7,0,8,9,10,11], :].reset_index(drop=True),
+            ],
+            axis=1,
+        )
+        table_data_orig.columns = ["绩效", "结果1", "多与空", "结果2"]
+        
+        # 如果是最小化模式，仅保留最重要的指标
+        if min_size:
+            table_data = pd.DataFrame({
+                "指标": ["收益率", "信息比", "正值占比"],
+                "结果": table_data_orig["结果1"].values[[0, 2, 3]],
+                "多空指标": ["IC", "1组收益", "10组收益"],
+                "多空结果": table_data_orig["结果2"].values[[0, 4, 5]]
+            })
+        else:
+            # 转置表格数据
+            table_data = pd.DataFrame({
+                "指标": ["收益率", "波动率", "信息比", "正值占比", "截面偏度", "自相关性"],
+                "结果": table_data_orig["结果1"].values,
+                "多空指标": ["覆盖率", "IC", "1-5IC", "6-10IC", "1组收益", "10组收益"],
+                "多空结果": table_data_orig["结果2"].values
+            })
+        
+        # 创建更美观的表格
+        def create_text_table(data):
+            """创建文本表格，使用长格式绘制网格和文本"""
+            # 将数据转换为长格式并添加表头行
+            df = data.copy().reset_index(drop=True)
+            rows = []
+            for r in range(len(df)):
+                for c, col in enumerate(df.columns):
+                    val = df.iloc[r, c]
+                    text = f"{val:.3f}" if isinstance(val, float) else str(val)  # 显示3位小数
+                    rows.append({'row': str(r), 'col': col, 'text': text})
+            # 表头行
+            headers = [{'row': 'header', 'col': col, 'text': col} for col in df.columns]
+            plot_df = pd.DataFrame(headers + rows)
+            # 定义行顺序：表头在最上方
+            row_order = ['header'] + [str(r) for r in range(len(df))]
+            # 基础图层，设置宽高
+            base = alt.Chart(plot_df).encode(
+                x=alt.X('col:O', axis=None, sort=list(data.columns)),
+                y=alt.Y('row:O', axis=None, sort=row_order)
+            ).properties(width=table_width, height=120 if min_size else 140)
+            # 绘制网格背景
+            background = base.mark_rect(fill='#f9f9f9', stroke='#e0e0e0', strokeWidth=0.5)  # 减小边框
+            # 表头文字
+            header_text = base.mark_text(baseline='middle', align='center', fontWeight='bold', fontSize=11, color='#000').encode(
+                text='text:N'
+            ).transform_filter(alt.datum.row == 'header')
+            # 单元格文字
+            cell_text = base.mark_text(baseline='middle', align='center', fontSize=11, color='#2c3e50').encode(
+                text='text:N'
+            ).transform_filter(alt.datum.row != 'header')
+            return background + header_text + cell_text
+        
+        # 创建表格
+        table_chart = create_text_table(table_data).properties(
+            title=alt.TitleParams('评价指标', fontSize=8, anchor='middle')
+        )
+        
+        # 准备柱状图数据
+        bar_data = pd.DataFrame({
+            '分组': [j.replace('g','g0') if len(j)==2 else j for j in [i.replace("roup", "") for i in list(self.group_mean_rets_monthly.index)]],
+            '收益率': list(self.group_mean_rets_monthly)  # 减少小数精度到2位
+        })
+        
+        # 各组收益柱状图 - 改进样式
+        bar_chart = alt.Chart(bar_data).mark_bar(
+            cornerRadius=1  # 减小圆角
+        ).encode(
+            x=alt.X('分组:N', title=None, axis=alt.Axis(
+                labelAngle=0,
+                labelFontSize=8  # 减小字体
+            )),
+            y=alt.Y('收益率:Q', title='收益率', axis=alt.Axis(
+                labelFontSize=8,  # 减小字体
+                titleFontSize=9,  # 减小标题字体
+                grid=True,
+                tickCount=5  # 减少刻度数量
+            )),
+            color=alt.condition(
+                alt.datum.收益率 > 0,
+                alt.value('#d62728'),
+                alt.value('#2ca02c')
+            )
+        ).properties(
+            width=bar_width,
+            height=120 if min_size else 130,
+            title=alt.TitleParams('各组月均超均收益', fontSize=10, anchor='middle')
+        )
+        
+        # 准备IC数据
+        if self.group1_ret_yearly > self.group10_ret_yearly:
+            ic_data = self.small_rankics.small_rankic.reset_index()
+            ic_data.columns = ['date', 'ic_value']
+            
+            # 数据降采样（如果ipynb保存大量图表，可以启用）
+            if min_size:
+                sample_step = max(1, len(ic_data) // 60)  # 最多保留60个数据点
+                ic_data = ic_data.iloc[::sample_step].copy()
+                
+            ic_data['ic_value'] = ic_data['ic_value']  # 减少小数精度到2位
+            
+            ic_cum = ic_data.copy()
+            ic_cum['ic_cum'] = ic_data['ic_value'].cumsum() # 减少小数精度到2位
+            ic_label = "多头ic"
+        else:
+            ic_data = self.big_rankics.big_rankic.reset_index()
+            ic_data.columns = ['date', 'ic_value']
+            
+            # 数据降采样（如果ipynb保存大量图表，可以启用）
+            if min_size:
+                sample_step = max(1, len(ic_data) // 60)  # 最多保留60个数据点
+                ic_data = ic_data.iloc[::sample_step].copy()
+                
+            ic_data['ic_value'] = ic_data['ic_value']  # 减少小数精度到2位
+            
+            ic_cum = ic_data.copy()
+            ic_cum['ic_cum'] = ic_data['ic_value'].cumsum()  # 减少小数精度到2位
+            ic_label = "多头ic"
+        
+        rankic_data = self.rankics.rankic.reset_index()
+        rankic_data.columns = ['date', 'rankic_value']
+        
+        # 数据降采样（如果ipynb保存大量图表，可以启用）
+        if min_size:
+            sample_step = max(1, len(rankic_data) // 60)  # 最多保留60个数据点
+            rankic_data = rankic_data.iloc[::sample_step].copy()
+            
+        rankic_data['rankic_value'] = rankic_data['rankic_value']  # 减少小数精度到2位
+        
+        rankic_cum = rankic_data.copy()
+        rankic_cum['rankic_cum'] = rankic_data['rankic_value'].cumsum()  # 减少小数精度到2位
+        
+        # 创建双轴IC图表 - 柱状图加折线图，简化轴设置
+        base = alt.Chart(ic_data).encode(
+            x=alt.X('date:T', axis=alt.Axis(
+                labelAngle=-45, 
+                labelFontSize=8,  # 减小字体
+                title=None,
+                tickCount=5  # 减少刻度数量
+            )),
+        )
+        
+        # 柱状图层 - 使用更细的柱子减少视觉复杂度
+        bars = base.mark_bar(color='#ff7f0e', opacity=0.7, size=1).encode(
+            y=alt.Y('ic_value:Q', 
+                   title='IC值',
+                   axis=alt.Axis(
+                       titleFontSize=9,  # 减小标题字体
+                       labelFontSize=8,  # 减小字体
+                       grid=True,
+                       tickCount=5  # 减少刻度数量
+                   ))
+        )
+        
+        # 累计IC线图层
+        line1 = alt.Chart(ic_cum).mark_line(color='blue', strokeWidth=1).encode(
+            x='date:T',
+            y=alt.Y('ic_cum:Q', 
+                    title='累计IC',
+                    axis=alt.Axis(
+                        titleFontSize=9,  # 减小标题字体
+                        labelFontSize=8,  # 减小字体
+                        tickCount=5  # 减少刻度数量
+                    ))
+        )
+        
+        # RankIC累计线图层
+        line2 = alt.Chart(rankic_cum).mark_line(color='red', strokeWidth=1).encode(
+            x='date:T',
+            y=alt.Y('rankic_cum:Q')
+        )
+        
+        # 将柱状图和线图图层结合，并添加次坐标轴
+        ic_chart = alt.layer(
+            bars,
+            line1.encode(y=alt.Y('ic_cum:Q', axis=alt.Axis(title='累计IC', titleColor='blue'))),
+            line2.encode(y=alt.Y('rankic_cum:Q', axis=None))
+        ).resolve_scale(
+            y='independent'
+        ).properties(
+            width=ic_width,
+            height=120 if min_size else 130,
+            title=alt.TitleParams('Rank IC时序图(蓝色多头)', fontSize=10, anchor='middle')
+        )
+        
+        # 创建复杂的布局：所有子图横向排布
+        combined_chart = alt.hconcat(
+            table_chart, net_value_chart, bar_chart, ic_chart
+        ).configure_view(
+            strokeWidth=0
+        ).configure_axis(
+            domainWidth=0.5,  # 减小轴线宽度
+            domainColor='#e0e0e0',
+            labelLimit=90  # 限制标签长度
+        ).configure_title(
+            fontSize=10,
+            anchor='middle',
+            color='#333333'
+        )
+        
+        # 应用最小化配置，精简JSON
+        combined_chart = combined_chart.configure(autosize={'type': 'fit', 'contains': 'padding'})
+        
+        # 如果需要返回图表大小
+        if return_size:
+            chart_size = self.check_chart_size(combined_chart, 'KB')
+            return combined_chart, chart_size
+        
+        # 返回图表
+        return combined_chart
 
     @classmethod
     @lru_cache(maxsize=None)
@@ -668,6 +1055,9 @@ class pure_moon(object):
         ilegend=1,
         without_breakpoint=0,
         show_more_than=0.025,
+        plot_style="altair", # 新增参数，可选 "plotly", "seaborn", "altair"
+        min_size=False,      # 新增参数，最小化图表大小
+        return_size=False,   # 新增参数，返回图表大小
     ):
         """运行回测部分"""
         self.__factors_out = self.factors.copy()
@@ -680,20 +1070,56 @@ class pure_moon(object):
         self.get_total_comments()
 
         if (show_more_than is None) or (show_more_than < max(self.group1_ret_yearly,self.group10_ret_yearly)):
-            self.plot_net_values(
-                ilegend=bool(ilegend),
-                without_breakpoint=without_breakpoint,
-            )
+            if plot_style == "plotly":
+                chart = self.plot_net_values(
+                    ilegend=bool(ilegend),
+                    without_breakpoint=without_breakpoint,
+                )
+                if return_size:
+                    return chart, None  # Plotly图表不提供大小检查
+            elif plot_style == "altair":
+                if return_size:
+                    chart, size = self.plot_net_values_altair(
+                        ilegend=bool(ilegend),
+                        without_breakpoint=without_breakpoint,
+                        min_size=min_size,
+                        return_size=True
+                    )
+                    import altair as alt
+                    try:
+                        # 尝试在IPython环境中显示
+                        from IPython.display import display
+                        display(chart)
+                        return chart, size
+                    except ImportError:
+                        # 如果不在IPython环境中，保存为HTML文件
+                        chart.save('factor_analysis.html')
+                        return chart, size
+                else:
+                    chart = self.plot_net_values_altair(
+                        ilegend=bool(ilegend),
+                        without_breakpoint=without_breakpoint,
+                        min_size=min_size,
+                    )
+                    import altair as alt
+                    try:
+                        # 尝试在IPython环境中显示
+                        from IPython.display import display
+                        display(chart)
+                        return chart
+                    except ImportError:
+                        # 如果不在IPython环境中，保存为HTML文件
+                        chart.save('factor_analysis.html')
+                        return chart
         else:
             logger.info(f'多头收益率为{round(max(self.group1_ret_yearly,self.group10_ret_yearly),3)}, ic为{round(self.rankics.rankic.mean(),3)}，表现太差，不展示了')
-            # plt.show()
 
 
 @do_on_dfs
 class pure_moonnight(object):
     """封装选股框架"""
 
-    __slots__ = ["shen"]
+    __slots__ = ["shen",'chart','size']
 
     def __init__(
         self,
@@ -705,6 +1131,9 @@ class pure_moonnight(object):
         ilegend: bool = 1,
         without_breakpoint: bool = 0,
         show_more_than: float = 0.025,
+        plot_style: str = "altair",
+        min_size: bool = False,  # 新增参数，最小化图表大小
+        return_size: bool = False,  # 新增参数，返回图表大小
     ) -> None:
         """一键回测框架，测试单因子的月频调仓的分组表现
         每月月底计算因子值，月初第一天开盘时买入，月末收盘最后一天收盘时卖出
@@ -730,6 +1159,12 @@ class pure_moonnight(object):
             画图的时候是否去除间断点, by default 0
         show_more_than : float, optional
             展示收益率大于多少的因子，默认展示大于0.025的因子, by default 0.025
+        plot_style : str, optional
+            绘图风格，可选 "plotly", "seaborn", "altair", by default "plotly"
+        min_size : bool, optional
+            是否使用最小化图表模式以减小文件大小, by default False
+        return_size : bool, optional
+            是否返回图表大小信息, by default False
         """
         if time_start is not None:
             factors = factors[factors.index >= pd.Timestamp(str(time_start))]
@@ -739,12 +1174,18 @@ class pure_moonnight(object):
         self.shen.set_basic_data()
         self.shen.set_factor_df_date_as_index(factors)
         self.shen.prerpare()
-        self.shen.run(
+        result = self.shen.run(
             groups_num=groups_num,
             ilegend=ilegend,
             without_breakpoint=without_breakpoint,
             show_more_than=show_more_than,
+            plot_style=plot_style,
+            min_size=min_size,
+            return_size=return_size,
         )
+        # 如果需要返回大小信息
+        if return_size:
+            self.chart, self.size = result
 
 
 
@@ -827,16 +1268,20 @@ def symmetrically_orthogonalize(dfs: list[pd.DataFrame]) -> list[pd.DataFrame]:
     
 
 @do_on_dfs
-def sun(factor:pd.DataFrame,rolling_days:int=10,with_pri:bool=1,time_start:int=20170101,show_more_than:float=0.025):
+def sun(factor:pd.DataFrame,rolling_days:int=10,time_start:int=20170101,show_more_than:float=0.025,plot_style:str='altair'):
     '''先单因子测试，再测试其与常用风格之间的关系'''
-    ractor=boom_one(factor.rank(axis=1),rolling_days)
-    if with_pri:
-        factor=boom_one(factor,rolling_days)
-    pfi=de_cross_special_for_barra_weekly_fast(ractor)
+    factor=factor.rank(axis=1)
+    ractor=boom_one(factor,rolling_days)
+    pfi=de_cross_special_for_barra_weekly_fast(ractor.copy())
     logger.info('这是中性化之后的表现')
-    shen=pure_moonnight(pfi,time_start=time_start,show_more_than=show_more_than)
+    shen=pure_moonnight(pfi,time_start=time_start,show_more_than=show_more_than,plot_style=plot_style)
     if max(shen.shen.group1_ret_yearly,shen.shen.group10_ret_yearly) > show_more_than:
         logger.info('这是原始值')
-        shen=pure_moonnight(factor,time_start=time_start,show_more_than=None)
+        shen=pure_moonnight(ractor,time_start=time_start,show_more_than=None,plot_style=plot_style)
+        corrs={}
+        for k,v in barras.items():
+            corrs[k]=to_percent(ractor.corrwith(v,axis=1).mean())
+        corrs=pd.DataFrame(corrs,index=['C'])
+        display(corrs)
     return bool(max(shen.shen.group1_ret_yearly,shen.shen.group10_ret_yearly) > show_more_than)
         # display(pfi[1])

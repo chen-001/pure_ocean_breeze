@@ -30,6 +30,7 @@ install_requires = [
     "cachier",
     "polars",
     "polars_ols",
+    "altair",
 ]
 if sys.platform.startswith("win"):
     install_requires = install_requires + ["psycopg2"]

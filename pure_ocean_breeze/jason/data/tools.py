@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2025-03-20 14:07:55"
+__updated__ = "2025-04-21 14:59:31"
 
 import os
 import pandas as pd
@@ -21,7 +21,7 @@ from pure_ocean_breeze.jason.state.homeplace import HomePlace
 from pure_ocean_breeze.jason.state.decorators import do_on_dfs
 import rust_pyfunc as rp
 from pandarallel import pandarallel
-pandarallel.initialize(progress_bar=False, nb_workers=10)
+pandarallel.initialize(progress_bar=False, nb_workers=10,verbose=0)
 
 try:
     homeplace = HomePlace()
