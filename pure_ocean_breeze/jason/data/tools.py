@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2025-04-21 14:59:31"
+__updated__ = "2025-05-22 11:31:49"
 
 import os
 import pandas as pd
@@ -1329,7 +1329,7 @@ def de_cross(y, x_list):
         return yresi
         
     with mpire.WorkerPool(n_jobs=10) as pool:
-        residual_df=pd.concat(pool.map(one, dates)).sort_index()
+        residual_df=pd.concat(pool.map_unordered(one, dates)).sort_index()
     return residual_df
 
 

@@ -1,5 +1,6 @@
-__updated__ = "2025-04-26 03:00:58"
+__updated__ = "2025-05-12 17:22:27"
 
+import datetime
 import warnings
 
 warnings.filterwarnings("ignore")
@@ -39,9 +40,15 @@ from pure_ocean_breeze.jason.data.tools import (
     standardlize,
     boom_one,
     de_cross_special_for_barra_weekly_fast,
+    get_abs,
 )
 import altair as alt
 from IPython.display import display
+from IPython.display import display, Markdown
+import os
+import rust_pyfunc as rp
+import time
+
 barras={}
 barras['beta']=boom_one(pd.read_parquet(homeplace.barra_data_file+'beta.parquet'),10)
 barras['book_to_price']=boom_one(pd.read_parquet(homeplace.barra_data_file+'booktoprice.parquet'),10)
@@ -226,6 +233,8 @@ class pure_moon(object):
         "small_rankics",
         'longside_ret_eachyear',
         'longside_ret',
+        'alt_name',
+        'alt_chart',
     ]
 
     @classmethod
@@ -732,7 +741,7 @@ class pure_moon(object):
         
         return result.sort_values(f"大小({unit})", ascending=False)
 
-    def plot_net_values_altair(self, ilegend=1, without_breakpoint=0, min_size=False, return_size=False):
+    def plot_net_values_altair(self, ilegend=1, without_breakpoint=0, return_size=False, alt_name='test'):
         """使用Altair库实现相同的可视化效果，布局与原Plotly版本相似"""
         # import altair as alt
         
@@ -740,17 +749,17 @@ class pure_moon(object):
         alt.data_transformers.disable_max_rows()
         
         # 使用默认的数据转换器以确保兼容性
-        try:
+        # try:
             # 使用默认的数据转换器但调整一些参数减小数据大小
-            alt.data_transformers.enable('default', max_rows=None)
-        except:
-            pass
+        alt.data_transformers.enable('default')
+        # except:
+        #     pass
         
         # 设置全局宽度和颜色方案
-        chart_width = 160 if min_size else 200  # 净值曲线宽度
-        bar_width = 160 if min_size else 200    # 柱状图宽度
-        ic_width = 160 if min_size else 200     # IC图宽度
-        table_width = 160 if min_size else 200  # 表格宽度
+        chart_width = 200  # 净值曲线宽度
+        bar_width = 200  # 柱状图宽度
+        ic_width = 200     # IC图宽度
+        table_width = 200  # 表格宽度
         
         # 精简色彩方案
         color_scheme = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', 
@@ -762,9 +771,6 @@ class pure_moon(object):
             tris = tris.dropna()
             
         # 数据降采样（如果ipynb保存大量图表，可以启用）
-        if min_size:
-            sample_step = max(1, len(tris) // 60)  # 最多保留60个数据点
-            tris = tris.iloc[::sample_step].copy()
         
         # 重置索引并获取日期列名
         tris_reset = tris.reset_index()
@@ -817,7 +823,7 @@ class pure_moon(object):
         # 合并双轴图层
         net_value_chart = alt.layer(net_group_chart, net_ls_chart).resolve_scale(y='independent').properties(
             width=chart_width,
-            height=120 if min_size else 130,
+            height=130,
             title=alt.TitleParams('净值曲线', fontSize=10, anchor='middle')
         )
         
@@ -835,22 +841,13 @@ class pure_moon(object):
         )
         table_data_orig.columns = ["绩效", "结果1", "多与空", "结果2"]
         
-        # 如果是最小化模式，仅保留最重要的指标
-        if min_size:
-            table_data = pd.DataFrame({
-                "指标": ["收益率", "信息比", "正值占比"],
-                "结果": table_data_orig["结果1"].values[[0, 2, 3]],
-                "多空指标": ["IC", "1组收益", "10组收益"],
-                "多空结果": table_data_orig["结果2"].values[[0, 4, 5]]
-            })
-        else:
-            # 转置表格数据
-            table_data = pd.DataFrame({
-                "指标": ["收益率", "波动率", "信息比", "正值占比", "截面偏度", "自相关性"],
-                "结果": table_data_orig["结果1"].values,
-                "多空指标": ["覆盖率", "IC", "1-5IC", "6-10IC", "1组收益", "10组收益"],
-                "多空结果": table_data_orig["结果2"].values
-            })
+        # 转置表格数据
+        table_data = pd.DataFrame({
+            "指标": ["收益率", "波动率", "信息比", "正值占比", "截面偏度", "自相关性"],
+            "结果": table_data_orig["结果1"].values,
+            "多空指标": ["覆盖率", "IC", "1-5IC", "6-10IC", "1组收益", "10组收益"],
+            "多空结果": table_data_orig["结果2"].values
+        })
         
         # 创建更美观的表格
         def create_text_table(data):
@@ -872,7 +869,7 @@ class pure_moon(object):
             base = alt.Chart(plot_df).encode(
                 x=alt.X('col:O', axis=None, sort=list(data.columns)),
                 y=alt.Y('row:O', axis=None, sort=row_order)
-            ).properties(width=table_width, height=120 if min_size else 140)
+            ).properties(width=table_width, height=140)
             # 绘制网格背景
             background = base.mark_rect(fill='#f9f9f9', stroke='#e0e0e0', strokeWidth=0.5)  # 减小边框
             # 表头文字
@@ -917,7 +914,7 @@ class pure_moon(object):
             )
         ).properties(
             width=bar_width,
-            height=120 if min_size else 130,
+            height=130,
             title=alt.TitleParams('各组月均超均收益', fontSize=10, anchor='middle')
         )
         
@@ -925,11 +922,6 @@ class pure_moon(object):
         if self.group1_ret_yearly > self.group10_ret_yearly:
             ic_data = self.small_rankics.small_rankic.reset_index()
             ic_data.columns = ['date', 'ic_value']
-            
-            # 数据降采样（如果ipynb保存大量图表，可以启用）
-            if min_size:
-                sample_step = max(1, len(ic_data) // 60)  # 最多保留60个数据点
-                ic_data = ic_data.iloc[::sample_step].copy()
                 
             ic_data['ic_value'] = ic_data['ic_value']  # 减少小数精度到2位
             
@@ -939,11 +931,6 @@ class pure_moon(object):
         else:
             ic_data = self.big_rankics.big_rankic.reset_index()
             ic_data.columns = ['date', 'ic_value']
-            
-            # 数据降采样（如果ipynb保存大量图表，可以启用）
-            if min_size:
-                sample_step = max(1, len(ic_data) // 60)  # 最多保留60个数据点
-                ic_data = ic_data.iloc[::sample_step].copy()
                 
             ic_data['ic_value'] = ic_data['ic_value']  # 减少小数精度到2位
             
@@ -953,11 +940,6 @@ class pure_moon(object):
         
         rankic_data = self.rankics.rankic.reset_index()
         rankic_data.columns = ['date', 'rankic_value']
-        
-        # 数据降采样（如果ipynb保存大量图表，可以启用）
-        if min_size:
-            sample_step = max(1, len(rankic_data) // 60)  # 最多保留60个数据点
-            rankic_data = rankic_data.iloc[::sample_step].copy()
             
         rankic_data['rankic_value'] = rankic_data['rankic_value']  # 减少小数精度到2位
         
@@ -1013,9 +995,12 @@ class pure_moon(object):
             y='independent'
         ).properties(
             width=ic_width,
-            height=120 if min_size else 130,
+            height=130,
             title=alt.TitleParams('Rank IC时序图(蓝色多头)', fontSize=10, anchor='middle')
         )
+        
+        # 获取当前时间戳
+        current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
         # 创建复杂的布局：所有子图横向排布
         combined_chart = alt.hconcat(
@@ -1030,11 +1015,14 @@ class pure_moon(object):
             fontSize=10,
             anchor='middle',
             color='#333333'
+        ).properties(
+            title=alt.TitleParams(f"{alt_name} - {current_time}", fontSize=12, anchor='middle')
         )
         
         # 应用最小化配置，精简JSON
-        combined_chart = combined_chart.configure(autosize={'type': 'fit', 'contains': 'padding'})
+        combined_chart: alt.HConcatChart = combined_chart.configure(autosize={'type': 'fit', 'contains': 'padding'})
         
+        self.alt_chart = [table_chart, net_value_chart, bar_chart, ic_chart]
         # 如果需要返回图表大小
         if return_size:
             chart_size = self.check_chart_size(combined_chart, 'KB')
@@ -1056,8 +1044,9 @@ class pure_moon(object):
         without_breakpoint=0,
         show_more_than=0.025,
         plot_style="altair", # 新增参数，可选 "plotly", "seaborn", "altair"
-        min_size=False,      # 新增参数，最小化图表大小
         return_size=False,   # 新增参数，返回图表大小
+        alt_name=None,
+        show_alt_chart=True,
     ):
         """运行回测部分"""
         self.__factors_out = self.factors.copy()
@@ -1082,8 +1071,8 @@ class pure_moon(object):
                     chart, size = self.plot_net_values_altair(
                         ilegend=bool(ilegend),
                         without_breakpoint=without_breakpoint,
-                        min_size=min_size,
-                        return_size=True
+                        return_size=True,
+                        alt_name=alt_name,
                     )
                     import altair as alt
                     try:
@@ -1099,21 +1088,89 @@ class pure_moon(object):
                     chart = self.plot_net_values_altair(
                         ilegend=bool(ilegend),
                         without_breakpoint=without_breakpoint,
-                        min_size=min_size,
+                        alt_name=alt_name,
                     )
                     import altair as alt
                     try:
-                        # 尝试在IPython环境中显示
-                        from IPython.display import display
-                        display(chart)
+                        if show_alt_chart:
+                            
+                            display_alt_chart(chart,alt_name)
+                        # 返回HTML对象而不是显示它，让调用者决定如何处理
+                        # HTML(f'<img src="{ipynb_name}/{file_name}.svg">')
+                        
                         return chart
                     except ImportError:
                         # 如果不在IPython环境中，保存为HTML文件
                         chart.save('factor_analysis.html')
                         return chart
         else:
-            logger.info(f'多头收益率为{round(max(self.group1_ret_yearly,self.group10_ret_yearly),3)}, ic为{round(self.rankics.rankic.mean(),3)}，表现太差，不展示了')
+            alt_name_prefix=alt_name.replace('neu','')
+            logger.info(f'{alt_name_prefix}多头收益率为{round(max(self.group1_ret_yearly,self.group10_ret_yearly),3)}, ic为{round(self.rankics.rankic.mean(),3)}，表现太差，不展示了')
 
+
+
+def display_image_as_markdown(image_path: str, alt_text: str = "Image", force_reload: bool = True):
+    """
+    通过生成并显示 Markdown 链接来展示指定的图片文件。
+    这种方法不会增加 .ipynb 文件的体积。
+
+    参数:
+    image_path (str): 相对于 .ipynb 文件的图片路径。
+                    例如 "./altair_charts/my_chart.svg" 或 "images/photo.png"。
+    alt_text (str, optional): 图片的 Alt 文本。默认为 "Image"。
+    force_reload (bool, optional): 是否强制浏览器重新加载图像。默认为 True。
+    """
+    markdown_to_display = ""
+    if os.path.exists(image_path):
+        # 确保路径分隔符是 / (正斜杠) 以便 Markdown 正确解析
+        # 同时，为了安全，确保路径是相对的，并且没有 ".." 来跳出当前工作目录太远
+        # (虽然这里的os.path.exists已经部分处理了路径有效性)
+        normalized_path = os.path.normpath(image_path) # 标准化路径
+        markdown_path = normalized_path.replace(os.sep, '/')
+
+        # 一个简单的安全检查，防止路径过于随意 (可选，但有时有益)
+        # if markdown_path.startswith("../"):
+        #     print(f"警告: 路径 '{markdown_path}' 可能指向项目外部，请谨慎使用。")
+
+        # 添加时间戳参数以防止浏览器缓存
+        if force_reload:
+            timestamp = int(time.time())
+            markdown_path = f"{markdown_path}?t={timestamp}"
+
+        markdown_to_display = f"![{alt_text}]({markdown_path})"
+    else:
+        markdown_to_display = f"*图片未找到: {image_path}*"
+
+    display(Markdown(markdown_to_display))
+    
+def display_alt_chart(chart: alt.HConcatChart,alt_name:str):
+    # 保存图片并通过HTML引用，避免使用display增加ipynb文件大小
+    def get_file_name():
+        from IPython import get_ipython
+
+        ip = get_ipython()
+        path = None
+        if "__vsc_ipynb_file__" in ip.user_ns:
+            path = ip.user_ns["__vsc_ipynb_file__"]
+        else:
+            import urllib.parse
+            path=ip.parent_header['metadata']['cellId'].split('/')
+            path=[i for i in path if '.ipynb' in i][0].split('.ipynb')[0]
+            path=urllib.parse.unquote(path)
+        return path.split("/")[-1].split(".")[0]
+    # 获取当前ipynb文件路径
+    ipynb_path = '/home/chenzongwei/pythoncode/pngs/'
+    ipynb_name = get_file_name()
+    
+    # 创建与ipynb同名的文件夹
+    save_dir = os.path.join(os.path.dirname(ipynb_path), ipynb_name)
+    os.makedirs(save_dir, exist_ok=True)
+    
+    # 保存图表为png
+    file_name = alt_name if alt_name else 'factor_analysis'
+    save_path = os.path.join(save_dir, f"{file_name}.svg")
+    chart.save(save_path)
+    display_image_as_markdown(save_path)
 
 @do_on_dfs
 class pure_moonnight(object):
@@ -1132,8 +1189,9 @@ class pure_moonnight(object):
         without_breakpoint: bool = 0,
         show_more_than: float = 0.025,
         plot_style: str = "altair",
-        min_size: bool = False,  # 新增参数，最小化图表大小
         return_size: bool = False,  # 新增参数，返回图表大小
+        alt_name: str = None,
+        show_alt_chart: bool = True,
     ) -> None:
         """一键回测框架，测试单因子的月频调仓的分组表现
         每月月底计算因子值，月初第一天开盘时买入，月末收盘最后一天收盘时卖出
@@ -1180,8 +1238,9 @@ class pure_moonnight(object):
             without_breakpoint=without_breakpoint,
             show_more_than=show_more_than,
             plot_style=plot_style,
-            min_size=min_size,
             return_size=return_size,
+            alt_name=alt_name,
+            show_alt_chart=show_alt_chart,
         )
         # 如果需要返回大小信息
         if return_size:
@@ -1268,20 +1327,151 @@ def symmetrically_orthogonalize(dfs: list[pd.DataFrame]) -> list[pd.DataFrame]:
     
 
 @do_on_dfs
-def sun(factor:pd.DataFrame,rolling_days:int=10,time_start:int=20170101,show_more_than:float=0.025,plot_style:str='altair'):
+def sun(factor:pd.DataFrame,rolling_days:int=10,time_start:int=20170101,show_more_than:float=0.025,plot_style:str='altair',alt_name:str='test1'):
     '''先单因子测试，再测试其与常用风格之间的关系'''
-    factor=factor.rank(axis=1)
-    ractor=boom_one(factor,rolling_days)
-    pfi=de_cross_special_for_barra_weekly_fast(ractor.copy())
-    logger.info('这是中性化之后的表现')
-    shen=pure_moonnight(pfi,time_start=time_start,show_more_than=show_more_than,plot_style=plot_style)
-    if max(shen.shen.group1_ret_yearly,shen.shen.group10_ret_yearly) > show_more_than:
-        logger.info('这是原始值')
-        shen=pure_moonnight(ractor,time_start=time_start,show_more_than=None,plot_style=plot_style)
-        corrs={}
-        for k,v in barras.items():
-            corrs[k]=to_percent(ractor.corrwith(v,axis=1).mean())
-        corrs=pd.DataFrame(corrs,index=['C'])
-        display(corrs)
-    return bool(max(shen.shen.group1_ret_yearly,shen.shen.group10_ret_yearly) > show_more_than)
-        # display(pfi[1])
+    try:
+        factor=factor.rank(axis=1)
+        ractor=boom_one(factor,rolling_days)
+        pfi=de_cross_special_for_barra_weekly_fast(ractor.copy())
+        # logger.info('这是中性化之后的表现')
+        shen=pure_moonnight(pfi,time_start=time_start,show_more_than=show_more_than,plot_style=plot_style,alt_name=alt_name+'_neu',show_alt_chart=False)
+        if max(shen.shen.group1_ret_yearly,shen.shen.group10_ret_yearly) > show_more_than:
+            chart1=shen.shen.alt_chart
+            # logger.info('这是原始值')
+            shen=pure_moonnight(ractor,time_start=time_start,show_more_than=None,plot_style=plot_style,alt_name=alt_name+'_raw',show_alt_chart=False)
+            chart2=shen.shen.alt_chart
+            corrs={}
+            for k,v in barras.items():
+                corrs[k]=rp.corrwith(ractor,v,axis=1).mean()
+            corrs=pd.DataFrame(corrs,index=['C'])
+            
+            # 创建相关性热图
+            corrs_melted = corrs.reset_index().melt(id_vars='index', var_name='风格因子', value_name='相关性')
+            # 按照相关性绝对值从大到小排序
+            corrs_melted['相关性绝对值'] = corrs_melted['相关性'].abs()
+            corrs_melted = corrs_melted.sort_values('相关性绝对值', ascending=False)
+            # 创建一个排序顺序列表，按照相关性绝对值排序
+            sort_order = corrs_melted['风格因子'].tolist()
+            corr_chart = alt.Chart(corrs_melted).mark_bar().encode(
+                x=alt.X('风格因子:N', sort=sort_order, axis=alt.Axis(labelAngle=0, labelFontSize=12, labelFontWeight='bold', title=None)),
+                y=alt.Y('相关性:Q', axis=alt.Axis(labelFontSize=12, titleFontSize=9)),
+                color=alt.Color('相关性:Q', scale=alt.Scale(scheme='blueorange'))
+            ).properties(
+                # title=alt.TitleParams('因子与风格因子相关性', fontSize=10, anchor='middle'),
+                width=1000,
+                height=50
+            )
+            
+            # 添加百分比标签
+            text_labels = alt.Chart(corrs_melted).mark_text(
+                align='center',
+                baseline='middle',
+                dy=-10,
+                fontSize=10
+            ).encode(
+                x=alt.X('风格因子:N', sort=sort_order),
+                y=alt.Y('相关性:Q'),
+                text=alt.Text('相关性:Q', format='.0%')  # 以百分比形式显示，只保留整数
+            )
+            
+            # 组合图表和标签
+            corr_chart = alt.layer(corr_chart, text_labels)
+
+            # 创建复合图表布局
+            # 提取chart1和chart2中的表格、净值图、柱状图和IC图
+            table1, netval1, bar1, ic1 = chart1
+            # 修改table1的标题为"中性化"
+            table1 = table1.properties(title="中性化")
+            
+            table2, netval2, bar2, ic2 = chart2
+            # 修改table2的标题为"原始值"
+            table2 = table2.properties(title="原始值")
+            
+            # 创建两行的布局
+            # 第一行：左侧是中性化因子的表格+净值图，右侧是原始因子的表格+净值图
+            row1_left = table1 | netval1
+            row1_right = bar1 | ic1
+            row1 = row1_left | row1_right
+            
+            # 第二行：左侧是中性化因子的柱状图+IC图，右侧是原始因子的柱状图+IC图
+            row2_left = table2 | netval2
+            row2_right = bar2 | ic2
+            row2 = row2_left | row2_right
+            
+            # 第三行：相关性图表
+            row3 = corr_chart
+            
+            current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            # 将三行组合
+            combined_chart = alt.vconcat(row1, row2, row3).resolve_scale(
+                color='independent'
+            ).properties(
+                title=alt.TitleParams(f"{alt_name} - {current_time}", fontSize=16, anchor='middle')
+            )
+            
+            # 显示组合图表
+            display_alt_chart(combined_chart, alt_name)
+            
+            return bool(max(shen.shen.group1_ret_yearly,shen.shen.group10_ret_yearly) > show_more_than)
+        return bool(max(shen.shen.group1_ret_yearly,shen.shen.group10_ret_yearly) > show_more_than)
+    except Exception as e:
+        # 将异常转换为字符串形式，在Altair图表中显示
+        # raise 
+        print(e)
+        return False
+
+
+def suns(names:list[str],facs:list[pd.DataFrame],do_pri:int=1,do_abs:int=0,do_fold:int=1,other_keyword:str=None):
+    okays={}
+    for name,fac in zip(names,facs):
+        if (other_keyword is None) or (other_keyword in name):
+            if do_pri:
+                # logger.info(name)
+                judge=sun(fac,alt_name=name)
+                if judge:
+                    okays[name]=fac
+            if do_abs:
+                # logger.info(name+'_abs')
+                judge=sun(fac.abs(),alt_name=name+'_abs')
+                if judge:
+                    okays[name+'_abs']=fac.abs()
+            if do_fold:
+                # logger.info(name+'_fold')
+                judge=sun(get_abs(fac),alt_name=name+'_fold')
+                if judge:
+                    okays[name+'_fold']=get_abs(fac)
+    return okays
+
+def suns_pair(names:list[str],facs:list[pd.DataFrame],keyword1:str,keyword2:str,other_keyword:str=None,do_pri:int=1,do_abs:int=0,do_rate:int=0):
+    dacs={k:v for k,v in zip(names,facs)}
+    okays={}
+    for name,fac in zip(names,facs):
+        try:
+            if (other_keyword is None) or (other_keyword in name):
+                if not do_rate:
+                    if keyword1 in name:
+                        if do_pri:
+                            # logger.info(name.replace(keyword1,f'{keyword1}vs{keyword2}'))
+                            judge=sun(fac-dacs[name.replace(keyword1,keyword2)],alt_name=name.replace(keyword1,f'{keyword1}vs{keyword2}'))
+                            if judge:
+                                okays[name.replace(keyword1,f'{keyword1}vs{keyword2}')]=fac-dacs[name.replace(keyword1,keyword2)]
+                        if do_abs:
+                            # logger.info(name.replace(keyword1,f'{keyword1}vs{keyword2}')+'_abs')
+                            judge=sun((fac-dacs[name.replace(keyword1,keyword2)]).abs(),alt_name=name.replace(keyword1,f'{keyword1}vs{keyword2}')+'_abs')
+                            if judge:
+                                okays[name.replace(keyword1,f'{keyword1}vs{keyword2}')+'_abs']=(fac-dacs[name.replace(keyword1,keyword2)]).abs()
+                else:
+                    if keyword1 in name:
+                        if do_pri:
+                            # logger.info(name.replace(keyword1,f'{keyword1}vs{keyword2}')+'_rate')
+                            judge=sun((fac-dacs[name.replace(keyword1,keyword2)])/(fac+dacs[name.replace(keyword1,keyword2)]),alt_name=name.replace(keyword1,f'{keyword1}vs{keyword2}')+'_rate')
+                            if judge:
+                                okays[name.replace(keyword1,f'{keyword1}vs{keyword2}')+'_rate']=(fac-dacs[name.replace(keyword1,keyword2)])/(fac+dacs[name.replace(keyword1,keyword2)])
+                        if do_abs:
+                            # logger.info(name.replace(keyword1,f'{keyword1}vs{keyword2}')+'_rate_abs')
+                            judge=sun((fac-dacs[name.replace(keyword1,keyword2)]).abs()/(fac.abs()+dacs[name.replace(keyword1,keyword2)].abs()),alt_name=name.replace(keyword1,f'{keyword1}vs{keyword2}')+'_rate_abs')
+                            if judge:
+                                okays[name.replace(keyword1,f'{keyword1}vs{keyword2}')+'_rate_abs']=(fac-dacs[name.replace(keyword1,keyword2)]).abs()/(fac.abs()+dacs[name.replace(keyword1,keyword2)].abs())
+        except Exception as e:
+            print(e)
+    return okays
