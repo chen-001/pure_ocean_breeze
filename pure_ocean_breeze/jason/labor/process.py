@@ -1,4 +1,4 @@
-__updated__ = "2025-05-12 17:22:27"
+__updated__ = "2025-05-30 23:12:46"
 
 import datetime
 import warnings
@@ -7,6 +7,7 @@ warnings.filterwarnings("ignore")
 import numpy as np
 import pandas as pd
 import tqdm.auto
+import json
 import scipy.stats as ss
 
 import matplotlib.pyplot as plt
@@ -742,36 +743,30 @@ class pure_moon(object):
         return result.sort_values(f"大小({unit})", ascending=False)
 
     def plot_net_values_altair(self, ilegend=1, without_breakpoint=0, return_size=False, alt_name='test'):
-        """使用Altair库实现相同的可视化效果，布局与原Plotly版本相似"""
+        """使用Altair库实现相同的可视化效果，布局与原Plotly版本相似，美化版本"""
         # import altair as alt
         
         # 禁用最大行限制，避免大数据集的问题
         alt.data_transformers.disable_max_rows()
         
         # 使用默认的数据转换器以确保兼容性
-        # try:
-            # 使用默认的数据转换器但调整一些参数减小数据大小
         alt.data_transformers.enable('default')
-        # except:
-        #     pass
         
         # 设置全局宽度和颜色方案
-        chart_width = 200  # 净值曲线宽度
-        bar_width = 200  # 柱状图宽度
-        ic_width = 200     # IC图宽度
-        table_width = 200  # 表格宽度
+        chart_width = 240  # 增加净值曲线宽度以适应右侧图例
+        bar_width = 220  # 增加柱状图宽度
+        ic_width = 220     # 增加IC图宽度
+        table_width = 240  # 增加表格宽度
         
-        # 精简色彩方案
-        color_scheme = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', 
-                        '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+        # 现代化色彩方案 - 使用更专业的配色
+        color_scheme = ['#2E86C1', '#E74C3C', '#28B463', '#F39C12', '#8E44AD', 
+                        '#17A589', '#D35400', '#5D6D7E', '#F1C40F', '#E67E22']
         
         # 准备净值曲线数据（包含多空净值）
         tris = self.group_net_values.copy()
         if without_breakpoint:
             tris = tris.dropna()
             
-        # 数据降采样（如果ipynb保存大量图表，可以启用）
-        
         # 重置索引并获取日期列名
         tris_reset = tris.reset_index()
         date_col = tris_reset.columns[0]
@@ -779,59 +774,85 @@ class pure_moon(object):
         # 分组净值数据（排除多空）
         group_cols = [c for c in tris.columns if c != 'long_short']
         # 减少分组如果min_size为True
-        # if min_size and len(group_cols) > 4:
         keep_groups = ['group1', 'group5', 'group10'] if 'group10' in group_cols else [group_cols[0], group_cols[-1]]
         keep_groups = [g for g in keep_groups if g in group_cols]
         group_cols = keep_groups
             
         group_data = pd.melt(tris_reset, id_vars=date_col, value_vars=group_cols, var_name='分组', value_name='净值')
         group_data = group_data.rename(columns={date_col: 'date'})
-        # 减少小数精度
-        group_data['净值'] = group_data['净值']  # 进一步减少精度到2位小数
+        group_data['净值'] = group_data['净值']
         
         # 多空净值数据（去除缺失以保证连续）
         ls_data = tris_reset[[date_col, 'long_short']].rename(columns={date_col: 'date', 'long_short': '多空净值'}).dropna(subset=['多空净值'])
-        ls_data['多空净值'] = ls_data['多空净值']  # 进一步减少精度到2位小数
+        ls_data['多空净值'] = ls_data['多空净值']
         
-        # 分组净值曲线 - 简化轴和网格线设置
-        net_group_chart = alt.Chart(group_data).mark_line(strokeWidth=1).encode(
+        # 分组净值曲线 - 现代化样式，图例放右侧
+        net_group_chart = alt.Chart(group_data).mark_line(
+            strokeWidth=2.5,
+            opacity=0.8
+        ).encode(
             x=alt.X('date:T', axis=alt.Axis(
                 labelAngle=-45, 
-                labelFontSize=8,  # 减小字体
+                labelFontSize=9,
                 title=None, 
-                grid=False,  # 移除网格线
-                tickCount=5  # 减少刻度数量
+                grid=False,
+                tickCount=6,
+                domainColor='#E5E7E9',
+                tickColor='#E5E7E9'
             )),
             y=alt.Y('净值:Q', title='净值', axis=alt.Axis(
-                labelFontSize=8,  # 减小字体
-                titleFontSize=9,  # 减小标题字体
+                labelFontSize=9,
+                titleFontSize=11,
+                titleColor='#2C3E50',
+                titleFontWeight='bold',
                 grid=True,
-                tickCount=5  # 减少刻度数量
+                gridColor='#F8F9FA',
+                gridOpacity=0.7,
+                tickCount=6,
+                domainColor='#E5E7E9'
             )),
-            color=alt.Color('分组:N', scale=alt.Scale(range=color_scheme[:len(group_cols)]), legend=None),
+            color=alt.Color('分组:N', 
+                          scale=alt.Scale(range=color_scheme[:len(group_cols)]), 
+                          legend=alt.Legend(
+                              orient='right',  # 改为右侧
+                              titleFontSize=11,
+                              labelFontSize=10,
+                              symbolSize=100,
+                              padding=15,
+                              offset=10,
+                              titleAnchor='start'
+                          )),
         )
-        # 多空净值曲线（第二 Y 轴）
-        net_ls_chart = alt.Chart(ls_data).mark_line(color='black', strokeWidth=1).encode(
+        
+        # 多空净值曲线（第二 Y 轴）- 现代化样式
+        net_ls_chart = alt.Chart(ls_data).mark_line(
+            color='#34495E', 
+            strokeWidth=3,
+            opacity=0.9
+        ).encode(
             x='date:T',
             y=alt.Y('多空净值:Q', title='多空净值', axis=alt.Axis(
-                titleFontSize=9,  # 减小标题字体
-                labelFontSize=8,  # 减小字体
+                titleFontSize=11,
+                titleColor='#2C3E50',
+                titleFontWeight='bold',
+                labelFontSize=9,
                 orient='right',
-                tickCount=5  # 减少刻度数量
+                tickCount=6,
+                domainColor='#E5E7E9'
             ))
         )
+        
         # 合并双轴图层
         net_value_chart = alt.layer(net_group_chart, net_ls_chart).resolve_scale(y='independent').properties(
             width=chart_width,
-            height=130,
-            title=alt.TitleParams('净值曲线', fontSize=10, anchor='middle')
+            height=120,
+            title=alt.TitleParams('净值曲线', fontSize=13, anchor='middle', color='#2C3E50', fontWeight='bold')
         )
         
         # 准备表格数据
-        comments = self.total_comments.applymap(lambda x: round(x, 3)).reset_index()  # 减少小数精度到2位
+        comments = self.total_comments.applymap(lambda x: round(x, 3)).reset_index()
         
         # 创建转置表格数据
-        # 先按原来方式整理数据
         table_data_orig = pd.concat(
             [
                 comments.iloc[1:7, :].reset_index(drop=True),
@@ -849,180 +870,256 @@ class pure_moon(object):
             "多空结果": table_data_orig["结果2"].values
         })
         
-        # 创建更美观的表格
-        def create_text_table(data):
-            """创建文本表格，使用长格式绘制网格和文本"""
-            # 将数据转换为长格式并添加表头行
+        # 创建梦幻美观的表格
+        def create_dreamy_table(data):
+            """创建梦幻美观的表格，使用渐变和现代化样式"""
             df = data.copy().reset_index(drop=True)
             rows = []
             for r in range(len(df)):
                 for c, col in enumerate(df.columns):
                     val = df.iloc[r, c]
-                    text = f"{val:.3f}" if isinstance(val, float) else str(val)  # 显示3位小数
+                    text = f"{val:.3f}" if isinstance(val, float) else str(val)
                     rows.append({'row': str(r), 'col': col, 'text': text})
-            # 表头行
-            headers = [{'row': 'header', 'col': col, 'text': col} for col in df.columns]
-            plot_df = pd.DataFrame(headers + rows)
-            # 定义行顺序：表头在最上方
-            row_order = ['header'] + [str(r) for r in range(len(df))]
-            # 基础图层，设置宽高
+            
+            # 不需要表头行
+            plot_df = pd.DataFrame(rows)
+            
+            # 定义行顺序：只包含数据行
+            row_order = [str(r) for r in range(len(df))]
+            
+            # 基础图层
             base = alt.Chart(plot_df).encode(
                 x=alt.X('col:O', axis=None, sort=list(data.columns)),
                 y=alt.Y('row:O', axis=None, sort=row_order)
-            ).properties(width=table_width, height=140)
-            # 绘制网格背景
-            background = base.mark_rect(fill='#f9f9f9', stroke='#e0e0e0', strokeWidth=0.5)  # 减小边框
-            # 表头文字
-            header_text = base.mark_text(baseline='middle', align='center', fontWeight='bold', fontSize=11, color='#000').encode(
+            ).properties(width=table_width, height=120)
+            
+            # 数据行背景 - 使用梦幻色彩交替
+            data_bg_even = base.mark_rect(
+                fill='#EBF5FB',  # 浅蓝色
+                stroke='#D6EAF8', 
+                strokeWidth=1,
+                opacity=0.8
+            ).transform_filter(
+                alt.expr.parseInt(alt.datum.row) % 2 == 0
+            )
+            
+            data_bg_odd = base.mark_rect(
+                fill='#F4ECF7',  # 浅紫色
+                stroke='#E8DAEF', 
+                strokeWidth=1,
+                opacity=0.8
+            ).transform_filter(
+                alt.expr.parseInt(alt.datum.row) % 2 == 1
+            )
+            
+            # 单元格文字 - 使用深色，增强对比度
+            cell_text = base.mark_text(
+                baseline='middle', 
+                align='center', 
+                fontSize=12,  # 增大字体从10到12
+                color='#1B2631',  # 深色文字
+                fontWeight=600  # 增加字重
+            ).encode(
                 text='text:N'
-            ).transform_filter(alt.datum.row == 'header')
-            # 单元格文字
-            cell_text = base.mark_text(baseline='middle', align='center', fontSize=11, color='#2c3e50').encode(
-                text='text:N'
-            ).transform_filter(alt.datum.row != 'header')
-            return background + header_text + cell_text
+            )
+            
+            # 添加表格边框装饰 - 使用连贯直线
+            border_decoration = base.mark_rect(
+                fill='transparent',
+                stroke='white',  # 改为白色边框
+                strokeWidth=2,
+                opacity=0.6
+            )
+            
+            return data_bg_even + data_bg_odd + border_decoration + cell_text
         
         # 创建表格
-        table_chart = create_text_table(table_data).properties(
-            title=alt.TitleParams('评价指标', fontSize=8, anchor='middle')
+        table_chart = create_dreamy_table(table_data).properties(
+            title=alt.TitleParams('评价指标', fontSize=13, anchor='middle', color='#2C3E50', fontWeight='bold')
         )
         
-        # 准备柱状图数据
+        # 准备柱状图数据并应用范围限制
         bar_data = pd.DataFrame({
             '分组': [j.replace('g','g0') if len(j)==2 else j for j in [i.replace("roup", "") for i in list(self.group_mean_rets_monthly.index)]],
-            '收益率': list(self.group_mean_rets_monthly)  # 减少小数精度到2位
+            '收益率': list(self.group_mean_rets_monthly)
         })
         
-        # 各组收益柱状图 - 改进样式
+        # 对收益率数据进行范围限制：正值0-0.15，负值0到-0.25
+        bar_data['收益率_限制'] = bar_data['收益率'].clip(-0.25, 0.15)
+        
+        # 各组收益柱状图 - 现代化样式，固定y轴范围
         bar_chart = alt.Chart(bar_data).mark_bar(
-            cornerRadius=1  # 减小圆角
+            cornerRadius=3,
+            stroke='white',
+            strokeWidth=1
         ).encode(
             x=alt.X('分组:N', title=None, axis=alt.Axis(
                 labelAngle=0,
-                labelFontSize=8  # 减小字体
+                labelFontSize=9,
+                domainColor='#E5E7E9',
+                tickColor='#E5E7E9'
             )),
-            y=alt.Y('收益率:Q', title='收益率', axis=alt.Axis(
-                labelFontSize=8,  # 减小字体
-                titleFontSize=9,  # 减小标题字体
-                grid=True,
-                tickCount=5  # 减少刻度数量
-            )),
+            y=alt.Y('收益率_限制:Q', 
+                   title='收益率', 
+                   scale=alt.Scale(domain=[-0.25, 0.15]),  # 固定y轴范围
+                   axis=alt.Axis(
+                       labelFontSize=9,
+                       titleFontSize=11,
+                       titleColor='#2C3E50',
+                       titleFontWeight='bold',
+                       grid=True,
+                       gridColor='#F8F9FA',
+                       gridOpacity=0.7,
+                       tickCount=8,
+                       domainColor='#E5E7E9'
+                   )),
             color=alt.condition(
-                alt.datum.收益率 > 0,
-                alt.value('#d62728'),
-                alt.value('#2ca02c')
-            )
+                alt.datum.收益率_限制 > 0,
+                alt.value('#E74C3C'),  # 正值用红色
+                alt.value('#28B463')   # 负值用绿色
+            ),
+            opacity=alt.value(0.8)
         ).properties(
             width=bar_width,
-            height=130,
-            title=alt.TitleParams('各组月均超均收益', fontSize=10, anchor='middle')
+            height=120,
+            title=alt.TitleParams('各组月均超均收益', fontSize=13, anchor='middle', color='#2C3E50', fontWeight='bold')
         )
         
-        # 准备IC数据
+        # 准备IC数据并应用范围限制
         if self.group1_ret_yearly > self.group10_ret_yearly:
-            ic_data = self.small_rankics.small_rankic.reset_index()
+            ic_data = self.small_rankics.small_rankic.reset_index().dropna()  # 移除nan值
             ic_data.columns = ['date', 'ic_value']
-                
-            ic_data['ic_value'] = ic_data['ic_value']  # 减少小数精度到2位
-            
-            ic_cum = ic_data.copy()
-            ic_cum['ic_cum'] = ic_data['ic_value'].cumsum() # 减少小数精度到2位
             ic_label = "多头ic"
         else:
-            ic_data = self.big_rankics.big_rankic.reset_index()
+            ic_data = self.big_rankics.big_rankic.reset_index().dropna()  # 移除nan值
             ic_data.columns = ['date', 'ic_value']
-                
-            ic_data['ic_value'] = ic_data['ic_value']  # 减少小数精度到2位
-            
-            ic_cum = ic_data.copy()
-            ic_cum['ic_cum'] = ic_data['ic_value'].cumsum()  # 减少小数精度到2位
             ic_label = "多头ic"
         
-        rankic_data = self.rankics.rankic.reset_index()
+        # 对IC数据进行范围限制：-0.3到0.3
+        ic_data['ic_value_限制'] = ic_data['ic_value'].clip(-0.3, 0.3)
+        
+        ic_cum = ic_data.copy()
+        ic_cum['ic_cum'] = ic_data['ic_value'].cumsum()
+        
+        rankic_data = self.rankics.rankic.reset_index().dropna()  # 移除nan值
         rankic_data.columns = ['date', 'rankic_value']
-            
-        rankic_data['rankic_value'] = rankic_data['rankic_value']  # 减少小数精度到2位
-        
         rankic_cum = rankic_data.copy()
-        rankic_cum['rankic_cum'] = rankic_data['rankic_value'].cumsum()  # 减少小数精度到2位
+        rankic_cum['rankic_cum'] = rankic_data['rankic_value'].cumsum()
         
-        # 创建双轴IC图表 - 柱状图加折线图，简化轴设置
+        # 创建现代化IC图表 - 柱状图加折线图，固定y轴范围
         base = alt.Chart(ic_data).encode(
             x=alt.X('date:T', axis=alt.Axis(
                 labelAngle=-45, 
-                labelFontSize=8,  # 减小字体
+                labelFontSize=9,
                 title=None,
-                tickCount=5  # 减少刻度数量
+                tickCount=6,
+                domainColor='#E5E7E9',
+                tickColor='#E5E7E9'
             )),
         )
         
-        # 柱状图层 - 使用更细的柱子减少视觉复杂度
-        bars = base.mark_bar(color='#ff7f0e', opacity=0.7, size=1).encode(
-            y=alt.Y('ic_value:Q', 
+        # IC柱状图层 - 固定y轴范围
+        bars = base.mark_bar(
+            color='#F39C12', 
+            opacity=0.7, 
+            size=2,
+            stroke='white',
+            strokeWidth=0.5
+        ).encode(
+            y=alt.Y('ic_value_限制:Q', 
                    title='IC值',
+                   scale=alt.Scale(domain=[-0.3, 0.3]),  # 固定y轴范围
                    axis=alt.Axis(
-                       titleFontSize=9,  # 减小标题字体
-                       labelFontSize=8,  # 减小字体
+                       titleFontSize=11,
+                       titleColor='#2C3E50',
+                       titleFontWeight='bold',
+                       labelFontSize=9,
                        grid=True,
-                       tickCount=5  # 减少刻度数量
+                       gridColor='#F8F9FA',
+                       gridOpacity=0.7,
+                       tickCount=7,
+                       domainColor='#E5E7E9'
                    ))
         )
         
-        # 累计IC线图层
-        line1 = alt.Chart(ic_cum).mark_line(color='blue', strokeWidth=1).encode(
+        # 累计IC线图层 - 现代化样式
+        line1 = alt.Chart(ic_cum).mark_line(
+            color='#2E86C1', 
+            strokeWidth=2.5,
+            opacity=0.9
+        ).encode(
             x='date:T',
             y=alt.Y('ic_cum:Q', 
                     title='累计IC',
                     axis=alt.Axis(
-                        titleFontSize=9,  # 减小标题字体
-                        labelFontSize=8,  # 减小字体
-                        tickCount=5  # 减少刻度数量
+                        titleFontSize=11,
+                        titleColor='#2E86C1',
+                        titleFontWeight='bold',
+                        labelFontSize=9,
+                        tickCount=6,
+                        domainColor='#E5E7E9'
                     ))
         )
         
-        # RankIC累计线图层
-        line2 = alt.Chart(rankic_cum).mark_line(color='red', strokeWidth=1).encode(
+        # RankIC累计线图层 - 现代化样式
+        line2 = alt.Chart(rankic_cum).mark_line(
+            color='#E74C3C', 
+            strokeWidth=2.5,
+            opacity=0.9,
+        ).encode(
             x='date:T',
             y=alt.Y('rankic_cum:Q')
         )
         
-        # 将柱状图和线图图层结合，并添加次坐标轴
+        # 将柱状图和线图图层结合
         ic_chart = alt.layer(
             bars,
-            line1.encode(y=alt.Y('ic_cum:Q', axis=alt.Axis(title='累计IC', titleColor='blue'))),
+            line1.encode(y=alt.Y('ic_cum:Q', axis=alt.Axis(title='累计IC', titleColor='#2E86C1', titleFontWeight='bold'))),
             line2.encode(y=alt.Y('rankic_cum:Q', axis=None))
         ).resolve_scale(
             y='independent'
         ).properties(
             width=ic_width,
-            height=130,
-            title=alt.TitleParams('Rank IC时序图(蓝色多头)', fontSize=10, anchor='middle')
+            height=120,
+            title=alt.TitleParams('Rank IC时序图(蓝色多头)', fontSize=13, anchor='middle', color='#2C3E50', fontWeight='bold')
         )
         
         # 获取当前时间戳
         current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-        # 创建复杂的布局：所有子图横向排布
+        # 创建现代化布局：所有子图横向排布
         combined_chart = alt.hconcat(
-            table_chart, net_value_chart, bar_chart, ic_chart
+            table_chart, net_value_chart, bar_chart, ic_chart,
+            spacing=20  # 增加图表间距以适应右侧图例
         ).configure_view(
             strokeWidth=0
         ).configure_axis(
-            domainWidth=0.5,  # 减小轴线宽度
-            domainColor='#e0e0e0',
-            labelLimit=90  # 限制标签长度
+            domainWidth=1,
+            domainColor='#E5E7E9',
+            labelLimit=100
         ).configure_title(
-            fontSize=10,
+            fontSize=12,
             anchor='middle',
-            color='#333333'
+            color='#2C3E50',
+            fontWeight='bold'
+        ).configure_legend(
+            titleFontSize=11,
+            labelFontSize=10,
+            symbolSize=100,
+            padding=15
         ).properties(
-            title=alt.TitleParams(f"{alt_name} - {current_time}", fontSize=12, anchor='middle')
+            title=alt.TitleParams(f"{alt_name} - {current_time}", fontSize=14, anchor='middle', color='#2C3E50', fontWeight='bold')
         )
         
-        # 应用最小化配置，精简JSON
-        combined_chart: alt.HConcatChart = combined_chart.configure(autosize={'type': 'fit', 'contains': 'padding'})
+        # 应用最小化配置
+        combined_chart: alt.HConcatChart = combined_chart.configure(
+            autosize={'type': 'fit', 'contains': 'padding'},
+            background='#FEFEFE',  # 设置背景色
+            padding={'left': 20, 'top': 20, 'right': 30, 'bottom': 20}  # 增加右边距以适应图例
+        )
         
         self.alt_chart = [table_chart, net_value_chart, bar_chart, ic_chart]
+        
         # 如果需要返回图表大小
         if return_size:
             chart_size = self.check_chart_size(combined_chart, 'KB')
@@ -1143,7 +1240,7 @@ def display_image_as_markdown(image_path: str, alt_text: str = "Image", force_re
 
     display(Markdown(markdown_to_display))
     
-def display_alt_chart(chart: alt.HConcatChart,alt_name:str):
+def display_alt_chart(chart: alt.HConcatChart,alt_name:str,neu_ret:float):
     # 保存图片并通过HTML引用，避免使用display增加ipynb文件大小
     def get_file_name():
         from IPython import get_ipython
@@ -1159,17 +1256,61 @@ def display_alt_chart(chart: alt.HConcatChart,alt_name:str):
             path=urllib.parse.unquote(path)
         return path.split("/")[-1].split(".")[0]
     # 获取当前ipynb文件路径
-    ipynb_path = '/home/chenzongwei/pythoncode/pngs/'
+    pythoncode_dir = '/home/chenzongwei/pythoncode'
+    ipynb_path = pythoncode_dir+'/pngs/'
     ipynb_name = get_file_name()
+    # 在/home/chenzongwei/pythoncode中查找以ipynb_name命名的ipynb文件
+    found_folder = None
     
+    for folder_name in os.listdir(pythoncode_dir):
+        folder_path = os.path.join(pythoncode_dir, folder_name)
+        if os.path.isdir(folder_path):
+            # 查找该文件夹中是否有以ipynb_name命名的ipynb文件
+            target_file = f"{ipynb_name}.ipynb"
+            target_path = os.path.join(folder_path, target_file)
+            if os.path.exists(target_path):
+                found_folder = folder_name
+                break
+
+    ipynb_path = os.path.join(ipynb_path, found_folder)
+    os.makedirs(ipynb_path, exist_ok=True)
+
     # 创建与ipynb同名的文件夹
-    save_dir = os.path.join(os.path.dirname(ipynb_path), ipynb_name)
+    save_dir = os.path.join(ipynb_path, ipynb_name)
     os.makedirs(save_dir, exist_ok=True)
     
     # 保存图表为png
     file_name = alt_name if alt_name else 'factor_analysis'
     save_path = os.path.join(save_dir, f"{file_name}.svg")
     chart.save(save_path)
+
+    # 将neu_ret以json格式写入neu_rets.json文件
+    neu_rets_file = os.path.join(save_dir, "neu_rets.json")
+    
+    # 读取现有的json文件内容，如果文件不存在则创建空字典
+    try:
+        if os.path.exists(neu_rets_file):
+            with open(neu_rets_file, 'r', encoding='utf-8') as f:
+                content = f.read().strip()
+                if content:  # 检查文件是否为空
+                    neu_rets_data = json.loads(content)
+                else:
+                    neu_rets_data = {}
+        else:
+            neu_rets_data = {}
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        print(f"读取JSON文件时发生错误: {e}，创建新的数据字典")
+        neu_rets_data = {}
+    
+    # 更新数据
+    neu_rets_data[file_name] = neu_ret
+    
+    # 写入文件
+    try:
+        with open(neu_rets_file, 'w', encoding='utf-8') as f:
+            json.dump(neu_rets_data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"写入JSON文件时发生错误: {e}")
     display_image_as_markdown(save_path)
 
 @do_on_dfs
@@ -1335,7 +1476,8 @@ def sun(factor:pd.DataFrame,rolling_days:int=10,time_start:int=20170101,show_mor
         pfi=de_cross_special_for_barra_weekly_fast(ractor.copy())
         # logger.info('这是中性化之后的表现')
         shen=pure_moonnight(pfi,time_start=time_start,show_more_than=show_more_than,plot_style=plot_style,alt_name=alt_name+'_neu',show_alt_chart=False)
-        if max(shen.shen.group1_ret_yearly,shen.shen.group10_ret_yearly) > show_more_than:
+        neu_ret=max(shen.shen.group1_ret_yearly,shen.shen.group10_ret_yearly)
+        if neu_ret > show_more_than:
             chart1=shen.shen.alt_chart
             # logger.info('这是原始值')
             shen=pure_moonnight(ractor,time_start=time_start,show_more_than=None,plot_style=plot_style,alt_name=alt_name+'_raw',show_alt_chart=False)
@@ -1410,10 +1552,10 @@ def sun(factor:pd.DataFrame,rolling_days:int=10,time_start:int=20170101,show_mor
             )
             
             # 显示组合图表
-            display_alt_chart(combined_chart, alt_name)
+            display_alt_chart(combined_chart, alt_name,neu_ret)
             
-            return bool(max(shen.shen.group1_ret_yearly,shen.shen.group10_ret_yearly) > show_more_than)
-        return bool(max(shen.shen.group1_ret_yearly,shen.shen.group10_ret_yearly) > show_more_than)
+            return bool(neu_ret > show_more_than)
+        return bool(neu_ret > show_more_than)
     except Exception as e:
         # 将异常转换为字符串形式，在Altair图表中显示
         # raise 
