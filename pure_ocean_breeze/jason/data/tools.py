@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2025-05-22 11:31:49"
+__updated__ = "2025-06-02 01:59:45"
 
 import os
 import pandas as pd
@@ -10,7 +10,7 @@ import tqdm.auto
 import datetime
 import numpy as np
 import scipy.stats as ss
-from functools import reduce, partial
+from functools import reduce, partial,lru_cache
 from typing import Callable, Union, Dict, List, Tuple
 import joblib
 import polars as pl
@@ -22,12 +22,17 @@ from pure_ocean_breeze.jason.state.decorators import do_on_dfs
 import rust_pyfunc as rp
 from pandarallel import pandarallel
 pandarallel.initialize(progress_bar=False, nb_workers=10,verbose=0)
+homeplace = HomePlace()
 
-try:
-    homeplace = HomePlace()
-except Exception:
-    print("您暂未初始化，功能将受限")
-xs=pd.read_parquet(homeplace.barra_data_file+"barra_industry_weekly_together.parquet")
+@lru_cache(maxsize=1)
+def get_xs():
+    """使用lru_cache确保每个进程只加载一次"""
+    try:
+        homeplace = HomePlace()
+        return pd.read_parquet(homeplace.barra_data_file+"barra_industry_weekly_together.parquet")
+    except Exception:
+        print("无法加载xs数据")
+        return pd.DataFrame()
 
 def is_notebook() -> bool:
     try:
@@ -213,7 +218,7 @@ def merge_many(
 
 
 @do_on_dfs
-def drop_duplicates_index(new: pd.DataFrame) -> pd.DataFrame:
+def drop_duplicates_index(new: pd.DataFrame,keep:str='first') -> pd.DataFrame:
     """对dataframe依照其index进行去重，并保留最上面的行
 
     Parameters
@@ -234,7 +239,7 @@ def drop_duplicates_index(new: pd.DataFrame) -> pd.DataFrame:
         }
     )
     new = new.drop_duplicates(
-        subset=["tmp_name_for_this_function_never_same_to_others"], keep="first"
+        subset=["tmp_name_for_this_function_never_same_to_others"], keep=keep
     )
     new = new.set_index("tmp_name_for_this_function_never_same_to_others")
     if pri_name == "tmp_name_for_this_function_never_same_to_others":
@@ -1400,6 +1405,7 @@ def de_cross_special_for_barra_weekly_fast(
         y.index.name='date'
     y=y.stack().reset_index()
     y.columns=['date','code','fac']
+    xs=get_xs()
     yx=pd.merge(y,xs,on=['date','code'])
     def ols_sing(df:pd.DataFrame)->pd.DataFrame:
         betas=rp.ols(df[df.columns[3:]].to_numpy(dtype=float),df['fac'].to_numpy(dtype=float),False)

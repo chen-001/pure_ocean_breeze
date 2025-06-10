@@ -1,4 +1,4 @@
-__updated__ = "2025-05-30 23:12:46"
+__updated__ = "2025-06-02 02:00:41"
 
 import datetime
 import warnings
@@ -50,18 +50,21 @@ import os
 import rust_pyfunc as rp
 import time
 
-barras={}
-barras['beta']=boom_one(pd.read_parquet(homeplace.barra_data_file+'beta.parquet'),10)
-barras['book_to_price']=boom_one(pd.read_parquet(homeplace.barra_data_file+'booktoprice.parquet'),10)
-barras['earnings_yield']=boom_one(pd.read_parquet(homeplace.barra_data_file+'earningsyield.parquet'),10)
-barras['growth']=boom_one(pd.read_parquet(homeplace.barra_data_file+'growth.parquet'),10)
-barras['leverage']=boom_one(pd.read_parquet(homeplace.barra_data_file+'leverage.parquet'),10)
-barras['liquidity']=boom_one(pd.read_parquet(homeplace.barra_data_file+'liquidity.parquet'),10)
-barras['momentum']=boom_one(pd.read_parquet(homeplace.barra_data_file+'momentum.parquet'),10)
-barras['non_linear_size']=boom_one(pd.read_parquet(homeplace.barra_data_file+'nonlinearsize.parquet'),10)
-barras['residual_volatility']=boom_one(pd.read_parquet(homeplace.barra_data_file+'residualvolatility.parquet'),10)
-barras['size']=boom_one(pd.read_parquet(homeplace.barra_data_file+'size.parquet'),10)
-barras['stock_return']=boom_one(pd.read_parquet(homeplace.barra_data_file+'stockreturn.parquet'),10)
+@lru_cache(maxsize=1)
+def get_barras():
+    barras={}
+    barras['beta']=boom_one(pd.read_parquet(homeplace.barra_data_file+'beta.parquet'),10)
+    barras['book_to_price']=boom_one(pd.read_parquet(homeplace.barra_data_file+'booktoprice.parquet'),10)
+    barras['earnings_yield']=boom_one(pd.read_parquet(homeplace.barra_data_file+'earningsyield.parquet'),10)
+    barras['growth']=boom_one(pd.read_parquet(homeplace.barra_data_file+'growth.parquet'),10)
+    barras['leverage']=boom_one(pd.read_parquet(homeplace.barra_data_file+'leverage.parquet'),10)
+    barras['liquidity']=boom_one(pd.read_parquet(homeplace.barra_data_file+'liquidity.parquet'),10)
+    barras['momentum']=boom_one(pd.read_parquet(homeplace.barra_data_file+'momentum.parquet'),10)
+    barras['non_linear_size']=boom_one(pd.read_parquet(homeplace.barra_data_file+'nonlinearsize.parquet'),10)
+    barras['residual_volatility']=boom_one(pd.read_parquet(homeplace.barra_data_file+'residualvolatility.parquet'),10)
+    barras['size']=boom_one(pd.read_parquet(homeplace.barra_data_file+'size.parquet'),10)
+    barras['stock_return']=boom_one(pd.read_parquet(homeplace.barra_data_file+'stockreturn.parquet'),10)
+    return barras
 
 
 @do_on_dfs
@@ -1483,6 +1486,7 @@ def sun(factor:pd.DataFrame,rolling_days:int=10,time_start:int=20170101,show_mor
             shen=pure_moonnight(ractor,time_start=time_start,show_more_than=None,plot_style=plot_style,alt_name=alt_name+'_raw',show_alt_chart=False)
             chart2=shen.shen.alt_chart
             corrs={}
+            barras=get_barras()
             for k,v in barras.items():
                 corrs[k]=rp.corrwith(ractor,v,axis=1).mean()
             corrs=pd.DataFrame(corrs,index=['C'])
