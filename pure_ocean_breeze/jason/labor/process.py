@@ -1,4 +1,4 @@
-__updated__ = "2025-06-12 16:08:33"
+__updated__ = "2025-06-19 12:13:12"
 
 import datetime
 import warnings
@@ -1473,24 +1473,52 @@ def symmetrically_orthogonalize(dfs: list[pd.DataFrame]) -> list[pd.DataFrame]:
 @do_on_dfs
 def sun(factor:pd.DataFrame,rolling_days:int=10,time_start:int=20170101,show_more_than:float=0.025,plot_style:str='altair',alt_name:str='test1'):
     '''先单因子测试，再测试其与常用风格之间的关系'''
+    import time
+    
     try:
+        start_time = time.time()
+        
+        # 步骤1: 因子排序
+        step_time = time.time()
         factor=factor.rank(axis=1)
+        print(f"因子排序耗时: {time.time() - step_time:.4f} 秒")
+        
+        # 步骤2: boom_one处理
+        step_time = time.time()
         ractor=boom_one(factor,rolling_days)
+        print(f"boom_one处理耗时: {time.time() - step_time:.4f} 秒")
+        
+        # 步骤3: 中性化处理
+        step_time = time.time()
         pfi=de_cross_special_for_barra_weekly_fast(ractor.copy())
-        # logger.info('这是中性化之后的表现')
+        print(f"中性化处理耗时: {time.time() - step_time:.4f} 秒")
+        
+        # 步骤4: 中性化后的回测
+        step_time = time.time()
         shen=pure_moonnight(pfi,time_start=time_start,show_more_than=show_more_than,plot_style=plot_style,alt_name=alt_name+'_neu',show_alt_chart=False)
         neu_ret=max(shen.shen.group1_ret_yearly,shen.shen.group10_ret_yearly)
+        print(f"中性化后回测耗时: {time.time() - step_time:.4f} 秒")
+        
         if neu_ret > show_more_than:
             chart1=shen.shen.alt_chart
-            # logger.info('这是原始值')
+            
+            # 步骤5: 原始值回测
+            step_time = time.time()
             shen=pure_moonnight(ractor,time_start=time_start,show_more_than=None,plot_style=plot_style,alt_name=alt_name+'_raw',show_alt_chart=False)
             chart2=shen.shen.alt_chart
+            print(f"原始值回测耗时: {time.time() - step_time:.4f} 秒")
+            
+            # 步骤6: 计算与Barra因子的相关性
+            step_time = time.time()
             corrs={}
             barras=get_barras()
             for k,v in barras.items():
                 corrs[k]=rp.corrwith(ractor,v,axis=1).mean()
             corrs=pd.DataFrame(corrs,index=['C'])
+            print(f"计算Barra相关性耗时: {time.time() - step_time:.4f} 秒")
             
+            # 步骤7: 创建相关性热图
+            step_time = time.time()
             # 创建相关性热图
             corrs_melted = corrs.reset_index().melt(id_vars='index', var_name='风格因子', value_name='相关性')
             # 按照相关性绝对值从大到小排序
@@ -1522,7 +1550,10 @@ def sun(factor:pd.DataFrame,rolling_days:int=10,time_start:int=20170101,show_mor
             
             # 组合图表和标签
             corr_chart = alt.layer(corr_chart, text_labels)
+            print(f"创建相关性热图耗时: {time.time() - step_time:.4f} 秒")
 
+            # 步骤8: 创建复合图表布局
+            step_time = time.time()
             # 创建复合图表布局
             # 提取chart1和chart2中的表格、净值图、柱状图和IC图
             table1, netval1, bar1, ic1 = chart1
@@ -1554,16 +1585,23 @@ def sun(factor:pd.DataFrame,rolling_days:int=10,time_start:int=20170101,show_mor
             ).properties(
                 title=alt.TitleParams(f"{alt_name} - {current_time}", fontSize=16, anchor='middle')
             )
+            print(f"创建复合图表布局耗时: {time.time() - step_time:.4f} 秒")
             
-            # 显示组合图表
+            # 步骤9: 显示组合图表
+            step_time = time.time()
             display_alt_chart(combined_chart, alt_name,neu_ret)
+            print(f"显示组合图表耗时: {time.time() - step_time:.4f} 秒")
             
+            print(f"sun函数总耗时: {time.time() - start_time:.4f} 秒")
             return bool(neu_ret > show_more_than)
+        
+        print(f"sun函数总耗时: {time.time() - start_time:.4f} 秒")
         return bool(neu_ret > show_more_than)
     except Exception as e:
         # 将异常转换为字符串形式，在Altair图表中显示
         # raise 
         print(e)
+        print(f"sun函数异常退出，总耗时: {time.time() - start_time:.4f} 秒")
         return False
 
 
