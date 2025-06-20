@@ -1409,11 +1409,11 @@ def de_cross_special_for_barra_weekly_fast(
     
     xs=get_xs()
     
-    yx=pd.merge(y,xs,on=['date','code'])
+    yx=pd.merge(xs,y,on=['date','code'],sort=False)
     
     def ols_sing(df: pd.DataFrame) -> pd.DataFrame:
-        betas=rp.ols(df[df.columns[3:]].to_numpy(dtype=float),df['fac'].to_numpy(dtype=float),False)
-        df.fac=df.fac-betas[0]-betas[1]*df[df.columns[3]]-betas[2]*df[df.columns[4]]-betas[3]*df[df.columns[5]]-betas[4]*df[df.columns[6]]-betas[5]*df[df.columns[7]]-betas[6]*df[df.columns[8]]-betas[7]*df[df.columns[9]]-betas[8]*df[df.columns[10]]-betas[9]*df[df.columns[11]]-betas[10]*df[df.columns[12]]-betas[11]*df[df.columns[13]]
+        betas=rp.ols(df[df.columns[2:-1]].to_numpy(dtype=float),df['fac'].to_numpy(dtype=float),False)
+        df.fac=df.fac-betas[0]-betas[1]*df[df.columns[2]]-betas[2]*df[df.columns[3]]-betas[3]*df[df.columns[4]]-betas[4]*df[df.columns[5]]-betas[5]*df[df.columns[6]]-betas[6]*df[df.columns[7]]-betas[7]*df[df.columns[8]]-betas[8]*df[df.columns[9]]-betas[9]*df[df.columns[10]]-betas[10]*df[df.columns[11]]-betas[11]*df[df.columns[12]]
         return df[['date','code','fac']]
     
     yresid=yx.dropna().groupby('date').parallel_apply(ols_sing).pivot(index='date',columns='code',values='fac')

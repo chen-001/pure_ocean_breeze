@@ -1,4 +1,4 @@
-__updated__ = "2025-06-20 03:04:41"
+__updated__ = "2025-06-21 01:40:03"
 
 import datetime
 import warnings
@@ -318,16 +318,6 @@ class pure_moon(object):
         cls.rets_monthly = cls.rets_monthly.stack().reset_index()
         cls.rets_monthly.columns = ["date", "code", "ret"]
 
-
-    def get_ic_rankic(cls, df):
-        """计算IC和RankIC"""
-        df1 = df[["ret", "fac"]]
-        rankic = rp.rank_axis0_df(df1).corr().iloc[0, 1]
-        small_ic=rp.rank_axis0_df(df1[df1.fac<=df1.fac.median()]).corr().iloc[0, 1]
-        big_ic=rp.rank_axis0_df(df1[df1.fac>=df1.fac.median()]).corr().iloc[0, 1]
-        df2 = pd.DataFrame({"rankic": [rankic],"small_rankic":[small_ic],"big_rankic":[big_ic]})
-        return df2
-
     def get_icir_rankicir(cls, df):
         """计算ICIR和RankICIR"""
         rankic = df.rankic.mean()
@@ -340,35 +330,16 @@ class pure_moon(object):
 
     def get_ic_icir_and_rank(cls, df):
         """计算IC、ICIR、RankIC、RankICIR"""
-        df1 = df.groupby("date").apply(cls.get_ic_rankic)
-        cls.rankics = df1.rankic
-        cls.rankics = cls.rankics.reset_index(drop=True, level=1).to_frame()
-        cls.small_rankics = df1.small_rankic.reset_index(drop=True, level=1).to_frame()
-        cls.big_rankics = df1.big_rankic.reset_index(drop=True, level=1).to_frame()
+        a,b,c,d=rp.factor_correlation_by_date(df.date.to_numpy(int),df.ret.to_numpy(float),df.fac.to_numpy(float))
+        df1=pd.DataFrame(data={'rankic':b,'small_rankic':c,'big_rankic':d,'date':a})
+        df1.date=pd.to_timedelta(df1.date / 1e9, unit="s")+ pd.Timestamp("1970-01-01 00:00:00")
+        df1=df1.set_index('date')
+        cls.rankics = df1[['rankic']]
+        cls.small_rankics = df1[['small_rankic']]
+        cls.big_rankics = df1[['big_rankic']]
         df2,df5 = cls.get_icir_rankicir(df1)
         df2 = df2.T
         return df2,df5
-
-    @classmethod
-    def get_groups(cls, df, groups_num):
-        """依据因子值，判断是在第几组"""
-        if "group" in list(df.columns):
-            df = df.drop(columns=["group"])
-        df = df.sort_values(["fac"], ascending=True)
-        each_group = round(df.shape[0] / groups_num)
-        l = list(
-            map(
-                lambda x, y: [x] * y,
-                list(range(1, groups_num + 1)),
-                [each_group] * groups_num,
-            )
-        )
-        l = reduce(lambda x, y: x + y, l)
-        if len(l) < df.shape[0]:
-            l = l + [groups_num] * (df.shape[0] - len(l))
-        l = l[: df.shape[0]]
-        df.insert(0, "group", l)
-        return df
 
     def get_data(self, groups_num):
         """拼接因子数据和每月收益率数据，并对涨停和跌停股加以处理"""
@@ -376,10 +347,7 @@ class pure_moon(object):
             self.rets_monthly, self.factors, how="inner", on=["date", "code"]
         )
         self.ic_icir_and_rank,self.big_small_rankic = self.get_ic_icir_and_rank(self.data)
-        self.data = self.data.groupby("date").apply(
-            lambda x: self.get_groups(x, groups_num)
-        )
-        self.data = self.data.reset_index(drop=True)
+        self.data = self.data.assign(group=rp.factor_grouping(self.data.date.to_numpy(int),self.data.fac.to_numpy(float),groups_num))
 
     def to_group_ret(self, l):
         """每一组的年化收益率"""
@@ -398,10 +366,8 @@ class pure_moon(object):
     def get_group_rets_net_values(self, groups_num=10):
         """计算组内每一期的平均收益，生成每日收益率序列和净值序列"""
         
-        self.group_rets = self.data.groupby(["date", "group"]).apply(
-            lambda x: x.ret.mean()
-        )
-        self.rets_all = self.data.groupby(["date"]).apply(lambda x: x.ret.mean())
+        self.group_rets = self.data.groupby(["date", "group"]).ret.mean()
+        self.rets_all = self.data.groupby(["date"]).ret.mean()
         # dropna是因为如果股票行情数据比因子数据的截止日期晚，而最后一个月发生月初跌停时，会造成最后某组多出一个月的数据
         self.group_rets = self.group_rets.unstack()
         self.group_rets = self.group_rets[
@@ -534,220 +500,9 @@ class pure_moon(object):
                 )
             ]
         )
-        
 
-    def plot_net_values(self, ilegend=1, without_breakpoint=0):
-
-        tris = self.group_net_values.drop(columns=['long_short'])
-        if without_breakpoint:
-            tris = tris.dropna()
-        figs = cf.figures(
-            tris,
-            [
-                dict(kind="line", y=list(tris.columns)),
-            ],
-            asList=True,
-        )
-        comments = (
-            self.total_comments.applymap(lambda x: round(x, 4))
-            .reset_index()
-        )
-        here = pd.concat(
-            [
-                comments.iloc[1:7, :].reset_index(drop=True),
-                comments.iloc[[7,0,8,9,10,11], :].reset_index(drop=True),
-            ],
-            axis=1,
-        )
-        here.columns = ["绩效", "结果", "多与空", "结果"]
-        # here=here.to_numpy().tolist()+[['信息系数','结果','绩效指标','结果']]
-        table = FF.create_table(here.iloc[::-1],xgap=0)
-        table.update_yaxes(matches=None)
-        pic2 = go.Figure(
-            go.Bar(
-                y=list(self.group_mean_rets_monthly),
-                x=[
-                    i.replace("roup", "")
-                    for i in list(self.group_mean_rets_monthly.index)
-                ],
-                name='各组收益'
-            )
-        )
-        # table=go.Figure([go.Table(header=dict(values=list(here.columns)),cells=dict(values=here.to_numpy().tolist()))])
-        if self.group1_ret_yearly>self.group10_ret_yearly:
-            pic3_data = go.Bar(y=list(self.small_rankics.small_rankic), x=list(self.small_rankics.index),marker_color="red")
-            pic3 = go.Figure(data=[pic3_data])
-            pic5_data1 = go.Scatter(
-                y=list(self.small_rankics.small_rankic.cumsum()),
-                x=list(self.small_rankics.index),
-                name="多头ic",
-                yaxis="y2",
-                mode="lines",
-                line=dict(color="blue"),
-            )
-        else:
-            pic3_data = go.Bar(y=list(self.big_rankics.big_rankic), x=list(self.big_rankics.index),marker_color="red")
-            pic3 = go.Figure(data=[pic3_data])
-            pic5_data1 = go.Scatter(
-                y=list(self.big_rankics.big_rankic.cumsum()),
-                x=list(self.big_rankics.index),
-                name="多头ic",
-                yaxis="y2",
-                mode="lines",
-                line=dict(color="blue"),
-            )
-        pic5_data2 = go.Scatter(
-            y=list(self.rankics.rankic.cumsum()),
-            x=list(self.rankics.index),
-            mode="lines",
-            name="rankic",
-            yaxis="y2",
-            line=dict(color="red"),
-        )
-        figs.append(table)
-        figs = [figs[-1]] + figs[:-1]
-        figs.append(pic2)
-        figs = [figs[0], figs[1], figs[-1], go.Figure()]
-        figs[3].add_trace(pic5_data1)
-        figs[3].add_trace(pic5_data2)
-
-        pic4=go.Figure()
-        figs.append(pic4)
-        figs[4].add_trace(go.Bar(x=[str(i) for i in self.longside_ret_eachyear.index.year],y=self.longside_ret_eachyear,name='各年收益'))            
-        figs[1].update_layout(
-            legend=dict(yanchor="top", y=0.99, xanchor="right", x=0.99)
-        ) 
-        
-        base_layout = cf.tools.get_base_layout(figs)
-
-        sp = cf.subplots(
-            figs,
-            shape=(3, 10),
-            base_layout=base_layout,
-            vertical_spacing=0.15,
-            horizontal_spacing=0.045,
-            shared_yaxes=False,
-            specs=[
-                [
-                    {"rowspan": 3, "colspan": 3},
-                    None,
-                    None,
-                    {"rowspan": 3, "colspan": 3},
-                    None,
-                    None,
-                    {"colspan": 3},
-                    None,
-                    None,
-                    None,
-                ],
-                [
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    {"colspan": 3},
-                    None,
-                    None,
-                    None,
-                ],
-                [
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    {"colspan": 3},
-                    None,
-                    None,
-                    None,
-                ],
-            ],
-            subplot_titles=[
-                "净值曲线",
-                "各组月均超均收益",
-                "Rank IC时序图",
-            ],
-        )
-        sp["layout"].update(showlegend=ilegend,width=1100,height=200,margin=dict(l=0, r=0, b=0, t=0, pad=0),font=dict(size=12),legend=dict(
-            # 可选值：
-            # 'left', 'center', 'right' 
-            # 'top', 'middle', 'bottom'
-            xanchor="right",    # 图例的x锚点
-            yanchor="top",     # 图例的y锚点
-            x=1,              # x位置（0到1之间）
-            y=1               # y位置（0到1之间）
-        ))
-        cf.iplot(sp)
-        
-    def check_chart_size(self, chart, unit='KB'):
-        """
-        检查Altair图表占用的存储空间
-        
-        Parameters
-        ----------
-        chart : alt.Chart
-            要检查大小的Altair图表对象
-        unit : str, optional
-            显示单位，可选 'B', 'KB', 'MB', by default 'KB'
-        
-        Returns
-        -------
-        float
-            图表大小（以指定单位表示）
-        """
-        import json
-        
-        # 将图表转换为JSON规范
-        chart_json = json.dumps(chart.to_dict())
-        size_bytes = len(chart_json.encode('utf-8'))
-        
-        if unit.upper() == 'B':
-            return size_bytes
-        elif unit.upper() == 'KB':
-            return size_bytes / 1024
-        elif unit.upper() == 'MB':
-            return size_bytes / (1024 * 1024)
-        else:
-            raise ValueError("单位必须是 'B', 'KB' 或 'MB'")
-
-    def compare_chart_sizes(self, charts, chart_names=None, unit='KB'):
-        """
-        比较多个Altair图表的存储空间大小
-        
-        Parameters
-        ----------
-        charts : list
-            要比较的Altair图表对象列表
-        chart_names : list, optional
-            图表名称列表，by default None
-        unit : str, optional
-            显示单位，可选 'B', 'KB', 'MB', by default 'KB'
-        
-        Returns
-        -------
-        pd.DataFrame
-            包含每个图表大小的数据框
-        """
-        import pandas as pd
-        
-        if chart_names is None:
-            chart_names = [f"图表{i+1}" for i in range(len(charts))]
-        
-        sizes = [self.check_chart_size(chart, unit) for chart in charts]
-        
-        result = pd.DataFrame({
-            "图表名称": chart_names,
-            f"大小({unit})": sizes
-        })
-        
-        return result.sort_values(f"大小({unit})", ascending=False)
-
-    def plot_net_values_altair(self, ilegend=1, without_breakpoint=0, return_size=False, alt_name='test'):
+    def plot_net_values_altair(self, ilegend=1, without_breakpoint=0, alt_name='test'):
         """使用Altair库实现相同的可视化效果，布局与原Plotly版本相似，美化版本"""
-        # import altair as alt
         
         # 禁用最大行限制，避免大数据集的问题
         alt.data_transformers.disable_max_rows()
@@ -1123,11 +878,6 @@ class pure_moon(object):
         
         self.alt_chart = [table_chart, net_value_chart, bar_chart, ic_chart]
         
-        # 如果需要返回图表大小
-        if return_size:
-            chart_size = self.check_chart_size(combined_chart, 'KB')
-            return combined_chart, chart_size
-        
         # 返回图表
         return combined_chart
 
@@ -1143,8 +893,7 @@ class pure_moon(object):
         ilegend=1,
         without_breakpoint=0,
         show_more_than=0.025,
-        plot_style="altair", # 新增参数，可选 "plotly", "seaborn", "altair"
-        return_size=False,   # 新增参数，返回图表大小
+        plot_style="altair",
         alt_name=None,
         show_alt_chart=True,
     ):
@@ -1156,57 +905,29 @@ class pure_moon(object):
         self.get_data(groups_num)
         self.get_group_rets_net_values(groups_num=groups_num)
         self.get_long_short_comments()
+        self.get_total_comments()
 
         if (show_more_than is None) or (show_more_than < max(self.group1_ret_yearly,self.group10_ret_yearly)):
-            if plot_style == "plotly":
-                # 步骤6: 绘制Plotly图表
-                chart = self.plot_net_values(
+            if plot_style == "altair":
+                # 步骤6: 绘制Altair图表
+                chart = self.plot_net_values_altair(
                     ilegend=bool(ilegend),
                     without_breakpoint=without_breakpoint,
+                    alt_name=alt_name,
                 )
-                if return_size:
-                    return chart, None  # Plotly图表不提供大小检查
-            elif plot_style == "altair":
-                if return_size:
-                    # 步骤6: 绘制Altair图表(带大小返回)
-                    chart, size = self.plot_net_values_altair(
-                        ilegend=bool(ilegend),
-                        without_breakpoint=without_breakpoint,
-                        return_size=True,
-                        alt_name=alt_name,
-                    )
-                    
-                    import altair as alt
-                    try:
+                
+                try:
+                    if show_alt_chart:
                         # 步骤7: 显示图表
-                        from IPython.display import display
-                        display(chart)
-                        return chart, size
-                    except ImportError:
-                        # 步骤7: 保存HTML文件
-                        chart.save('factor_analysis.html')
-                        return chart, size
-                else:
-                    # 步骤6: 绘制Altair图表
-                    chart = self.plot_net_values_altair(
-                        ilegend=bool(ilegend),
-                        without_breakpoint=without_breakpoint,
-                        alt_name=alt_name,
-                    )
+                        display_alt_chart(chart,alt_name)
+                    # 返回HTML对象而不是显示它，让调用者决定如何处理
+                    # HTML(f'<img src="{ipynb_name}/{file_name}.svg">')
                     
-                    import altair as alt
-                    try:
-                        if show_alt_chart:
-                            # 步骤7: 显示图表
-                            display_alt_chart(chart,alt_name)
-                        # 返回HTML对象而不是显示它，让调用者决定如何处理
-                        # HTML(f'<img src="{ipynb_name}/{file_name}.svg">')
-                        
-                        return chart
-                    except ImportError:
-                        # 步骤7: 保存HTML文件
-                        chart.save('factor_analysis.html')
-                        return chart
+                    return chart
+                except ImportError:
+                    # 步骤7: 保存HTML文件
+                    chart.save('factor_analysis.html')
+                    return chart
         else:
             alt_name_prefix=alt_name.replace('neu','')
             logger.info(f'{alt_name_prefix}多头收益率为{round(max(self.group1_ret_yearly,self.group10_ret_yearly),3)}, ic为{round(self.rankics.rankic.mean(),3)}，表现太差，不展示了')
@@ -1324,7 +1045,7 @@ def display_alt_chart(chart: alt.HConcatChart,alt_name:str,neu_ret:float):
 class pure_moonnight(object):
     """封装选股框架"""
 
-    __slots__ = ["shen",'chart','size']
+    __slots__ = ["shen",'chart']
 
     def __init__(
         self,
@@ -1336,8 +1057,6 @@ class pure_moonnight(object):
         ilegend: bool = 1,
         without_breakpoint: bool = 0,
         show_more_than: float = 0.025,
-        plot_style: str = "altair",
-        return_size: bool = False,  # 新增参数，返回图表大小
         alt_name: str = None,
         show_alt_chart: bool = True,
     ) -> None:
@@ -1365,12 +1084,6 @@ class pure_moonnight(object):
             画图的时候是否去除间断点, by default 0
         show_more_than : float, optional
             展示收益率大于多少的因子，默认展示大于0.025的因子, by default 0.025
-        plot_style : str, optional
-            绘图风格，可选 "plotly", "seaborn", "altair", by default "plotly"
-        min_size : bool, optional
-            是否使用最小化图表模式以减小文件大小, by default False
-        return_size : bool, optional
-            是否返回图表大小信息, by default False
         """
         if time_start is not None:
             factors = factors[factors.index >= pd.Timestamp(str(time_start))]
@@ -1380,19 +1093,14 @@ class pure_moonnight(object):
         self.shen.set_basic_data()
         self.shen.set_factor_df_date_as_index(factors)
         self.shen.prerpare()
-        result = self.shen.run(
+        self.shen.run(
             groups_num=groups_num,
             ilegend=ilegend,
             without_breakpoint=without_breakpoint,
             show_more_than=show_more_than,
-            plot_style=plot_style,
-            return_size=return_size,
             alt_name=alt_name,
             show_alt_chart=show_alt_chart,
         )
-        # 如果需要返回大小信息
-        if return_size:
-            self.chart, self.size = result
 
 
 
@@ -1479,8 +1187,8 @@ def sun(factor:pd.DataFrame,rolling_days:int=10,time_start:int=20170101,show_mor
     '''先单因子测试，再测试其与常用风格之间的关系'''
     try:
         
-        # 步骤1: 因子排序
-        # factor=factor.rank(axis=1)
+    # 步骤1: 因子排序
+    # factor=factor.rank(axis=1)
         factor=rp.rank_axis1_df(factor)
         
         # 步骤2: boom_one处理
