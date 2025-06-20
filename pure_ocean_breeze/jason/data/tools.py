@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2025-06-19 12:11:04"
+__updated__ = "2025-06-20 17:15:19"
 
 import os
 import pandas as pd
@@ -1401,36 +1401,22 @@ def de_cross_special_for_barra_weekly_fast(
     pd.DataFrame
         正交后的残差，形式与y相同，index是时间，columns是股票
     """
-    import time
-    start_time = time.time()
-    
     if isinstance(y, pd.DataFrame):
         y.index.name='date'
-    print(f"数据预处理耗时: {time.time() - start_time:.4f} 秒")
     
-    step_time = time.time()
     y=y.stack().reset_index()
     y.columns=['date','code','fac']
-    print(f"数据重塑耗时: {time.time() - step_time:.4f} 秒")
     
-    step_time = time.time()
     xs=get_xs()
-    print(f"加载xs数据耗时: {time.time() - step_time:.4f} 秒")
     
-    step_time = time.time()
     yx=pd.merge(y,xs,on=['date','code'])
-    print(f"数据合并耗时: {time.time() - step_time:.4f} 秒")
     
     def ols_sing(df: pd.DataFrame) -> pd.DataFrame:
         betas=rp.ols(df[df.columns[3:]].to_numpy(dtype=float),df['fac'].to_numpy(dtype=float),False)
         df.fac=df.fac-betas[0]-betas[1]*df[df.columns[3]]-betas[2]*df[df.columns[4]]-betas[3]*df[df.columns[5]]-betas[4]*df[df.columns[6]]-betas[5]*df[df.columns[7]]-betas[6]*df[df.columns[8]]-betas[7]*df[df.columns[9]]-betas[8]*df[df.columns[10]]-betas[9]*df[df.columns[11]]-betas[10]*df[df.columns[12]]-betas[11]*df[df.columns[13]]
         return df[['date','code','fac']]
     
-    step_time = time.time()
     yresid=yx.dropna().groupby('date').parallel_apply(ols_sing).pivot(index='date',columns='code',values='fac')
-    print(f"OLS回归计算耗时: {time.time() - step_time:.4f} 秒")
-    
-    print(f"总耗时: {time.time() - start_time:.4f} 秒")
     
     return yresid
 

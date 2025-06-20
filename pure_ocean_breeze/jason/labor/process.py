@@ -1,4 +1,4 @@
-__updated__ = "2025-06-19 12:13:12"
+__updated__ = "2025-06-20 03:04:41"
 
 import datetime
 import warnings
@@ -322,9 +322,9 @@ class pure_moon(object):
     def get_ic_rankic(cls, df):
         """计算IC和RankIC"""
         df1 = df[["ret", "fac"]]
-        rankic = df1.rank().corr().iloc[0, 1]
-        small_ic=df1[df1.fac<=df1.fac.median()].rank().corr().iloc[0, 1]
-        big_ic=df1[df1.fac>=df1.fac.median()].rank().corr().iloc[0, 1]
+        rankic = rp.rank_axis0_df(df1).corr().iloc[0, 1]
+        small_ic=rp.rank_axis0_df(df1[df1.fac<=df1.fac.median()]).corr().iloc[0, 1]
+        big_ic=rp.rank_axis0_df(df1[df1.fac>=df1.fac.median()]).corr().iloc[0, 1]
         df2 = pd.DataFrame({"rankic": [rankic],"small_rankic":[small_ic],"big_rankic":[big_ic]})
         return df2
 
@@ -1156,10 +1156,10 @@ class pure_moon(object):
         self.get_data(groups_num)
         self.get_group_rets_net_values(groups_num=groups_num)
         self.get_long_short_comments()
-        self.get_total_comments()
 
         if (show_more_than is None) or (show_more_than < max(self.group1_ret_yearly,self.group10_ret_yearly)):
             if plot_style == "plotly":
+                # 步骤6: 绘制Plotly图表
                 chart = self.plot_net_values(
                     ilegend=bool(ilegend),
                     without_breakpoint=without_breakpoint,
@@ -1168,45 +1168,49 @@ class pure_moon(object):
                     return chart, None  # Plotly图表不提供大小检查
             elif plot_style == "altair":
                 if return_size:
+                    # 步骤6: 绘制Altair图表(带大小返回)
                     chart, size = self.plot_net_values_altair(
                         ilegend=bool(ilegend),
                         without_breakpoint=without_breakpoint,
                         return_size=True,
                         alt_name=alt_name,
                     )
+                    
                     import altair as alt
                     try:
-                        # 尝试在IPython环境中显示
+                        # 步骤7: 显示图表
                         from IPython.display import display
                         display(chart)
                         return chart, size
                     except ImportError:
-                        # 如果不在IPython环境中，保存为HTML文件
+                        # 步骤7: 保存HTML文件
                         chart.save('factor_analysis.html')
                         return chart, size
                 else:
+                    # 步骤6: 绘制Altair图表
                     chart = self.plot_net_values_altair(
                         ilegend=bool(ilegend),
                         without_breakpoint=without_breakpoint,
                         alt_name=alt_name,
                     )
+                    
                     import altair as alt
                     try:
                         if show_alt_chart:
-                            
+                            # 步骤7: 显示图表
                             display_alt_chart(chart,alt_name)
                         # 返回HTML对象而不是显示它，让调用者决定如何处理
                         # HTML(f'<img src="{ipynb_name}/{file_name}.svg">')
                         
                         return chart
                     except ImportError:
-                        # 如果不在IPython环境中，保存为HTML文件
+                        # 步骤7: 保存HTML文件
                         chart.save('factor_analysis.html')
                         return chart
         else:
             alt_name_prefix=alt_name.replace('neu','')
             logger.info(f'{alt_name_prefix}多头收益率为{round(max(self.group1_ret_yearly,self.group10_ret_yearly),3)}, ic为{round(self.rankics.rankic.mean(),3)}，表现太差，不展示了')
-
+        
 
 
 def display_image_as_markdown(image_path: str, alt_text: str = "Image", force_reload: bool = True):
@@ -1473,52 +1477,37 @@ def symmetrically_orthogonalize(dfs: list[pd.DataFrame]) -> list[pd.DataFrame]:
 @do_on_dfs
 def sun(factor:pd.DataFrame,rolling_days:int=10,time_start:int=20170101,show_more_than:float=0.025,plot_style:str='altair',alt_name:str='test1'):
     '''先单因子测试，再测试其与常用风格之间的关系'''
-    import time
-    
     try:
-        start_time = time.time()
         
         # 步骤1: 因子排序
-        step_time = time.time()
-        factor=factor.rank(axis=1)
-        print(f"因子排序耗时: {time.time() - step_time:.4f} 秒")
+        # factor=factor.rank(axis=1)
+        factor=rp.rank_axis1_df(factor)
         
         # 步骤2: boom_one处理
-        step_time = time.time()
         ractor=boom_one(factor,rolling_days)
-        print(f"boom_one处理耗时: {time.time() - step_time:.4f} 秒")
         
         # 步骤3: 中性化处理
-        step_time = time.time()
         pfi=de_cross_special_for_barra_weekly_fast(ractor.copy())
-        print(f"中性化处理耗时: {time.time() - step_time:.4f} 秒")
         
         # 步骤4: 中性化后的回测
-        step_time = time.time()
         shen=pure_moonnight(pfi,time_start=time_start,show_more_than=show_more_than,plot_style=plot_style,alt_name=alt_name+'_neu',show_alt_chart=False)
         neu_ret=max(shen.shen.group1_ret_yearly,shen.shen.group10_ret_yearly)
-        print(f"中性化后回测耗时: {time.time() - step_time:.4f} 秒")
         
         if neu_ret > show_more_than:
             chart1=shen.shen.alt_chart
             
             # 步骤5: 原始值回测
-            step_time = time.time()
             shen=pure_moonnight(ractor,time_start=time_start,show_more_than=None,plot_style=plot_style,alt_name=alt_name+'_raw',show_alt_chart=False)
             chart2=shen.shen.alt_chart
-            print(f"原始值回测耗时: {time.time() - step_time:.4f} 秒")
             
             # 步骤6: 计算与Barra因子的相关性
-            step_time = time.time()
             corrs={}
             barras=get_barras()
             for k,v in barras.items():
                 corrs[k]=rp.corrwith(ractor,v,axis=1).mean()
             corrs=pd.DataFrame(corrs,index=['C'])
-            print(f"计算Barra相关性耗时: {time.time() - step_time:.4f} 秒")
             
             # 步骤7: 创建相关性热图
-            step_time = time.time()
             # 创建相关性热图
             corrs_melted = corrs.reset_index().melt(id_vars='index', var_name='风格因子', value_name='相关性')
             # 按照相关性绝对值从大到小排序
@@ -1550,10 +1539,8 @@ def sun(factor:pd.DataFrame,rolling_days:int=10,time_start:int=20170101,show_mor
             
             # 组合图表和标签
             corr_chart = alt.layer(corr_chart, text_labels)
-            print(f"创建相关性热图耗时: {time.time() - step_time:.4f} 秒")
 
             # 步骤8: 创建复合图表布局
-            step_time = time.time()
             # 创建复合图表布局
             # 提取chart1和chart2中的表格、净值图、柱状图和IC图
             table1, netval1, bar1, ic1 = chart1
@@ -1585,23 +1572,17 @@ def sun(factor:pd.DataFrame,rolling_days:int=10,time_start:int=20170101,show_mor
             ).properties(
                 title=alt.TitleParams(f"{alt_name} - {current_time}", fontSize=16, anchor='middle')
             )
-            print(f"创建复合图表布局耗时: {time.time() - step_time:.4f} 秒")
             
             # 步骤9: 显示组合图表
-            step_time = time.time()
             display_alt_chart(combined_chart, alt_name,neu_ret)
-            print(f"显示组合图表耗时: {time.time() - step_time:.4f} 秒")
             
-            print(f"sun函数总耗时: {time.time() - start_time:.4f} 秒")
             return bool(neu_ret > show_more_than)
         
-        print(f"sun函数总耗时: {time.time() - start_time:.4f} 秒")
         return bool(neu_ret > show_more_than)
     except Exception as e:
         # 将异常转换为字符串形式，在Altair图表中显示
         # raise 
         print(e)
-        print(f"sun函数异常退出，总耗时: {time.time() - start_time:.4f} 秒")
         return False
 
 
