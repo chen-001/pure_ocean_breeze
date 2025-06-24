@@ -1,4 +1,4 @@
-__updated__ = "2025-06-21 01:40:03"
+__updated__ = "2025-06-23 00:51:20"
 
 import datetime
 import warnings
@@ -42,6 +42,7 @@ from pure_ocean_breeze.jason.data.tools import (
     boom_one,
     de_cross_special_for_barra_weekly_fast,
     get_abs,
+    jason_to_wind,
 )
 import altair as alt
 from IPython.display import display
@@ -893,7 +894,6 @@ class pure_moon(object):
         ilegend=1,
         without_breakpoint=0,
         show_more_than=0.025,
-        plot_style="altair",
         alt_name=None,
         show_alt_chart=True,
     ):
@@ -908,26 +908,25 @@ class pure_moon(object):
         self.get_total_comments()
 
         if (show_more_than is None) or (show_more_than < max(self.group1_ret_yearly,self.group10_ret_yearly)):
-            if plot_style == "altair":
-                # 步骤6: 绘制Altair图表
-                chart = self.plot_net_values_altair(
-                    ilegend=bool(ilegend),
-                    without_breakpoint=without_breakpoint,
-                    alt_name=alt_name,
-                )
+            # 步骤6: 绘制Altair图表
+            chart = self.plot_net_values_altair(
+                ilegend=bool(ilegend),
+                without_breakpoint=without_breakpoint,
+                alt_name=alt_name,
+            )
+            
+            try:
+                if show_alt_chart:
+                    # 步骤7: 显示图表
+                    display_alt_chart(chart,alt_name)
+                # 返回HTML对象而不是显示它，让调用者决定如何处理
+                # HTML(f'<img src="{ipynb_name}/{file_name}.svg">')
                 
-                try:
-                    if show_alt_chart:
-                        # 步骤7: 显示图表
-                        display_alt_chart(chart,alt_name)
-                    # 返回HTML对象而不是显示它，让调用者决定如何处理
-                    # HTML(f'<img src="{ipynb_name}/{file_name}.svg">')
-                    
-                    return chart
-                except ImportError:
-                    # 步骤7: 保存HTML文件
-                    chart.save('factor_analysis.html')
-                    return chart
+                return chart
+            except ImportError:
+                # 步骤7: 保存HTML文件
+                chart.save('factor_analysis.html')
+                return chart
         else:
             alt_name_prefix=alt_name.replace('neu','')
             logger.info(f'{alt_name_prefix}多头收益率为{round(max(self.group1_ret_yearly,self.group10_ret_yearly),3)}, ic为{round(self.rankics.rankic.mean(),3)}，表现太差，不展示了')
@@ -1183,13 +1182,13 @@ def symmetrically_orthogonalize(dfs: list[pd.DataFrame]) -> list[pd.DataFrame]:
     
 
 @do_on_dfs
-def sun(factor:pd.DataFrame,rolling_days:int=10,time_start:int=20170101,show_more_than:float=0.025,plot_style:str='altair',alt_name:str='test1'):
+def sun(factor:pd.DataFrame,rolling_days:int=10,time_start:int=20170101,show_more_than:float=0.025,alt_name:str='test1'):
     '''先单因子测试，再测试其与常用风格之间的关系'''
     try:
         
     # 步骤1: 因子排序
     # factor=factor.rank(axis=1)
-        factor=rp.rank_axis1_df(factor)
+        factor=rp.rank_axis1_df(jason_to_wind(factor))
         
         # 步骤2: boom_one处理
         ractor=boom_one(factor,rolling_days)
@@ -1198,14 +1197,14 @@ def sun(factor:pd.DataFrame,rolling_days:int=10,time_start:int=20170101,show_mor
         pfi=de_cross_special_for_barra_weekly_fast(ractor.copy())
         
         # 步骤4: 中性化后的回测
-        shen=pure_moonnight(pfi,time_start=time_start,show_more_than=show_more_than,plot_style=plot_style,alt_name=alt_name+'_neu',show_alt_chart=False)
+        shen=pure_moonnight(pfi,time_start=time_start,show_more_than=show_more_than,alt_name=alt_name+'_neu',show_alt_chart=False)
         neu_ret=max(shen.shen.group1_ret_yearly,shen.shen.group10_ret_yearly)
         
         if neu_ret > show_more_than:
             chart1=shen.shen.alt_chart
             
             # 步骤5: 原始值回测
-            shen=pure_moonnight(ractor,time_start=time_start,show_more_than=None,plot_style=plot_style,alt_name=alt_name+'_raw',show_alt_chart=False)
+            shen=pure_moonnight(ractor,time_start=time_start,show_more_than=None,alt_name=alt_name+'_raw',show_alt_chart=False)
             chart2=shen.shen.alt_chart
             
             # 步骤6: 计算与Barra因子的相关性

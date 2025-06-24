@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2025-06-20 17:15:19"
+__updated__ = "2025-06-24 14:24:40"
 
 import os
 import pandas as pd
@@ -977,18 +977,24 @@ def judge_factor_by_third(
 
 @do_on_dfs
 def jason_to_wind(df: pd.DataFrame):
-    df1 = df.copy()
-    df1.index = pd.to_datetime(df1.index.astype(str))
-    df1.columns = [add_suffix(i) for i in df1.columns]
-    return df1
+    if '.' not in df.columns[0]:
+        df1 = df.copy()
+        df1.index = pd.to_datetime(df1.index.astype(str))
+        df1.columns = [add_suffix(i) for i in df1.columns]
+        return df1
+    else:
+        return df
 
 
 @do_on_dfs
 def wind_to_jason(df: pd.DataFrame):
-    df1 = df.copy()
-    df1.columns = [i[:6] for i in df1.columns]
-    df1.index = df1.index.strftime("%Y%m%d").astype(int)
-    return df1
+    if '.' in df.columns[0]:
+        df1 = df.copy()
+        df1.columns = [i[:6] for i in df1.columns]
+        df1.index = df1.index.strftime("%Y%m%d").astype(int)
+        return df1
+    else:
+        return df
 
 
 @do_on_dfs
