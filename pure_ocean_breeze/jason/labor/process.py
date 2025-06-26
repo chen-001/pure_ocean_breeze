@@ -1,4 +1,4 @@
-__updated__ = "2025-06-25 21:43:51"
+__updated__ = "2025-06-27 01:18:06"
 
 import datetime
 import warnings
@@ -1208,44 +1208,68 @@ def sun(factor:pd.DataFrame,rolling_days:int=10,time_start:int=20170101,show_mor
             chart2=shen.shen.alt_chart
             
             # 步骤6: 计算与Barra因子的相关性
-            corrs={}
-            barras=get_barras()
-            for k,v in barras.items():
-                corrs[k]=rp.corrwith(ractor,v,axis=1).mean()
-            corrs=pd.DataFrame(corrs,index=['C'])
+            corrs_ts = {}  # 保存时序相关性数据
+            corrs_mean = {}  # 保存时序均值用于图例
+            barras = get_barras()
+            for k, v in barras.items():
+                corr_series = rp.corrwith(ractor, v, axis=1)
+                corrs_ts[k] = corr_series
+                corrs_mean[k] = corr_series.mean()
             
-            # 步骤7: 创建相关性热图
-            # 创建相关性热图
-            corrs_melted = corrs.reset_index().melt(id_vars='index', var_name='风格因子', value_name='相关性')
-            # 按照相关性绝对值从大到小排序
-            corrs_melted['相关性绝对值'] = corrs_melted['相关性'].abs()
-            corrs_melted = corrs_melted.sort_values('相关性绝对值', ascending=False)
-            # 创建一个排序顺序列表，按照相关性绝对值排序
-            sort_order = corrs_melted['风格因子'].tolist()
-            corr_chart = alt.Chart(corrs_melted).mark_bar().encode(
-                x=alt.X('风格因子:N', sort=sort_order, axis=alt.Axis(labelAngle=0, labelFontSize=12, labelFontWeight='bold', title=None)),
-                y=alt.Y('相关性:Q', axis=alt.Axis(labelFontSize=12, titleFontSize=9)),
-                color=alt.Color('相关性:Q', scale=alt.Scale(scheme='blueorange'))
-            ).properties(
-                # title=alt.TitleParams('因子与风格因子相关性', fontSize=10, anchor='middle'),
-                width=1000,
-                height=50
-            )
+            # 转换为DataFrame并准备时序数据
+            corrs_df = pd.DataFrame(corrs_ts)
+            corrs_df = corrs_df.reset_index()
+            corrs_df.columns = ['date'] + list(corrs_df.columns[1:])
             
-            # 添加百分比标签
-            text_labels = alt.Chart(corrs_melted).mark_text(
-                align='center',
-                baseline='middle',
-                dy=-10,
-                fontSize=10
+            # 步骤7: 创建时序折线图
+            # 将数据转换为长格式
+            corrs_melted = corrs_df.melt(id_vars='date', var_name='风格因子', value_name='相关性')
+            
+            # 为所有因子创建图例标签，并按均值绝对值排序
+            sorted_factors = sorted(corrs_mean.items(), key=lambda x: abs(x[1]), reverse=True)
+            
+            legend_labels = {}
+            factor_order = []
+            filtered_factors = set()
+            
+            for factor, mean_val in sorted_factors:
+                if abs(mean_val) > 0.1:
+                    # 均值绝对值大于10%的因子，正常显示
+                    legend_labels[factor] = f"{factor} ({mean_val:.1%})"
+                    filtered_factors.add(factor)
+                else:
+                    # 均值绝对值小于等于10%的因子，标记为隐藏
+                    legend_labels[factor] = f"{factor} ({mean_val:.1%})"
+                factor_order.append(legend_labels[factor])
+            
+            # 添加图例标签列（所有因子都有标签）
+            corrs_melted['图例标签'] = corrs_melted['风格因子'].map(legend_labels)
+            
+            # 只保留均值绝对值大于10%的因子用于绘图
+            corrs_melted_filtered = corrs_melted[corrs_melted['风格因子'].isin(filtered_factors)]
+            
+            # 创建时序折线图
+            corr_chart = alt.Chart(corrs_melted_filtered).mark_line(
+                strokeWidth=2
             ).encode(
-                x=alt.X('风格因子:N', sort=sort_order),
-                y=alt.Y('相关性:Q'),
-                text=alt.Text('相关性:Q', format='.0%')  # 以百分比形式显示，只保留整数
+                x=alt.X('date:T', 
+                       axis=alt.Axis(labelFontSize=10, titleFontSize=12, title='日期'),
+                       scale=alt.Scale(nice=True)),
+                y=alt.Y('相关性:Q', 
+                       axis=alt.Axis(labelFontSize=10, titleFontSize=12, title='相关性'),
+                       scale=alt.Scale(nice=True)),
+                color=alt.Color('图例标签:N', 
+                              scale=alt.Scale(scheme='category20', domain=factor_order),
+                              legend=alt.Legend(title=None, 
+                                              labelFontSize=10,
+                                              orient='right',
+                                              columns=1)),
+                tooltip=['风格因子:N', 'date:T', '相关性:Q']
+            ).properties(
+                width=1000,
+                height=150,
+                title=alt.TitleParams('因子与风格因子相关性时序图', fontSize=14, anchor='middle')
             )
-            
-            # 组合图表和标签
-            corr_chart = alt.layer(corr_chart, text_labels)
 
             # 步骤8: 创建复合图表布局
             # 创建复合图表布局
