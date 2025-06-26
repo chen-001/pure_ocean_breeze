@@ -1,4 +1,4 @@
-__updated__ = "2025-03-19 00:36:18"
+__updated__ = "2025-06-25 21:06:31"
 
 import os
 import numpy as np
@@ -301,7 +301,7 @@ def get_industry_dummies(
 
 
 @cachier()
-def read_market(
+def read_index(
     open: bool = 0,
     close: bool = 0,
     high: bool = 0,
@@ -404,4 +404,105 @@ def moon_read_dummy(freq):
 
 
 
+def read_trade(symbol:str, date:int,with_retreat:int=0)->pd.DataFrame:
+    file_name = "%s_%d_%s.csv" % (symbol, date, "transaction")
+    file_path = os.path.join("/ssd_data/stock", str(date), "transaction", file_name)
+    df= pd.read_csv(
+        file_path,
+        dtype={"symbol": str},
+        usecols=[
+            "exchtime",
+            "price",
+            "volume",
+            "turnover",
+            "flag",
+            "index",
+            "localtime",
+            "ask_order",
+            "bid_order",
+        ],
+    )
+    if not with_retreat:
+        df=df[df.flag!=32]
+    df.exchtime=pd.to_timedelta(df.exchtime/1e6,unit='s')+pd.Timestamp('1970-01-01 08:00:00')
+    return df
 
+def read_market(symbol:str, date:int)->pd.DataFrame:
+    file_name = "%s_%d_%s.csv" % (symbol, date, "market_data")
+    file_path = os.path.join("/ssd_data/stock", str(date), "market_data", file_name)
+    df= pd.read_csv(
+        file_path,
+        dtype={"symbol": str},
+    )
+    df.exchtime=pd.to_timedelta(df.exchtime/1e6,unit='s')+pd.Timestamp('1970-01-01 08:00:00')
+    return df
+
+def read_market_pair(symbol:str, date:int)->tuple[pd.DataFrame,pd.DataFrame]:
+    df=read_market(symbol,date)
+    df = df[df.last_prc != 0]
+    ask_prc_cols = [f"ask_prc{i}" for i in range(1, 11)]
+    ask_vol_cols = [f"ask_vol{i}" for i in range(1, 11)]
+    asks = pd.concat(
+        [
+            pd.melt(
+                df[ask_prc_cols + ["exchtime"]],
+                id_vars=["exchtime"],
+                value_name="price",
+            )
+            .rename(columns={"variable": "number"})
+            .set_index("exchtime"),
+            pd.melt(
+                df[ask_vol_cols + ["exchtime"]],
+                id_vars=["exchtime"],
+                value_name="vol",
+            )
+            .drop(columns=["variable"])
+            .set_index("exchtime"),
+        ],
+        axis=1,
+    )
+    asks=asks[asks.price!=0]
+    asks.number=asks.number.str.slice(7).astype(int)
+    asks=asks.reset_index().sort_values(by=["exchtime", "number"]).reset_index(drop=True)
+    
+    bid_prc_cols = [f"bid_prc{i}" for i in range(1, 11)]
+    bid_vol_cols = [f"bid_vol{i}" for i in range(1, 11)]
+    bids = pd.concat(
+        [
+            pd.melt(
+                df[bid_prc_cols + ["exchtime"]],
+                id_vars=["exchtime"],
+                value_name="price",
+            )
+            .rename(columns={"variable": "number"})
+            .set_index("exchtime"),
+            pd.melt(
+                df[bid_vol_cols + ["exchtime"]],
+                id_vars=["exchtime"],
+                value_name="vol",
+            )
+            .drop(columns=["variable"])
+            .set_index("exchtime"),
+        ],
+        axis=1,
+    )
+    bids=bids[bids.price!=0]
+    bids.number=bids.number.str.slice(7).astype(int)
+    bids=bids.reset_index().sort_values(by=["exchtime", "number"]).reset_index(drop=True)
+    return asks, bids
+
+
+def adjust_afternoon(df: pd.DataFrame,only_inday:int=1) -> pd.DataFrame:
+    start='09:30:00' if only_inday else '09:00:00'
+    end='14:57:00' if only_inday else '15:00:00'
+    if df.index.name=='exchtime':
+        df1=df.between_time(start,'11:30:00')
+        df2=df.between_time('13:00:00',end)
+        df2.index=df2.index-pd.Timedelta(minutes=90)
+        df=pd.concat([df1,df2])
+    elif 'exchtime' in df.columns:
+        df1=df.set_index('exchtime').between_time(start,'11:30:00')
+        df2=df.set_index('exchtime').between_time('13:00:00',end)
+        df2.index=df2.index-pd.Timedelta(minutes=90)
+        df=pd.concat([df1,df2]).reset_index()
+    return df

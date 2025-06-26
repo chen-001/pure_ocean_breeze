@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2025-06-24 14:24:40"
+__updated__ = "2025-06-25 21:06:42"
 
 import os
 import pandas as pd
@@ -1529,3 +1529,18 @@ def de_cross_special_for_barra_weekly1(
         return yresid,corr
     else:
         return yresid
+    
+def adjust_afternoon(df: pd.DataFrame,only_inday:int=1) -> pd.DataFrame:
+    start='09:30:00' if only_inday else '09:00:00'
+    end='14:57:00' if only_inday else '15:00:00'
+    if df.index.name=='exchtime':
+        df1=df.between_time(start,'11:30:00')
+        df2=df.between_time('13:00:00',end)
+        df2.index=df2.index-pd.Timedelta(minutes=90)
+        df=pd.concat([df1,df2])
+    elif 'exchtime' in df.columns:
+        df1=df.set_index('exchtime').between_time(start,'11:30:00')
+        df2=df.set_index('exchtime').between_time('13:00:00',end)
+        df2.index=df2.index-pd.Timedelta(minutes=90)
+        df=pd.concat([df1,df2]).reset_index()
+    return df

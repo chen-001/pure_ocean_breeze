@@ -1,4 +1,4 @@
-__updated__ = "2025-06-23 00:51:20"
+__updated__ = "2025-06-25 21:43:51"
 
 import datetime
 import warnings
@@ -26,7 +26,7 @@ except Exception:
     pass
 from pure_ocean_breeze.jason.data.read_data import (
     read_daily,
-    read_market,
+    read_index,
 )
 from pure_ocean_breeze.jason.state.homeplace import HomePlace
 
@@ -268,7 +268,7 @@ class pure_moon(object):
         states = read_daily(state=1, start=STATES["START"])
         opens = read_daily(vwap=1, start=STATES["START"])
         closes = read_daily(vwap=1, start=STATES["START"])
-        market=read_market(zz500=1,every_stock=0,close=1).resample(cls.freq).last()
+        market=read_index(zz500=1,every_stock=0,close=1).resample(cls.freq).last()
         cls.market_ret=market/market.shift(1)-1
         # 交易状态文件
         cls.states = states

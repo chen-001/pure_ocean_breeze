@@ -1,4 +1,4 @@
-__updated__ = "2025-03-19 01:50:20"
+__updated__ = "2025-06-25 20:30:28"
 
 import numpy as np
 import pandas as pd
@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 plt.rcParams["axes.unicode_minus"] = False
 from typing import Tuple
 from pure_ocean_breeze.jason.data.read_data import (
-    read_market,
+    read_index,
 )
 from pure_ocean_breeze.jason.state.decorators import do_on_dfs
 from pure_ocean_breeze.jason.state.states import STATES
@@ -129,11 +129,11 @@ def make_relative_comments(
     """
 
     if hs300:
-        net_index = read_market(close=1,hs300=1,every_stock=0,start=day).resample("W").last()
+        net_index = read_index(close=1,hs300=1,every_stock=0,start=day).resample("W").last()
     if zz500:
-        net_index = read_market(close=1,zz500=1,every_stock=0,start=day).resample("W").last()
+        net_index = read_index(close=1,zz500=1,every_stock=0,start=day).resample("W").last()
     if zz1000:
-        net_index = read_market(close=1,zz1000=1,every_stock=0,start=day).resample("W").last()
+        net_index = read_index(close=1,zz1000=1,every_stock=0,start=day).resample("W").last()
     if (hs300 + zz500 + zz1000) == 0:
         raise IOError("你总得指定一个股票池吧？")
     ret_index = net_index.pct_change()
@@ -186,11 +186,11 @@ def make_relative_comments_plot(
         如果没指定任何一个指数，将报错
     """
     if hs300:
-        net_index = read_market(close=1,hs300=1,every_stock=0,start=day).resample("W").last()
+        net_index = read_index(close=1,hs300=1,every_stock=0,start=day).resample("W").last()
     if zz500:
-        net_index = read_market(close=1,zz500=1,every_stock=0,start=day).resample("W").last()
+        net_index = read_index(close=1,zz500=1,every_stock=0,start=day).resample("W").last()
     if zz1000:
-        net_index = read_market(close=1,zz1000=1,every_stock=0,start=day).resample("W").last()
+        net_index = read_index(close=1,zz1000=1,every_stock=0,start=day).resample("W").last()
     if (hs300 + zz500 + zz1000) == 0:
         raise IOError("你总得指定一个股票池吧？")
     ret_index = net_index.pct_change()
