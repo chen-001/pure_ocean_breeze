@@ -1213,8 +1213,10 @@ def sun(factor:pd.DataFrame,rolling_days:int=10,time_start:int=20170101,show_mor
             barras = get_barras()
             for k, v in barras.items():
                 corr_series = rp.corrwith(ractor, v, axis=1)
-                corrs_ts[k] = corr_series
-                corrs_mean[k] = corr_series.mean()
+                # 5周滑动平均平滑
+                corr_series_smoothed = corr_series.rolling(window=5, center=True,min_periods=1).mean()
+                corrs_ts[k] = corr_series_smoothed
+                corrs_mean[k] = corr_series_smoothed.mean()
             
             # 转换为DataFrame并准备时序数据
             corrs_df = pd.DataFrame(corrs_ts)
@@ -1249,7 +1251,7 @@ def sun(factor:pd.DataFrame,rolling_days:int=10,time_start:int=20170101,show_mor
             corrs_melted_filtered = corrs_melted[corrs_melted['风格因子'].isin(filtered_factors)]
             
             # 创建时序折线图
-            corr_chart = alt.Chart(corrs_melted_filtered).mark_line(
+            lines = alt.Chart(corrs_melted_filtered).mark_line(
                 strokeWidth=2
             ).encode(
                 x=alt.X('date:T', 
@@ -1265,7 +1267,19 @@ def sun(factor:pd.DataFrame,rolling_days:int=10,time_start:int=20170101,show_mor
                                               orient='right',
                                               columns=1)),
                 tooltip=['风格因子:N', 'date:T', '相关性:Q']
-            ).properties(
+            )
+            
+            # 添加y=0的基准线
+            zero_line = alt.Chart(pd.DataFrame({'y': [0]})).mark_rule(
+                strokeWidth=3,
+                color='black',
+                opacity=0.8
+            ).encode(
+                y='y:Q'
+            )
+            
+            # 组合折线图和基准线
+            corr_chart = alt.layer(lines, zero_line).properties(
                 width=1000,
                 height=150,
                 title=alt.TitleParams('因子与风格因子相关性时序图', fontSize=14, anchor='middle')
