@@ -1,4 +1,4 @@
-__updated__ = "2025-06-27 01:18:06"
+__updated__ = "2025-06-30 10:30:33"
 
 import datetime
 import warnings
@@ -17,6 +17,7 @@ from functools import reduce, lru_cache
 from loguru import logger
 from plotly.tools import FigureFactory as FF
 import plotly.graph_objects as go
+import sys
 
 import cufflinks as cf
 
@@ -970,18 +971,21 @@ def display_image_as_markdown(image_path: str, alt_text: str = "Image", force_re
 def display_alt_chart(chart: alt.HConcatChart,alt_name:str,neu_ret:float):
     # 保存图片并通过HTML引用，避免使用display增加ipynb文件大小
     def get_file_name():
-        from IPython import get_ipython
+        try:
+            from IPython import get_ipython
 
-        ip = get_ipython()
-        path = None
-        if "__vsc_ipynb_file__" in ip.user_ns:
-            path = ip.user_ns["__vsc_ipynb_file__"]
-        else:
-            import urllib.parse
-            path=ip.parent_header['metadata']['cellId'].split('/')
-            path=[i for i in path if '.ipynb' in i][0].split('.ipynb')[0]
-            path=urllib.parse.unquote(path)
-        return path.split("/")[-1].split(".")[0]
+            ip = get_ipython()
+            path = None
+            if "__vsc_ipynb_file__" in ip.user_ns:
+                path = ip.user_ns["__vsc_ipynb_file__"]
+            else:
+                import urllib.parse
+                path=ip.parent_header['metadata']['cellId'].split('/')
+                path=[i for i in path if '.ipynb' in i][0].split('.ipynb')[0]
+                path=urllib.parse.unquote(path)
+            return path.split("/")[-1].split(".")[0]
+        except Exception:
+            return sys.argv[0].split('/')[-1].split('.')[0]
     # 获取当前ipynb文件路径
     pythoncode_dir = '/home/chenzongwei/pythoncode'
     ipynb_path = pythoncode_dir+'/pngs/'
@@ -993,9 +997,11 @@ def display_alt_chart(chart: alt.HConcatChart,alt_name:str,neu_ret:float):
         folder_path = os.path.join(pythoncode_dir, folder_name)
         if os.path.isdir(folder_path):
             # 查找该文件夹中是否有以ipynb_name命名的ipynb文件
-            target_file = f"{ipynb_name}.ipynb"
-            target_path = os.path.join(folder_path, target_file)
-            if os.path.exists(target_path):
+            target_file1 = f"{ipynb_name}.ipynb"
+            target_file2 = f"{ipynb_name}.py"
+            target_path1 = os.path.join(folder_path, target_file1)
+            target_path2 = os.path.join(folder_path, target_file2)
+            if os.path.exists(target_path1) or os.path.exists(target_path2):
                 found_folder = folder_name
                 break
 
@@ -1188,6 +1194,7 @@ def sun(factor:pd.DataFrame,rolling_days:int=10,time_start:int=20170101,show_mor
         
     # 步骤1: 因子排序
     # factor=factor.rank(axis=1)
+        
         factor=rp.rank_axis1_df(jason_to_wind(factor))
         
         # 步骤2: boom_one处理
@@ -1255,17 +1262,17 @@ def sun(factor:pd.DataFrame,rolling_days:int=10,time_start:int=20170101,show_mor
                 strokeWidth=2
             ).encode(
                 x=alt.X('date:T', 
-                       axis=alt.Axis(labelFontSize=10, titleFontSize=12, title='日期'),
-                       scale=alt.Scale(nice=True)),
+                        axis=alt.Axis(labelFontSize=10, titleFontSize=12, title='日期'),
+                        scale=alt.Scale(nice=True)),
                 y=alt.Y('相关性:Q', 
-                       axis=alt.Axis(labelFontSize=10, titleFontSize=12, title='相关性'),
-                       scale=alt.Scale(nice=True)),
+                        axis=alt.Axis(labelFontSize=10, titleFontSize=12, title='相关性'),
+                        scale=alt.Scale(nice=True)),
                 color=alt.Color('图例标签:N', 
-                              scale=alt.Scale(scheme='category20', domain=factor_order),
-                              legend=alt.Legend(title=None, 
-                                              labelFontSize=10,
-                                              orient='right',
-                                              columns=1)),
+                                scale=alt.Scale(scheme='category20', domain=factor_order),
+                                legend=alt.Legend(title=None, 
+                                                labelFontSize=10,
+                                                orient='right',
+                                                columns=1)),
                 tooltip=['风格因子:N', 'date:T', '相关性:Q']
             )
             
