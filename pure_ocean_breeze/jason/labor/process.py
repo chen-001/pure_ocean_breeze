@@ -1,4 +1,4 @@
-__updated__ = "2025-06-30 10:30:33"
+__updated__ = "2025-07-02 03:08:34"
 
 import datetime
 import warnings
@@ -930,7 +930,8 @@ class pure_moon(object):
                 return chart
         else:
             alt_name_prefix=alt_name.replace('neu','')
-            logger.info(f'{alt_name_prefix}多头收益率为{round(max(self.group1_ret_yearly,self.group10_ret_yearly),3)}, ic为{round(self.rankics.rankic.mean(),3)}，表现太差，不展示了')
+            sys.stdout.write(f'\r{alt_name_prefix}多头{round(max(self.group1_ret_yearly,self.group10_ret_yearly),3)}, ic{round(self.rankics.rankic.mean(),3)}')
+            sys.stdout.flush()
         
 
 
