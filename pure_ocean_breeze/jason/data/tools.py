@@ -2,7 +2,7 @@
 针对一些不常见的文件格式，读取数据文件的一些工具函数，以及其他数据工具
 """
 
-__updated__ = "2025-06-25 21:06:42"
+__updated__ = "2025-07-08 16:09:34"
 
 import os
 import pandas as pd
@@ -1332,7 +1332,7 @@ def de_cross(y, x_list):
     def one(timestamp):
         y_series=y.loc[timestamp]
         xs=pd.concat([x.loc[timestamp].to_frame(str(num)) for num,x in enumerate(x_list)],axis=1)
-        yxs=pd.concat([y_series.to_frame('haha'),xs],axis=1).dropna()
+        yxs=pd.concat([y_series.to_frame('haha'),xs],axis=1).dropna().replace([np.inf,-np.inf],np.nan)
         betas=rp.ols(yxs[xs.columns].to_numpy(dtype=float),yxs['haha'].to_numpy(dtype=float),False)
         yresi=y_series-sum([betas[i+1]*xs[str(i)] for i in range(len(betas)-1)])-betas[0]
         yresi=yresi.to_frame('haha').T
