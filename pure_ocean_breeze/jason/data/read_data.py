@@ -421,6 +421,9 @@ def read_trade(symbol:str, date:int,with_retreat:int=0)->pd.DataFrame:
             "ask_order",
             "bid_order",
         ],
+        memory_map=True,
+        engine="c",
+        low_memory=False,
     )
     if not with_retreat:
         df=df[df.flag!=32]
@@ -433,6 +436,9 @@ def read_market(symbol:str, date:int)->pd.DataFrame:
     df= pd.read_csv(
         file_path,
         dtype={"symbol": str},
+        memory_map=True,
+        engine="c",
+        low_memory=False,
     )
     df.exchtime=pd.to_timedelta(df.exchtime/1e6,unit='s')+pd.Timestamp('1970-01-01 08:00:00')
     return df

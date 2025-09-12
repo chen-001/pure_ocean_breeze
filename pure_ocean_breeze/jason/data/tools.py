@@ -20,8 +20,7 @@ import mpire
 from pure_ocean_breeze.jason.state.homeplace import HomePlace
 from pure_ocean_breeze.jason.state.decorators import do_on_dfs
 import rust_pyfunc as rp
-from pandarallel import pandarallel
-pandarallel.initialize(progress_bar=False, nb_workers=10,verbose=0)
+
 homeplace = HomePlace()
 
 @lru_cache(maxsize=1)
@@ -1422,7 +1421,7 @@ def de_cross_special_for_barra_weekly_fast(
         df.fac=df.fac-betas[0]-betas[1]*df[df.columns[2]]-betas[2]*df[df.columns[3]]-betas[3]*df[df.columns[4]]-betas[4]*df[df.columns[5]]-betas[5]*df[df.columns[6]]-betas[6]*df[df.columns[7]]-betas[7]*df[df.columns[8]]-betas[8]*df[df.columns[9]]-betas[9]*df[df.columns[10]]-betas[10]*df[df.columns[11]]-betas[11]*df[df.columns[12]]
         return df[['date','code','fac']]
     
-    yresid=yx.dropna().groupby('date').parallel_apply(ols_sing).pivot(index='date',columns='code',values='fac')
+    yresid=yx.dropna().groupby('date').apply(ols_sing).pivot(index='date',columns='code',values='fac')
     
     return yresid
 
@@ -1544,3 +1543,66 @@ def adjust_afternoon(df: pd.DataFrame,only_inday:int=1) -> pd.DataFrame:
         df2.index=df2.index-pd.Timedelta(minutes=90)
         df=pd.concat([df1,df2]).reset_index()
     return df
+
+def get_features_factors(df:pd.DataFrame,with_abs=True,with_max_min=False):
+    """
+    Extracts a comprehensive set of statistical features and their names from a pandas DataFrame.
+
+    Parameters:
+        df (pd.DataFrame): Input DataFrame containing numerical data for feature extraction.
+        with_abs (bool, optional): If True, includes the absolute values of the computed statistics. Default is True.
+        with_max_min (bool, optional): If True, includes the maximum and minimum values (and their absolute values if with_abs is True). Default is False.
+
+    Returns:
+        res (list): List of computed feature values in the order specified by 'names'.
+        names (list): List of feature names corresponding to the computed values.
+
+    Features extracted include:
+        - Mean, standard deviation, skewness, kurtosis (and their absolute values if with_abs is True)
+        - Maximum and minimum values (and their absolute values if with_max_min is True)
+        - First-order autocorrelation and its absolute value
+        - Linear trend and its absolute value
+        - Pairwise correlations between columns and their absolute values
+    """
+    means=df.mean()
+    stds=df.std()
+    skews=df.skew()
+    kurts=df.kurt()
+    if with_abs:
+        means_abs=means.abs()
+        stds_abs=stds.abs()
+        skews_abs=skews.abs()
+        kurts_abs=kurts.abs()
+    if with_max_min:    
+        maxs=df.max()
+        mins=df.min()
+        maxs_abs=maxs.abs()
+        mins_abs=mins.abs()
+    autocorrs=rp.corrwith(df,df.shift(1),0,use_single_thread=True)
+    autocorrs_abs=autocorrs.abs()
+    trends=rp.trend_2d(df.to_numpy(float),0)
+    trends_abs=[abs(i) for i in trends]
+    corrs=rp.fast_correlation_matrix_v2_df(df,max_workers=1)
+    n=corrs.shape[0]
+    i,j=np.triu_indices(n,1)
+    row_names = corrs.index[i]
+    col_names = corrs.columns[j]
+    names = [f"{row}_corr_{col}" for row, col in zip(row_names, col_names)]
+    corrs=corrs.to_numpy()[i,j].tolist()
+    corrs_abs=[abs(i) for i in corrs]
+    nni=df.columns
+    if with_abs:
+        if not with_max_min:
+            res=means.tolist()+means_abs.tolist()+stds.tolist()+stds_abs.tolist()+skews.tolist()+skews_abs.tolist()+kurts.tolist()+kurts_abs.tolist()+autocorrs.tolist()+autocorrs_abs.tolist()+trends+trends_abs+corrs+corrs_abs
+            names=[i+'_mean' for i in nni]+[i+'_mean_abs' for i in nni]+[i+'_std' for i in nni]+[i+'_std_abs' for i in nni]+[i+'_skew' for i in nni]+[i+'_skew_abs' for i in nni]+[i+'_kurt' for i in nni]+[i+'_kurt_abs' for i in nni]+[i+'_autocorr1' for i in nni]+[i+'_autocorr1_abs' for i in nni]+[i+'_trend' for i in nni]+[i+'_trend_abs' for i in nni]+names+[name+'_abs' for name in names]
+        else:
+            res=means.tolist()+means_abs.tolist()+stds.tolist()+stds_abs.tolist()+skews.tolist()+skews_abs.tolist()+kurts.tolist()+kurts_abs.tolist()+maxs.tolist()+maxs_abs.tolist()+mins.tolist()+mins_abs.tolist()+autocorrs.tolist()+autocorrs_abs.tolist()+trends+trends_abs+corrs+corrs_abs
+            names=[i+'_mean' for i in nni]+[i+'_mean_abs' for i in nni]+[i+'_std' for i in nni]+[i+'_std_abs' for i in nni]+[i+'_skew' for i in nni]+[i+'_skew_abs' for i in nni]+[i+'_kurt' for i in nni]+[i+'_kurt_abs' for i in nni]+[i+'_max' for i in nni]+[i+'_max_abs' for i in nni]+[i+'_min' for i in nni]+[i+'_min_abs' for i in nni]+[i+'_autocorr1' for i in nni]+[i+'_autocorr1_abs' for i in nni]+[i+'_trend' for i in nni]+[i+'_trend_abs' for i in nni]+names+[name+'_abs' for name in names]
+    else:
+        if not with_max_min:
+            res=means.tolist()+stds.tolist()+skews.tolist()+kurts.tolist()+autocorrs.tolist()+trends+corrs
+            names=[i+'_mean' for i in nni]+[i+'_std' for i in nni]+[i+'_skew' for i in nni]+[i+'_kurt' for i in nni]+[i+'_autocorr1' for i in nni]+[i+'_trend' for i in nni]+names
+        else:
+            res=means.tolist()+stds.tolist()+skews.tolist()+kurts.tolist()+maxs.tolist()+mins.tolist()+autocorrs.tolist()+trends+corrs
+            names=[i+'_mean' for i in nni]+[i+'_std' for i in nni]+[i+'_skew' for i in nni]+[i+'_kurt' for i in nni]+[i+'_max' for i in nni]+[i+'_min' for i in nni]+[i+'_autocorr1' for i in nni]+[i+'_trend' for i in nni]+names
+    return res,names

@@ -48,6 +48,7 @@ from pure_ocean_breeze.jason.data.tools import (
 import altair as alt
 from IPython.display import display
 from IPython.display import display, Markdown
+from mpire import WorkerPool
 import os
 import rust_pyfunc as rp
 import time
@@ -1339,25 +1340,72 @@ def sun(factor:pd.DataFrame,rolling_days:int=10,time_start:int=20170101,show_mor
         return False
 
 
-def suns(names:list[str],facs:list[pd.DataFrame],do_pri:int=1,do_abs:int=0,do_fold:int=1,other_keyword:str=None):
-    okays={}
-    for name,fac in zip(names,facs):
-        if (other_keyword is None) or (other_keyword in name):
-            if do_pri:
-                # logger.info(name)
-                judge=sun(fac,alt_name=name)
-                if judge:
-                    okays[name]=fac
-            if do_abs:
-                # logger.info(name+'_abs')
-                judge=sun(fac.abs(),alt_name=name+'_abs')
-                if judge:
-                    okays[name+'_abs']=fac.abs()
-            if do_fold:
-                # logger.info(name+'_fold')
-                judge=sun(get_abs(fac),alt_name=name+'_fold')
-                if judge:
-                    okays[name+'_fold']=get_abs(fac)
+def _process_single_factor(name, fac, do_pri, do_abs, do_fold, other_keyword):
+    """处理单个因子的辅助函数，用于并行计算"""
+    results = {}
+    
+    if (other_keyword is None) or (other_keyword in name):
+        if do_pri:
+            judge = sun(fac, alt_name=name)
+            if judge:
+                results[name] = fac
+                
+        if do_abs:
+            judge = sun(fac.abs(), alt_name=name+'_abs')
+            if judge:
+                results[name+'_abs'] = fac.abs()
+                
+        if do_fold:
+            judge = sun(get_abs(fac), alt_name=name+'_fold')
+            if judge:
+                results[name+'_fold'] = get_abs(fac)
+    
+    return results
+
+def suns(names:list[str], facs:list[pd.DataFrame], do_pri:int=1, do_abs:int=0, do_fold:int=1, other_keyword:str=None, n_jobs:int=None):
+    """
+    并行版本的suns函数，使用mpire进行多进程处理
+    
+    Parameters:
+    -----------
+    names : list[str]
+        因子名称列表
+    facs : list[pd.DataFrame] 
+        因子数据列表
+    do_pri : int, default 1
+        是否处理原始因子
+    do_abs : int, default 0
+        是否处理绝对值因子
+    do_fold : int, default 1
+        是否处理fold因子
+    other_keyword : str, optional
+        关键词过滤
+    n_jobs : int, optional
+        并行进程数，默认为None（自动检测）
+        
+    Returns:
+    --------
+    dict
+        通过测试的因子字典
+    """
+    if n_jobs is None:
+        n_jobs = min(len(names), os.cpu_count() or 1)
+    n_jobs = max(1, n_jobs)  # 确保至少为1
+    
+    # 准备参数元组列表
+    task_args = [(name, fac, do_pri, do_abs, do_fold, other_keyword) 
+                 for name, fac in zip(names, facs)]
+    
+    okays = {}
+    
+    # 使用mpire进行并行处理
+    with WorkerPool(n_jobs=n_jobs) as pool:
+        results = pool.map(_process_single_factor, task_args)
+        
+        # 合并结果
+        for result_dict in results:
+            okays.update(result_dict)
+    
     return okays
 
 def suns_pair(names:list[str],facs:list[pd.DataFrame],keyword1:str,keyword2:str,other_keyword:str=None,do_pri:int=1,do_abs:int=0,do_rate:int=0):
