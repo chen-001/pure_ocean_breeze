@@ -1544,7 +1544,7 @@ def adjust_afternoon(df: pd.DataFrame,only_inday:int=1) -> pd.DataFrame:
         df=pd.concat([df1,df2]).reset_index()
     return df
 
-def get_features_factors(df:pd.DataFrame,with_abs=True,with_max_min=False):
+def get_features_factors(df:pd.DataFrame,with_abs=True,with_max_min=False,with_corr=True):
     """
     Extracts a comprehensive set of statistical features and their names from a pandas DataFrame.
 
@@ -1582,27 +1582,45 @@ def get_features_factors(df:pd.DataFrame,with_abs=True,with_max_min=False):
     autocorrs_abs=autocorrs.abs()
     trends=rp.trend_2d(df.to_numpy(float),0)
     trends_abs=[abs(i) for i in trends]
-    corrs=rp.fast_correlation_matrix_v2_df(df,max_workers=1)
-    n=corrs.shape[0]
-    i,j=np.triu_indices(n,1)
-    row_names = corrs.index[i]
-    col_names = corrs.columns[j]
-    names = [f"{row}_corr_{col}" for row, col in zip(row_names, col_names)]
-    corrs=corrs.to_numpy()[i,j].tolist()
-    corrs_abs=[abs(i) for i in corrs]
+    if with_corr:
+        corrs=rp.fast_correlation_matrix_v2_df(df,max_workers=1)
+        n=corrs.shape[0]
+        i,j=np.triu_indices(n,1)
+        row_names = corrs.index[i]
+        col_names = corrs.columns[j]
+        names = [f"{row}_corr_{col}" for row, col in zip(row_names, col_names)]
+        corrs=corrs.to_numpy()[i,j].tolist()
+        corrs_abs=[abs(i) for i in corrs]
+        
     nni=df.columns
     if with_abs:
         if not with_max_min:
-            res=means.tolist()+means_abs.tolist()+stds.tolist()+stds_abs.tolist()+skews.tolist()+skews_abs.tolist()+kurts.tolist()+kurts_abs.tolist()+autocorrs.tolist()+autocorrs_abs.tolist()+trends+trends_abs+corrs+corrs_abs
-            names=[i+'_mean' for i in nni]+[i+'_mean_abs' for i in nni]+[i+'_std' for i in nni]+[i+'_std_abs' for i in nni]+[i+'_skew' for i in nni]+[i+'_skew_abs' for i in nni]+[i+'_kurt' for i in nni]+[i+'_kurt_abs' for i in nni]+[i+'_autocorr1' for i in nni]+[i+'_autocorr1_abs' for i in nni]+[i+'_trend' for i in nni]+[i+'_trend_abs' for i in nni]+names+[name+'_abs' for name in names]
+            if with_corr:
+                res=means.tolist()+means_abs.tolist()+stds.tolist()+stds_abs.tolist()+skews.tolist()+skews_abs.tolist()+kurts.tolist()+kurts_abs.tolist()+autocorrs.tolist()+autocorrs_abs.tolist()+trends+trends_abs+corrs+corrs_abs
+                names=[i+'_mean' for i in nni]+[i+'_mean_abs' for i in nni]+[i+'_std' for i in nni]+[i+'_std_abs' for i in nni]+[i+'_skew' for i in nni]+[i+'_skew_abs' for i in nni]+[i+'_kurt' for i in nni]+[i+'_kurt_abs' for i in nni]+[i+'_autocorr1' for i in nni]+[i+'_autocorr1_abs' for i in nni]+[i+'_trend' for i in nni]+[i+'_trend_abs' for i in nni]+names+[name+'_abs' for name in names]
+            else:
+                res=means.tolist()+means_abs.tolist()+stds.tolist()+stds_abs.tolist()+skews.tolist()+skews_abs.tolist()+kurts.tolist()+kurts_abs.tolist()+autocorrs.tolist()+autocorrs_abs.tolist()+trends+trends_abs
+                names=[i+'_mean' for i in nni]+[i+'_mean_abs' for i in nni]+[i+'_std' for i in nni]+[i+'_std_abs' for i in nni]+[i+'_skew' for i in nni]+[i+'_skew_abs' for i in nni]+[i+'_kurt' for i in nni]+[i+'_kurt_abs' for i in nni]+[i+'_autocorr1' for i in nni]+[i+'_autocorr1_abs' for i in nni]+[i+'_trend' for i in nni]+[i+'_trend_abs' for i in nni]
         else:
-            res=means.tolist()+means_abs.tolist()+stds.tolist()+stds_abs.tolist()+skews.tolist()+skews_abs.tolist()+kurts.tolist()+kurts_abs.tolist()+maxs.tolist()+maxs_abs.tolist()+mins.tolist()+mins_abs.tolist()+autocorrs.tolist()+autocorrs_abs.tolist()+trends+trends_abs+corrs+corrs_abs
-            names=[i+'_mean' for i in nni]+[i+'_mean_abs' for i in nni]+[i+'_std' for i in nni]+[i+'_std_abs' for i in nni]+[i+'_skew' for i in nni]+[i+'_skew_abs' for i in nni]+[i+'_kurt' for i in nni]+[i+'_kurt_abs' for i in nni]+[i+'_max' for i in nni]+[i+'_max_abs' for i in nni]+[i+'_min' for i in nni]+[i+'_min_abs' for i in nni]+[i+'_autocorr1' for i in nni]+[i+'_autocorr1_abs' for i in nni]+[i+'_trend' for i in nni]+[i+'_trend_abs' for i in nni]+names+[name+'_abs' for name in names]
+            if with_corr:
+                res=means.tolist()+means_abs.tolist()+stds.tolist()+stds_abs.tolist()+skews.tolist()+skews_abs.tolist()+kurts.tolist()+kurts_abs.tolist()+maxs.tolist()+maxs_abs.tolist()+mins.tolist()+mins_abs.tolist()+autocorrs.tolist()+autocorrs_abs.tolist()+trends+trends_abs+corrs+corrs_abs
+                names=[i+'_mean' for i in nni]+[i+'_mean_abs' for i in nni]+[i+'_std' for i in nni]+[i+'_std_abs' for i in nni]+[i+'_skew' for i in nni]+[i+'_skew_abs' for i in nni]+[i+'_kurt' for i in nni]+[i+'_kurt_abs' for i in nni]+[i+'_max' for i in nni]+[i+'_max_abs' for i in nni]+[i+'_min' for i in nni]+[i+'_min_abs' for i in nni]+[i+'_autocorr1' for i in nni]+[i+'_autocorr1_abs' for i in nni]+[i+'_trend' for i in nni]+[i+'_trend_abs' for i in nni]+names+[name+'_abs' for name in names]
+            else:
+                res=means.tolist()+means_abs.tolist()+stds.tolist()+stds_abs.tolist()+skews.tolist()+skews_abs.tolist()+kurts.tolist()+kurts_abs.tolist()+maxs.tolist()+maxs_abs.tolist()+mins.tolist()+mins_abs.tolist()+autocorrs.tolist()+autocorrs_abs.tolist()+trends+trends_abs
+                names=[i+'_mean' for i in nni]+[i+'_mean_abs' for i in nni]+[i+'_std' for i in nni]+[i+'_std_abs' for i in nni]+[i+'_skew' for i in nni]+[i+'_skew_abs' for i in nni]+[i+'_kurt' for i in nni]+[i+'_kurt_abs' for i in nni]+[i+'_max' for i in nni]+[i+'_max_abs' for i in nni]+[i+'_min' for i in nni]+[i+'_min_abs' for i in nni]+[i+'_autocorr1' for i in nni]+[i+'_autocorr1_abs' for i in nni]+[i+'_trend' for i in nni]+[i+'_trend_abs' for i in nni]
     else:
         if not with_max_min:
-            res=means.tolist()+stds.tolist()+skews.tolist()+kurts.tolist()+autocorrs.tolist()+trends+corrs
-            names=[i+'_mean' for i in nni]+[i+'_std' for i in nni]+[i+'_skew' for i in nni]+[i+'_kurt' for i in nni]+[i+'_autocorr1' for i in nni]+[i+'_trend' for i in nni]+names
+            if with_corr:
+                res=means.tolist()+stds.tolist()+skews.tolist()+kurts.tolist()+autocorrs.tolist()+trends+corrs
+                names=[i+'_mean' for i in nni]+[i+'_std' for i in nni]+[i+'_skew' for i in nni]+[i+'_kurt' for i in nni]+[i+'_autocorr1' for i in nni]+[i+'_trend' for i in nni]+names
+            else:
+                res=means.tolist()+stds.tolist()+skews.tolist()+kurts.tolist()+autocorrs.tolist()+trends
+                names=[i+'_mean' for i in nni]+[i+'_std' for i in nni]+[i+'_skew' for i in nni]+[i+'_kurt' for i in nni]+[i+'_autocorr1' for i in nni]+[i+'_trend' for i in nni]
         else:
-            res=means.tolist()+stds.tolist()+skews.tolist()+kurts.tolist()+maxs.tolist()+mins.tolist()+autocorrs.tolist()+trends+corrs
-            names=[i+'_mean' for i in nni]+[i+'_std' for i in nni]+[i+'_skew' for i in nni]+[i+'_kurt' for i in nni]+[i+'_max' for i in nni]+[i+'_min' for i in nni]+[i+'_autocorr1' for i in nni]+[i+'_trend' for i in nni]+names
+            if with_corr:
+                res=means.tolist()+stds.tolist()+skews.tolist()+kurts.tolist()+maxs.tolist()+mins.tolist()+autocorrs.tolist()+trends+corrs
+                names=[i+'_mean' for i in nni]+[i+'_std' for i in nni]+[i+'_skew' for i in nni]+[i+'_kurt' for i in nni]+[i+'_max' for i in nni]+[i+'_min' for i in nni]+[i+'_autocorr1' for i in nni]+[i+'_trend' for i in nni]+names
+            else:
+                res=means.tolist()+stds.tolist()+skews.tolist()+kurts.tolist()+maxs.tolist()+mins.tolist()+autocorrs.tolist()+trends
+                names=[i+'_mean' for i in nni]+[i+'_std' for i in nni]+[i+'_skew' for i in nni]+[i+'_kurt' for i in nni]+[i+'_max' for i in nni]+[i+'_min' for i in nni]+[i+'_autocorr1' for i in nni]+[i+'_trend' for i in nni]
     return res,names
