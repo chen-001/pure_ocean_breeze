@@ -1544,7 +1544,17 @@ def adjust_afternoon(df: pd.DataFrame,only_inday:int=1) -> pd.DataFrame:
         df=pd.concat([df1,df2]).reset_index()
     return df
 
-def get_features_factors(df:pd.DataFrame,with_abs=True,with_max_min=False,with_corr=True):
+def get_features_factors(
+    df: pd.DataFrame,
+    with_abs=False,
+    with_max_min=False,
+    with_corr=True,
+    with_percentiles=True,
+    with_lag_autocorr=1,
+    with_threshold_counts=True,
+    with_period_compare=True,
+    with_complexity=True  # NEW: Optional complexity metrics (slower but informative)
+):
     """
     Extracts a comprehensive set of statistical features and their names from a pandas DataFrame.
 
@@ -1552,75 +1562,264 @@ def get_features_factors(df:pd.DataFrame,with_abs=True,with_max_min=False,with_c
         df (pd.DataFrame): Input DataFrame containing numerical data for feature extraction.
         with_abs (bool, optional): If True, includes the absolute values of the computed statistics. Default is True.
         with_max_min (bool, optional): If True, includes the maximum and minimum values (and their absolute values if with_abs is True). Default is False.
+        with_corr (bool, optional): If True, includes pairwise correlations between columns. Default is True.
+        with_percentiles (bool, optional): If True, includes percentile statistics (P5, P25, P75, P95). Default is True.
+        with_lag_autocorr (int, optional): Number of autocorrelation lags to compute (1-5). Default is 1.
+        with_threshold_counts (bool, optional): If True, counts threshold crossings (>P90, >P95, <P10, <P5). Default is True.
+        with_period_compare (bool, optional): If True, compares first vs last period statistics. Default is True.
+        with_complexity (bool, optional): If True, includes complexity metrics (Lyapunov exponent, LZ complexity, entropy, max range product). Computationally expensive. Default is False.
 
     Returns:
         res (list): List of computed feature values in the order specified by 'names'.
         names (list): List of feature names corresponding to the computed values.
 
     Features extracted include:
-        - Mean, standard deviation, skewness, kurtosis (and their absolute values if with_abs is True)
-        - Maximum and minimum values (and their absolute values if with_max_min is True)
-        - First-order autocorrelation and its absolute value
-        - Linear trend and its absolute value
-        - Pairwise correlations between columns and their absolute values
+        Level 1 - Basic Statistics:
+            - Mean, median, standard deviation, skewness, kurtosis
+            - Maximum, minimum, range
+
+        Level 2 - Distribution Features:
+            - Percentiles (P5, P25, P75, P95)
+            - Interquartile range (IQR = P75 - P25)
+            - Coefficient of variation (CV = std/mean)
+
+        Level 3 - Temporal Dynamics:
+            - Autocorrelations (lag 1 to N)
+            - Linear trend (OLS regression slope)
+            - First vs last period comparison (e.g., last 1/3 vs first 1/3 mean)
+
+        Level 4 - Threshold Analysis:
+            - Threshold crossing counts (>P90, >P95, <P10, <P5)
+            - Excess mean above P90
+            - Shortfall mean below P10
+
+        Level 5 - Correlations (if with_corr=True and df has multiple columns):
+            - Pairwise Pearson correlations
+            - Absolute correlations
+
+        Level 6 - Complexity Metrics (if with_complexity=True):
+            - Lyapunov exponent (chaos indicator)
+            - LZ complexity (sequence compressibility)
+            - Shannon entropy (information content)
+            - Max range product (normalized)
     """
-    means=df.mean()
-    stds=df.std()
-    skews=df.skew()
-    kurts=df.kurt()
+    # Level 1: Basic statistics
+    means = df.mean()
+    medians = df.median()
+    stds = df.std()
+    skews = df.skew()
+    kurts = df.kurt()
+
+    # Level 1 with_abs variants (define upfront to avoid reference issues)
     if with_abs:
-        means_abs=means.abs()
-        stds_abs=stds.abs()
-        skews_abs=skews.abs()
-        kurts_abs=kurts.abs()
-    if with_max_min:    
-        maxs=df.max()
-        mins=df.min()
-        maxs_abs=maxs.abs()
-        mins_abs=mins.abs()
-    autocorrs=rp.corrwith(df,df.shift(1),0,use_single_thread=True)
-    autocorrs_abs=autocorrs.abs()
-    trends=rp.trend_2d(df.to_numpy(float),0)
-    trends_abs=[abs(i) for i in trends]
+        means_abs = means.abs()
+        medians_abs = medians.abs()
+        stds_abs = stds.abs()
+        skews_abs = skews.abs()
+        kurts_abs = kurts.abs()
+
+    if with_max_min:
+        maxs = df.max()
+        mins = df.min()
+        ranges = maxs - mins  # Range
+        if with_abs:
+            maxs_abs = maxs.abs()
+            mins_abs = mins.abs()
+            ranges_abs = ranges.abs()
+
+    # Level 2: Distribution features
+    if with_percentiles:
+        p5s = df.quantile(0.05)
+        p25s = df.quantile(0.25)
+        p75s = df.quantile(0.75)
+        p95s = df.quantile(0.95)
+        iqrs = p75s - p25s  # Interquartile range
+        cvs = stds / (means.abs() + 1e-8)  # Coefficient of variation
+        if with_abs:
+            p5s_abs = p5s.abs()
+            p25s_abs = p25s.abs()
+            p75s_abs = p75s.abs()
+            p95s_abs = p95s.abs()
+            iqrs_abs = iqrs.abs()
+            cvs_abs = cvs.abs()
+
+    # Level 3: Temporal dynamics
+    # Autocorrelations (lag 1 to N, limited to 3 for speed)
+    n_lags = min(max(1, with_lag_autocorr), 3)
+    autocorrs = []
+    autocorrs_abs = []
+    for lag in range(1, n_lags + 1):
+        ac = rp.corrwith(df, df.shift(lag), 0, use_single_thread=True)
+        autocorrs.append(ac)
+        autocorrs_abs.append(ac.abs())
+
+    # Linear trend (OLS regression slope)
+    trends = rp.trend_2d(df.to_numpy(float), 0)
+    if with_abs:
+        trends_abs = [abs(i) for i in trends]
+
+    # Period comparison (first 1/3 vs last 1/3)
+    if with_period_compare:
+        n_rows = len(df)
+        split_point = n_rows // 3
+        first_period_means = df.iloc[:split_point].mean()
+        last_period_means = df.iloc[-split_point:].mean()
+        period_diffs = last_period_means - first_period_means
+        period_ratios = last_period_means / (first_period_means.abs() + 1e-8)
+        if with_abs:
+            period_diffs_abs = period_diffs.abs()
+            period_ratios_abs = period_ratios.abs()
+
+    # Level 4: Threshold analysis
+    if with_threshold_counts:
+        p90s = df.quantile(0.90)
+        p10s = df.quantile(0.10)
+
+        # Count of threshold crossings
+        count_above_p90 = (df > p90s).sum()
+        count_above_p95 = (df > df.quantile(0.95)).sum()
+        count_below_p10 = (df < p10s).sum()
+        count_below_p5 = (df < df.quantile(0.05)).sum()
+
+        # Mean of values above/below threshold
+        mean_above_p90 = df[df > p90s].mean().fillna(0)
+        mean_below_p10 = df[df < p10s].mean().fillna(0)
+
+    # Assemble results and names
+    res = []
+    names = []
+    col_names = df.columns.tolist()
+
+    # Helper function to append results and names
+    def append_results(series_list, name_suffixes):
+        for series, suffix in zip(series_list, name_suffixes):
+            res.extend(series.tolist())
+            names.extend([f"{col}_{suffix}" for col in col_names])
+
+    # Level 1: Basic statistics
+    append_results([means, medians, stds, skews, kurts],
+                   ['mean', 'median', 'std', 'skew', 'kurt'])
+
+    if with_max_min:
+        append_results([maxs, mins, ranges],
+                       ['max', 'min', 'range'])
+
+    # Level 2: Percentiles
+    if with_percentiles:
+        append_results([p5s, p25s, p75s, p95s, iqrs, cvs],
+                       ['p5', 'p25', 'p75', 'p95', 'iqr', 'cv'])
+
+    # Level 3: Autocorrelations
+    for lag_idx, (ac, ac_abs) in enumerate(zip(autocorrs, autocorrs_abs)):
+        lag_num = lag_idx + 1
+        append_results([ac, ac_abs],
+                       [f'autocorr{lag_num}', f'autocorr{lag_num}_abs'])
+
+    # Level 3: Trend
+    res.extend(trends)
+    names.extend([f"{col}_trend" for col in col_names])
+
+    # Level 3: Period comparison
+    if with_period_compare:
+        append_results([period_diffs, period_ratios],
+                       ['period_diff', 'period_ratio'])
+
+    # Level 4: Threshold counts
+    if with_threshold_counts:
+        append_results([count_above_p90, count_above_p95,
+                       count_below_p10, count_below_p5],
+                       ['count_above_p90', 'count_above_p95',
+                        'count_below_p10', 'count_below_p5'])
+
+        append_results([mean_above_p90, mean_below_p10],
+                       ['mean_above_p90', 'mean_below_p10'])
+
+    # Level 5: Correlations
     if with_corr:
-        corrs=rp.fast_correlation_matrix_v2_df(df,max_workers=1)
-        n=corrs.shape[0]
-        i,j=np.triu_indices(n,1)
-        row_names = corrs.index[i]
-        col_names = corrs.columns[j]
-        names = [f"{row}_corr_{col}" for row, col in zip(row_names, col_names)]
-        corrs=corrs.to_numpy()[i,j].tolist()
-        corrs_abs=[abs(i) for i in corrs]
-        
-    nni=df.columns
+        corrs_matrix = rp.fast_correlation_matrix_v2_df(df, max_workers=1)
+        n = corrs_matrix.shape[0]
+        i_idx, j_idx = np.triu_indices(n, 1)
+        row_names = corrs_matrix.index[i_idx]
+        col_names_corr = corrs_matrix.columns[j_idx]
+        corr_values = corrs_matrix.to_numpy()[i_idx, j_idx]
+
+        corr_names = [f"{row}_corr_{col}" for row, col in zip(row_names, col_names_corr)]
+        res.extend(corr_values.tolist())
+        names.extend(corr_names)
+
+        if with_abs:
+            res.extend(np.abs(corr_values).tolist())
+            names.extend([f"{name}_abs" for name in corr_names])
+
+    # Absolute values (for all base statistics)
     if with_abs:
-        if not with_max_min:
-            if with_corr:
-                res=means.tolist()+means_abs.tolist()+stds.tolist()+stds_abs.tolist()+skews.tolist()+skews_abs.tolist()+kurts.tolist()+kurts_abs.tolist()+autocorrs.tolist()+autocorrs_abs.tolist()+trends+trends_abs+corrs+corrs_abs
-                names=[i+'_mean' for i in nni]+[i+'_mean_abs' for i in nni]+[i+'_std' for i in nni]+[i+'_std_abs' for i in nni]+[i+'_skew' for i in nni]+[i+'_skew_abs' for i in nni]+[i+'_kurt' for i in nni]+[i+'_kurt_abs' for i in nni]+[i+'_autocorr1' for i in nni]+[i+'_autocorr1_abs' for i in nni]+[i+'_trend' for i in nni]+[i+'_trend_abs' for i in nni]+names+[name+'_abs' for name in names]
-            else:
-                res=means.tolist()+means_abs.tolist()+stds.tolist()+stds_abs.tolist()+skews.tolist()+skews_abs.tolist()+kurts.tolist()+kurts_abs.tolist()+autocorrs.tolist()+autocorrs_abs.tolist()+trends+trends_abs
-                names=[i+'_mean' for i in nni]+[i+'_mean_abs' for i in nni]+[i+'_std' for i in nni]+[i+'_std_abs' for i in nni]+[i+'_skew' for i in nni]+[i+'_skew_abs' for i in nni]+[i+'_kurt' for i in nni]+[i+'_kurt_abs' for i in nni]+[i+'_autocorr1' for i in nni]+[i+'_autocorr1_abs' for i in nni]+[i+'_trend' for i in nni]+[i+'_trend_abs' for i in nni]
-        else:
-            if with_corr:
-                res=means.tolist()+means_abs.tolist()+stds.tolist()+stds_abs.tolist()+skews.tolist()+skews_abs.tolist()+kurts.tolist()+kurts_abs.tolist()+maxs.tolist()+maxs_abs.tolist()+mins.tolist()+mins_abs.tolist()+autocorrs.tolist()+autocorrs_abs.tolist()+trends+trends_abs+corrs+corrs_abs
-                names=[i+'_mean' for i in nni]+[i+'_mean_abs' for i in nni]+[i+'_std' for i in nni]+[i+'_std_abs' for i in nni]+[i+'_skew' for i in nni]+[i+'_skew_abs' for i in nni]+[i+'_kurt' for i in nni]+[i+'_kurt_abs' for i in nni]+[i+'_max' for i in nni]+[i+'_max_abs' for i in nni]+[i+'_min' for i in nni]+[i+'_min_abs' for i in nni]+[i+'_autocorr1' for i in nni]+[i+'_autocorr1_abs' for i in nni]+[i+'_trend' for i in nni]+[i+'_trend_abs' for i in nni]+names+[name+'_abs' for name in names]
-            else:
-                res=means.tolist()+means_abs.tolist()+stds.tolist()+stds_abs.tolist()+skews.tolist()+skews_abs.tolist()+kurts.tolist()+kurts_abs.tolist()+maxs.tolist()+maxs_abs.tolist()+mins.tolist()+mins_abs.tolist()+autocorrs.tolist()+autocorrs_abs.tolist()+trends+trends_abs
-                names=[i+'_mean' for i in nni]+[i+'_mean_abs' for i in nni]+[i+'_std' for i in nni]+[i+'_std_abs' for i in nni]+[i+'_skew' for i in nni]+[i+'_skew_abs' for i in nni]+[i+'_kurt' for i in nni]+[i+'_kurt_abs' for i in nni]+[i+'_max' for i in nni]+[i+'_max_abs' for i in nni]+[i+'_min' for i in nni]+[i+'_min_abs' for i in nni]+[i+'_autocorr1' for i in nni]+[i+'_autocorr1_abs' for i in nni]+[i+'_trend' for i in nni]+[i+'_trend_abs' for i in nni]
-    else:
-        if not with_max_min:
-            if with_corr:
-                res=means.tolist()+stds.tolist()+skews.tolist()+kurts.tolist()+autocorrs.tolist()+trends+corrs
-                names=[i+'_mean' for i in nni]+[i+'_std' for i in nni]+[i+'_skew' for i in nni]+[i+'_kurt' for i in nni]+[i+'_autocorr1' for i in nni]+[i+'_trend' for i in nni]+names
-            else:
-                res=means.tolist()+stds.tolist()+skews.tolist()+kurts.tolist()+autocorrs.tolist()+trends
-                names=[i+'_mean' for i in nni]+[i+'_std' for i in nni]+[i+'_skew' for i in nni]+[i+'_kurt' for i in nni]+[i+'_autocorr1' for i in nni]+[i+'_trend' for i in nni]
-        else:
-            if with_corr:
-                res=means.tolist()+stds.tolist()+skews.tolist()+kurts.tolist()+maxs.tolist()+mins.tolist()+autocorrs.tolist()+trends+corrs
-                names=[i+'_mean' for i in nni]+[i+'_std' for i in nni]+[i+'_skew' for i in nni]+[i+'_kurt' for i in nni]+[i+'_max' for i in nni]+[i+'_min' for i in nni]+[i+'_autocorr1' for i in nni]+[i+'_trend' for i in nni]+names
-            else:
-                res=means.tolist()+stds.tolist()+skews.tolist()+kurts.tolist()+maxs.tolist()+mins.tolist()+autocorrs.tolist()+trends
-                names=[i+'_mean' for i in nni]+[i+'_std' for i in nni]+[i+'_skew' for i in nni]+[i+'_kurt' for i in nni]+[i+'_max' for i in nni]+[i+'_min' for i in nni]+[i+'_autocorr1' for i in nni]+[i+'_trend' for i in nni]
-    return res,names
+        append_results([means_abs, medians_abs, stds_abs, skews_abs, kurts_abs],
+                       ['mean_abs', 'median_abs', 'std_abs', 'skew_abs', 'kurt_abs'])
+
+        if with_max_min:
+            append_results([maxs_abs, mins_abs],
+                           ['max_abs', 'min_abs'])
+
+        if with_percentiles:
+            append_results([p5s_abs, p25s_abs, p75s_abs, p95s_abs, iqrs_abs, cvs_abs],
+                           ['p5_abs', 'p25_abs', 'p75_abs', 'p95_abs', 'iqr_abs', 'cv_abs'])
+
+        res.extend(trends_abs)
+        names.extend([f"{col}_trend_abs" for col in col_names])
+
+        if with_period_compare:
+            append_results([period_diffs_abs, period_ratios_abs],
+                           ['period_diff_abs', 'period_ratio_abs'])
+
+    # Level 6: Complexity metrics (computationally expensive, optional)
+    if with_complexity:
+        # Define complexity calculation functions
+        def calc_lyapunov(series: pd.Series):
+            try:
+                return rp.calculate_lyapunov_exponent(series.to_numpy(float))['lyapunov_exponent']
+            except:
+                return np.nan
+
+        def calc_lz_complexity(series: pd.Series):
+            try:
+                return rp.lz_complexity(series.to_numpy(float))
+            except:
+                return np.nan
+
+        def calc_entropy(series: pd.Series):
+            try:
+                return rp.calculate_entropy_1d(series.to_numpy(float))
+            except:
+                return np.nan
+
+        def calc_max_range_product(series: pd.Series):
+            try:
+                x, y, _ = rp.find_max_range_product(series.to_numpy(float))
+                return abs(x - y) / series.shape[0]
+            except:
+                return np.nan
+
+        # Calculate complexity metrics for each column
+        lyapunovs = df.apply(calc_lyapunov)
+        lz_complexities = df.apply(calc_lz_complexity)
+        entropies = df.apply(calc_entropy)
+        max_range_products = df.apply(calc_max_range_product)
+
+        append_results([lyapunovs, lz_complexities, entropies, max_range_products],
+                       ['lyapunov', 'lz_complexity', 'entropy_1d', 'max_range_product'])
+
+    return res, names
+
+
+def common_columns_index(df1:pd.DataFrame, df2:pd.DataFrame):
+    common_cols = df1.columns.intersection(df2.columns)
+    common_index = df1.index.intersection(df2.index)
+    return df1.loc[common_index, common_cols], df2.loc[common_index, common_cols]
+
+def common_columns_indexs(dfs:list[pd.DataFrame]):
+    common_cols = dfs[0].columns
+    common_index = dfs[0].index
+    for df in dfs[1:]:
+        common_cols = common_cols.intersection(df.columns)
+        common_index = common_index.intersection(df.index)
+    return [df.loc[common_index, common_cols] for df in dfs]
