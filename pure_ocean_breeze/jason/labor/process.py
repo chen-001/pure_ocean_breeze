@@ -7,7 +7,6 @@ warnings.filterwarnings("ignore")
 import numpy as np
 import pandas as pd
 import tqdm.auto
-import json
 import scipy.stats as ss
 
 import matplotlib.pyplot as plt
@@ -242,6 +241,7 @@ class pure_moon(object):
         'longside_ret',
         'alt_name',
         'alt_chart',
+        'factor_nunique',
     ]
 
     @classmethod
@@ -302,6 +302,7 @@ class pure_moon(object):
         self.factor_cover = self.factors.count().sum()
         total = self.opens.resample(self.freq).last().reindex(self.factors.index).count().sum()
         self.factor_cover = min(self.factor_cover / total, 1)
+        self.factor_nunique = self.factors.nunique(axis=1).mean()
         self.factor_cross_skew = self.factors.skew(axis=1).mean()
         pos_num = ((self.factors > 0) + 0).sum().sum()
         neg_num = ((self.factors < 0) + 0).sum().sum()
@@ -1019,33 +1020,17 @@ def display_alt_chart(chart: alt.HConcatChart,alt_name:str,neu_ret:float):
     save_path = os.path.join(save_dir, f"{file_name}.svg")
     chart.save(save_path)
 
-    # 将neu_ret以json格式写入neu_rets.json文件
-    neu_rets_file = os.path.join(save_dir, "neu_rets.json")
-    
-    # 读取现有的json文件内容，如果文件不存在则创建空字典
+    # 保存因子收益率到 SQLite 数据库
     try:
-        if os.path.exists(neu_rets_file):
-            with open(neu_rets_file, 'r', encoding='utf-8') as f:
-                content = f.read().strip()
-                if content:  # 检查文件是否为空
-                    neu_rets_data = json.loads(content)
-                else:
-                    neu_rets_data = {}
-        else:
-            neu_rets_data = {}
-    except (json.JSONDecodeError, UnicodeDecodeError) as e:
-        print(f"读取JSON文件时发生错误: {e}，创建新的数据字典")
-        neu_rets_data = {}
-    
-    # 更新数据
-    neu_rets_data[file_name] = neu_ret
-    
-    # 写入文件
-    try:
-        with open(neu_rets_file, 'w', encoding='utf-8') as f:
-            json.dump(neu_rets_data, f, ensure_ascii=False, indent=2)
+        from pure_ocean_breeze.jason.labor.db_storage import save_factor_return
+
+        # 保存到数据库（与图表同目录，文件名为neu_rets.db）
+        save_factor_return(alt_name, neu_ret, save_dir, 'neu_rets')
+
     except Exception as e:
-        print(f"写入JSON文件时发生错误: {e}")
+        # 静默失败，不影响原有流程
+        pass
+
     display_image_as_markdown(save_path)
 
 @do_on_dfs
@@ -1099,15 +1084,16 @@ class pure_moonnight(object):
         self.shen = pure_moon(freq=freq)
         self.shen.set_basic_data()
         self.shen.set_factor_df_date_as_index(factors)
-        self.shen.prerpare()
-        self.shen.run(
-            groups_num=groups_num,
-            ilegend=ilegend,
-            without_breakpoint=without_breakpoint,
-            show_more_than=show_more_than,
-            alt_name=alt_name,
-            show_alt_chart=show_alt_chart,
-        )
+        if self.shen.factor_cover>0.9 and self.shen.factor_nunique>1000:
+            self.shen.prerpare()
+            self.shen.run(
+                groups_num=groups_num,
+                ilegend=ilegend,
+                without_breakpoint=without_breakpoint,
+                show_more_than=show_more_than,
+                alt_name=alt_name,
+                show_alt_chart=show_alt_chart,
+            )
 
 
 
@@ -1192,152 +1178,152 @@ def symmetrically_orthogonalize(dfs: list[pd.DataFrame]) -> list[pd.DataFrame]:
 @do_on_dfs
 def sun(factor:pd.DataFrame,rolling_days:int=10,time_start:int=20170101,show_more_than:float=0.025,alt_name:str='test1'):
     '''先单因子测试，再测试其与常用风格之间的关系'''
-    # try:
+    try:
         
-    # 步骤1: 因子排序
-    # factor=factor.rank(axis=1)
+        # 步骤1: 因子排序
+        factor=factor.rank(axis=1)
         
-    factor=rp.rank_axis1_df(jason_to_wind(factor))
-    
-    # 步骤2: boom_one处理
-    ractor=boom_one(factor,rolling_days)
-    
-    # 步骤3: 中性化处理
-    pfi=de_cross_special_for_barra_weekly_fast(ractor.copy())
-    
-    # 步骤4: 中性化后的回测
-    shen=pure_moonnight(pfi,time_start=time_start,show_more_than=show_more_than,alt_name=alt_name+'_neu',show_alt_chart=False)
-    neu_ret=max(shen.shen.group1_ret_yearly,shen.shen.group10_ret_yearly)
-    
-    if neu_ret > show_more_than:
-        chart1=shen.shen.alt_chart
+        factor=rp.rank_axis1_df(jason_to_wind(factor))
         
-        # 步骤5: 原始值回测
-        shen=pure_moonnight(ractor,time_start=time_start,show_more_than=None,alt_name=alt_name+'_raw',show_alt_chart=False)
-        chart2=shen.shen.alt_chart
+        # 步骤2: boom_one处理
+        ractor=boom_one(factor,rolling_days)
         
-        # 步骤6: 计算与Barra因子的相关性
-        corrs_ts = {}  # 保存时序相关性数据
-        corrs_mean = {}  # 保存时序均值用于图例
-        barras = get_barras()
-        for k, v in barras.items():
-            corr_series = rp.corrwith(ractor, v, axis=1)
-            # 5周滑动平均平滑
-            corr_series_smoothed = corr_series.rolling(window=5, center=True,min_periods=1).mean()
-            corrs_ts[k] = corr_series_smoothed
-            corrs_mean[k] = corr_series_smoothed.mean()
+        # 步骤3: 中性化处理
+        pfi=de_cross_special_for_barra_weekly_fast(ractor.copy())
         
-        # 转换为DataFrame并准备时序数据
-        corrs_df = pd.DataFrame(corrs_ts)
-        corrs_df = corrs_df.reset_index()
-        corrs_df.columns = ['date'] + list(corrs_df.columns[1:])
+        # 步骤4: 中性化后的回测
+        shen=pure_moonnight(pfi,time_start=time_start,show_more_than=show_more_than,alt_name=alt_name+'_neu',show_alt_chart=False)
+        neu_ret=max(shen.shen.group1_ret_yearly,shen.shen.group10_ret_yearly)
         
-        # 步骤7: 创建时序折线图
-        # 将数据转换为长格式
-        corrs_melted = corrs_df.melt(id_vars='date', var_name='风格因子', value_name='相关性')
-        
-        # 为所有因子创建图例标签，并按均值绝对值排序
-        sorted_factors = sorted(corrs_mean.items(), key=lambda x: abs(x[1]), reverse=True)
-        
-        legend_labels = {}
-        factor_order = []
-        filtered_factors = set()
-        
-        for factor, mean_val in sorted_factors:
-            if abs(mean_val) > 0.1:
-                # 均值绝对值大于10%的因子，正常显示
-                legend_labels[factor] = f"{factor} ({mean_val:.1%})"
-                filtered_factors.add(factor)
-            else:
-                # 均值绝对值小于等于10%的因子，标记为隐藏
-                legend_labels[factor] = f"{factor} ({mean_val:.1%})"
-            factor_order.append(legend_labels[factor])
-        
-        # 添加图例标签列（所有因子都有标签）
-        corrs_melted['图例标签'] = corrs_melted['风格因子'].map(legend_labels)
-        
-        # 只保留均值绝对值大于10%的因子用于绘图
-        corrs_melted_filtered = corrs_melted[corrs_melted['风格因子'].isin(filtered_factors)]
-        
-        # 创建时序折线图
-        lines = alt.Chart(corrs_melted_filtered).mark_line(
-            strokeWidth=2
-        ).encode(
-            x=alt.X('date:T', 
-                    axis=alt.Axis(labelFontSize=10, titleFontSize=12, title='日期'),
-                    scale=alt.Scale(nice=True)),
-            y=alt.Y('相关性:Q', 
-                    axis=alt.Axis(labelFontSize=10, titleFontSize=12, title='相关性'),
-                    scale=alt.Scale(nice=True)),
-            color=alt.Color('图例标签:N', 
-                            scale=alt.Scale(scheme='category20', domain=factor_order),
-                            legend=alt.Legend(title=None, 
-                                            labelFontSize=10,
-                                            orient='right',
-                                            columns=1)),
-            tooltip=['风格因子:N', 'date:T', '相关性:Q']
-        )
-        
-        # 添加y=0的基准线
-        zero_line = alt.Chart(pd.DataFrame({'y': [0]})).mark_rule(
-            strokeWidth=3,
-            color='black',
-            opacity=0.8
-        ).encode(
-            y='y:Q'
-        )
-        
-        # 组合折线图和基准线
-        corr_chart = alt.layer(lines, zero_line).properties(
-            width=1000,
-            height=150,
-            title=alt.TitleParams('因子与风格因子相关性时序图', fontSize=14, anchor='middle')
-        )
+        if neu_ret > show_more_than:
+            chart1=shen.shen.alt_chart
+            
+            # 步骤5: 原始值回测
+            shen=pure_moonnight(ractor,time_start=time_start,show_more_than=None,alt_name=alt_name+'_raw',show_alt_chart=False)
+            chart2=shen.shen.alt_chart
+            
+            # 步骤6: 计算与Barra因子的相关性
+            corrs_ts = {}  # 保存时序相关性数据
+            corrs_mean = {}  # 保存时序均值用于图例
+            barras = get_barras()
+            for k, v in barras.items():
+                corr_series = rp.corrwith(ractor, v, axis=1)
+                # 5周滑动平均平滑
+                corr_series_smoothed = corr_series.rolling(window=5, center=True,min_periods=1).mean()
+                corrs_ts[k] = corr_series_smoothed
+                corrs_mean[k] = corr_series_smoothed.mean()
+            
+            # 转换为DataFrame并准备时序数据
+            corrs_df = pd.DataFrame(corrs_ts)
+            corrs_df = corrs_df.reset_index()
+            corrs_df.columns = ['date'] + list(corrs_df.columns[1:])
+            
+            # 步骤7: 创建时序折线图
+            # 将数据转换为长格式
+            corrs_melted = corrs_df.melt(id_vars='date', var_name='风格因子', value_name='相关性')
+            
+            # 为所有因子创建图例标签，并按均值绝对值排序
+            sorted_factors = sorted(corrs_mean.items(), key=lambda x: abs(x[1]), reverse=True)
+            
+            legend_labels = {}
+            factor_order = []
+            filtered_factors = set()
+            
+            for factor, mean_val in sorted_factors:
+                if abs(mean_val) > 0.1:
+                    # 均值绝对值大于10%的因子，正常显示
+                    legend_labels[factor] = f"{factor} ({mean_val:.1%})"
+                    filtered_factors.add(factor)
+                else:
+                    # 均值绝对值小于等于10%的因子，标记为隐藏
+                    legend_labels[factor] = f"{factor} ({mean_val:.1%})"
+                factor_order.append(legend_labels[factor])
+            
+            # 添加图例标签列（所有因子都有标签）
+            corrs_melted['图例标签'] = corrs_melted['风格因子'].map(legend_labels)
+            
+            # 只保留均值绝对值大于10%的因子用于绘图
+            corrs_melted_filtered = corrs_melted[corrs_melted['风格因子'].isin(filtered_factors)]
+            
+            # 创建时序折线图
+            lines = alt.Chart(corrs_melted_filtered).mark_line(
+                strokeWidth=2
+            ).encode(
+                x=alt.X('date:T', 
+                        axis=alt.Axis(labelFontSize=10, titleFontSize=12, title='日期'),
+                        scale=alt.Scale(nice=True)),
+                y=alt.Y('相关性:Q', 
+                        axis=alt.Axis(labelFontSize=10, titleFontSize=12, title='相关性'),
+                        scale=alt.Scale(nice=True)),
+                color=alt.Color('图例标签:N', 
+                                scale=alt.Scale(scheme='category20', domain=factor_order),
+                                legend=alt.Legend(title=None, 
+                                                labelFontSize=10,
+                                                orient='right',
+                                                columns=1)),
+                tooltip=['风格因子:N', 'date:T', '相关性:Q']
+            )
+            
+            # 添加y=0的基准线
+            zero_line = alt.Chart(pd.DataFrame({'y': [0]})).mark_rule(
+                strokeWidth=3,
+                color='black',
+                opacity=0.8
+            ).encode(
+                y='y:Q'
+            )
+            
+            # 组合折线图和基准线
+            corr_chart = alt.layer(lines, zero_line).properties(
+                width=1000,
+                height=150,
+                title=alt.TitleParams('因子与风格因子相关性时序图', fontSize=14, anchor='middle')
+            )
 
-        # 步骤8: 创建复合图表布局
-        # 创建复合图表布局
-        # 提取chart1和chart2中的表格、净值图、柱状图和IC图
-        table1, netval1, bar1, ic1 = chart1
-        # 修改table1的标题为"中性化"
-        table1 = table1.properties(title="中性化")
-        
-        table2, netval2, bar2, ic2 = chart2
-        # 修改table2的标题为"原始值"
-        table2 = table2.properties(title="原始值")
-        
-        # 创建两行的布局
-        # 第一行：左侧是中性化因子的表格+净值图，右侧是原始因子的表格+净值图
-        row1_left = table1 | netval1
-        row1_right = bar1 | ic1
-        row1 = row1_left | row1_right
-        
-        # 第二行：左侧是中性化因子的柱状图+IC图，右侧是原始因子的柱状图+IC图
-        row2_left = table2 | netval2
-        row2_right = bar2 | ic2
-        row2 = row2_left | row2_right
-        
-        # 第三行：相关性图表
-        row3 = corr_chart
-        
-        current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        # 将三行组合
-        combined_chart = alt.vconcat(row1, row2, row3).resolve_scale(
-            color='independent'
-        ).properties(
-            title=alt.TitleParams(f"{alt_name} - {current_time}", fontSize=16, anchor='middle')
-        )
-        
-        # 步骤9: 显示组合图表
-        display_alt_chart(combined_chart, alt_name,neu_ret)
+            # 步骤8: 创建复合图表布局
+            # 创建复合图表布局
+            # 提取chart1和chart2中的表格、净值图、柱状图和IC图
+            table1, netval1, bar1, ic1 = chart1
+            # 修改table1的标题为"中性化"
+            table1 = table1.properties(title="中性化")
+            
+            table2, netval2, bar2, ic2 = chart2
+            # 修改table2的标题为"原始值"
+            table2 = table2.properties(title="原始值")
+            
+            # 创建两行的布局
+            # 第一行：左侧是中性化因子的表格+净值图，右侧是原始因子的表格+净值图
+            row1_left = table1 | netval1
+            row1_right = bar1 | ic1
+            row1 = row1_left | row1_right
+            
+            # 第二行：左侧是中性化因子的柱状图+IC图，右侧是原始因子的柱状图+IC图
+            row2_left = table2 | netval2
+            row2_right = bar2 | ic2
+            row2 = row2_left | row2_right
+            
+            # 第三行：相关性图表
+            row3 = corr_chart
+            
+            current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            # 将三行组合
+            combined_chart = alt.vconcat(row1, row2, row3).resolve_scale(
+                color='independent'
+            ).properties(
+                title=alt.TitleParams(f"{alt_name} - {current_time}", fontSize=16, anchor='middle')
+            )
+            
+            # 步骤9: 显示组合图表
+            display_alt_chart(combined_chart, alt_name,neu_ret)
+            
+            return bool(neu_ret > show_more_than)
         
         return bool(neu_ret > show_more_than)
-    
-    return bool(neu_ret > show_more_than)
-    # except Exception as e:
-    #     # 将异常转换为字符串形式，在Altair图表中显示
-    #     # raise 
-    #     print(e)
-    #     return False
+    except Exception as e:
+        # 将异常转换为字符串形式，在Altair图表中显示
+        # raise 
+        # print(e)
+        return False
 
 
 def _process_single_factor(name, fac, do_pri, do_abs, do_fold, other_keyword):
