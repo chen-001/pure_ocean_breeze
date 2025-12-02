@@ -4,6 +4,7 @@ import os
 import numpy as np
 import pandas as pd
 from typing import Union
+import rust_pyfunc as rp
 
 from pure_ocean_breeze.jason.state.states import STATES
 from pure_ocean_breeze.jason.state.homeplace import HomePlace
@@ -511,4 +512,11 @@ def adjust_afternoon(df: pd.DataFrame,only_inday:int=1) -> pd.DataFrame:
         df2=df.set_index('exchtime').between_time('13:00:00',end)
         df2.index=df2.index-pd.Timedelta(minutes=90)
         df=pd.concat([df1,df2]).reset_index()
+    return df
+
+
+def query_backup_df(path):
+    df=rp.query_backup_fast(path)
+    df=pd.DataFrame(df['factors']).assign(code=df['code'],date=df['date'])
+    df=df[['code','date']+list(df.columns[:-2])]
     return df

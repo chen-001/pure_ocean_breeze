@@ -1553,7 +1553,9 @@ def get_features_factors(
     with_lag_autocorr=1,
     with_threshold_counts=True,
     with_period_compare=True,
-    with_complexity=True  # NEW: Optional complexity metrics (slower but informative)
+    with_lyapunov_exponent=True,
+    with_complexity=True,  # NEW: Optional complexity metrics (slower but informative)
+    append_for_corr:pd.DataFrame=None
 ):
     """
     Extracts a comprehensive set of statistical features and their names from a pandas DataFrame.
@@ -1649,7 +1651,7 @@ def get_features_factors(
     autocorrs = []
     autocorrs_abs = []
     for lag in range(1, n_lags + 1):
-        ac = rp.corrwith(df, df.shift(lag), 0, use_single_thread=True)
+        ac = rp.corrwith(df.reset_index(drop=True), df.reset_index(drop=True).shift(lag), 0, use_single_thread=True)
         autocorrs.append(ac)
         autocorrs_abs.append(ac.abs())
 
@@ -1736,7 +1738,9 @@ def get_features_factors(
 
     # Level 5: Correlations
     if with_corr:
-        corrs_matrix = rp.fast_correlation_matrix_v2_df(df, max_workers=1)
+        if append_for_corr is not None:
+            df0=pd.concat([df,append_for_corr],axis=1)
+        corrs_matrix = rp.fast_correlation_matrix_v2_df(df0, max_workers=1)
         n = corrs_matrix.shape[0]
         i_idx, j_idx = np.triu_indices(n, 1)
         row_names = corrs_matrix.index[i_idx]
@@ -1772,13 +1776,18 @@ def get_features_factors(
                            ['period_diff_abs', 'period_ratio_abs'])
 
     # Level 6: Complexity metrics (computationally expensive, optional)
-    if with_complexity:
+    if with_lyapunov_exponent:
         # Define complexity calculation functions
         def calc_lyapunov(series: pd.Series):
             try:
                 return rp.calculate_lyapunov_exponent(series.to_numpy(float))['lyapunov_exponent']
             except:
                 return np.nan
+            
+        lyapunovs = df.apply(calc_lyapunov)
+        append_results([lyapunovs],['lyapunov'])
+    
+    if with_complexity:
 
         def calc_lz_complexity(series: pd.Series):
             try:
@@ -1800,13 +1809,13 @@ def get_features_factors(
                 return np.nan
 
         # Calculate complexity metrics for each column
-        lyapunovs = df.apply(calc_lyapunov)
+        
         lz_complexities = df.apply(calc_lz_complexity)
         entropies = df.apply(calc_entropy)
         max_range_products = df.apply(calc_max_range_product)
 
-        append_results([lyapunovs, lz_complexities, entropies, max_range_products],
-                       ['lyapunov', 'lz_complexity', 'entropy_1d', 'max_range_product'])
+        append_results([lz_complexities, entropies, max_range_products],
+                        ['lz_complexity', 'entropy_1d', 'max_range_product'])
 
     return res, names
 
