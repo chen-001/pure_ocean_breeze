@@ -1740,6 +1740,8 @@ def get_features_factors(
     if with_corr:
         if append_for_corr is not None:
             df0=pd.concat([df,append_for_corr],axis=1)
+        else:
+            df0=df.copy()
         corrs_matrix = rp.fast_correlation_matrix_v2_df(df0, max_workers=1)
         n = corrs_matrix.shape[0]
         i_idx, j_idx = np.triu_indices(n, 1)
