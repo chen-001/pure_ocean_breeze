@@ -1677,12 +1677,6 @@ def get_features_factors(
         p90s = df.quantile(0.90)
         p10s = df.quantile(0.10)
 
-        # Count of threshold crossings
-        count_above_p90 = (df > p90s).sum()
-        count_above_p95 = (df > df.quantile(0.95)).sum()
-        count_below_p10 = (df < p10s).sum()
-        count_below_p5 = (df < df.quantile(0.05)).sum()
-
         # Mean of values above/below threshold
         mean_above_p90 = df[df > p90s].mean().fillna(0)
         mean_below_p10 = df[df < p10s].mean().fillna(0)
@@ -1726,13 +1720,8 @@ def get_features_factors(
         append_results([period_diffs, period_ratios],
                        ['period_diff', 'period_ratio'])
 
-    # Level 4: Threshold counts
+    # Level 4: Threshold means
     if with_threshold_counts:
-        append_results([count_above_p90, count_above_p95,
-                       count_below_p10, count_below_p5],
-                       ['count_above_p90', 'count_above_p95',
-                        'count_below_p10', 'count_below_p5'])
-
         append_results([mean_above_p90, mean_below_p10],
                        ['mean_above_p90', 'mean_below_p10'])
 
