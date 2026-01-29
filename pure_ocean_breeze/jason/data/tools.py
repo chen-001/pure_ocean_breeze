@@ -1782,7 +1782,7 @@ def get_features_factors(
 
         def calc_lz_complexity(series: pd.Series):
             try:
-                return rp.lz_complexity(series.to_numpy(float))
+                return rp.lz_complexity(series.to_numpy(float),[0.33,0.66])
             except:
                 return np.nan
 
