@@ -1788,7 +1788,8 @@ def get_features_factors(
 
         def calc_entropy(series: pd.Series):
             try:
-                return rp.calculate_entropy_1d(series.to_numpy(float))
+                n_bins=int(np.ceil(np.log2(len(series)))) + 1
+                return rp.calculate_binned_entropy_1d(series.to_numpy(float),n_bins=n_bins)
             except:
                 return np.nan
 
