@@ -2373,3 +2373,782 @@ def abm_generate_names(agent_names):
     names.extend(glob_features)
     
     return names
+
+
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+import pandas as pd
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+
+AFTERNOON_SHIFT_NS = 5_400_000_000_000
+
+
+@dataclass(frozen=True)
+class PanelConfig:
+    height: int = 3400
+    use_webgl: bool = True
+    restore_time: bool = True
+    capital_base: float = 1_000_000.0
+    max_market_points: int = 4000
+    max_agent_curve_points: int = 2200
+    max_trade_marker_points: int = 800
+    max_agents_to_render: int = 8
+    market_bar_rule: str = "1min"
+    trade_heatmap_rule: str = "10min"
+    sync_window_ms: int = 2000
+    lead_window_ms: int = 1000
+    max_feature_columns: int = 14
+    show_rangeslider: bool = False
+    fast_mode: bool = True
+
+
+@dataclass(frozen=True)
+class ABMRunData:
+    market_df: pd.DataFrame
+    market_bar_df: pd.DataFrame
+    agent_trades_df: pd.DataFrame
+    sim_summary_df: pd.DataFrame
+    direct_features_df: pd.DataFrame
+    v2s_features_df: pd.DataFrame
+    global_features_df: pd.DataFrame
+    sync_matrix_df: pd.DataFrame
+    lead_matrix_df: pd.DataFrame
+    lead_asymmetry_df: pd.DataFrame
+    feature_zscore_df: pd.DataFrame
+    feature_dictionary_df: pd.DataFrame
+    agent_names: list[str]
+    agent_params: np.ndarray
+
+
+def restore_afternoon_time(timestamps_ns: np.ndarray) -> np.ndarray:
+    timestamps_ns = np.asarray(timestamps_ns, dtype=np.int64)
+    day_ns = timestamps_ns % 86_400_000_000_000
+    noon_break_start_ns = 41_400_000_000_000  # 11:30:00
+    shifted_session_end_ns = 48_600_000_000_000  # 13:30:00
+    shifted = (day_ns > noon_break_start_ns) & (day_ns <= shifted_session_end_ns)
+    restored = timestamps_ns.copy()
+    restored[shifted] += AFTERNOON_SHIFT_NS
+    return restored
+
+
+def _pair_window_same_direction_rate(
+    ts_a: np.ndarray,
+    dir_a: np.ndarray,
+    ts_b: np.ndarray,
+    dir_b: np.ndarray,
+    window_ns: int,
+    forward_only: bool,
+) -> float:
+    n_a = ts_a.shape[0]
+    n_b = ts_b.shape[0]
+    if n_a == 0 or n_b == 0:
+        return 0.0
+
+    buy_prefix = np.zeros(n_b + 1, dtype=np.int64)
+    sell_prefix = np.zeros(n_b + 1, dtype=np.int64)
+    buy_prefix[1:] = np.cumsum((dir_b == 66).astype(np.int64))
+    sell_prefix[1:] = np.cumsum((dir_b == 83).astype(np.int64))
+
+    left = 0
+    right = 0
+    hit = 0
+    half_window = window_ns // 2
+
+    for i in range(n_a):
+        t = ts_a[i]
+        if forward_only:
+            start = t + 1
+            end = t + window_ns
+        else:
+            start = t - half_window
+            end = t + half_window
+
+        while left < n_b and ts_b[left] < start:
+            left += 1
+        if right < left:
+            right = left
+        while right < n_b and ts_b[right] <= end:
+            right += 1
+
+        if left >= right:
+            continue
+        if dir_a[i] == 66:
+            cnt = buy_prefix[right] - buy_prefix[left]
+        elif dir_a[i] == 83:
+            cnt = sell_prefix[right] - sell_prefix[left]
+        else:
+            cnt = 0
+        if cnt > 0:
+            hit += 1
+
+    return float(hit / n_a)
+
+
+def _compute_pairwise_matrices(
+    agent_names: list[str],
+    agent_ts: list[np.ndarray],
+    agent_dirs: list[np.ndarray],
+    sync_window_ns: int,
+    lead_window_ns: int,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    n = len(agent_names)
+    sync = np.eye(n, dtype=np.float64)
+    lead = np.zeros((n, n), dtype=np.float64)
+    for i in range(n):
+        for j in range(n):
+            if i == j:
+                lead[i, j] = 0.5
+                continue
+            sync_ij = _pair_window_same_direction_rate(
+                agent_ts[i], agent_dirs[i], agent_ts[j], agent_dirs[j], sync_window_ns, False
+            )
+            lead_ij = _pair_window_same_direction_rate(
+                agent_ts[i], agent_dirs[i], agent_ts[j], agent_dirs[j], lead_window_ns, True
+            )
+            sync[i, j] = sync_ij
+            lead[i, j] = lead_ij
+    asym = np.abs(lead - lead.T)
+    sync_df = pd.DataFrame(sync, index=agent_names, columns=agent_names)
+    lead_df = pd.DataFrame(lead, index=agent_names, columns=agent_names)
+    asym_df = pd.DataFrame(asym, index=agent_names, columns=agent_names)
+    return sync_df, lead_df, asym_df
+
+
+def _build_feature_dictionary() -> pd.DataFrame:
+    rows = [
+        ("FDAY_L0_event_cumulative_return_mean", "L0", "事件级累计收益均值", "累计PnL / 累计成交额"),
+        ("FDAY_L0_event_excess_return_mean", "L0", "事件级超额收益均值", "Agent收益 - Buy&Hold收益"),
+        ("FDAY_L0_event_sharpe_ratio_mean", "L0", "事件级夏普均值", "均值收益 / 收益标准差"),
+        ("FDAY_L0_event_sortino_ratio_mean", "L0", "事件级Sortino均值", "均值收益 / 下行波动"),
+        ("FDAY_L0_event_calmar_ratio_mean", "L0", "事件级Calmar均值", "累计PnL / 最大回撤"),
+        ("FDAY_L1_grid_trade_density_mean", "L1", "时间栅格交易密度均值", "每秒成交笔数"),
+        ("FDAY_L1_grid_buy_ratio_mean", "L1", "时间栅格买入占比均值", "买入笔数 / 总笔数"),
+        ("FDAY_L1_grid_signed_volume_sum_mean", "L1", "时间栅格净成交量均值", "买量 - 卖量"),
+        ("FDAY_L8_param_crowding_index_same_direction_mean", "L8", "参数轴同向拥挤度均值", "同向活跃Agent / 全体Agent"),
+        ("FDAY_L8_param_lead_lag_score_mean", "L8", "参数轴先手占比均值", "先于其他Agent交易比例"),
+        ("GLOB_sync_mean", "GLOB", "全局同步率均值", "两两窗口同向命中率均值"),
+        ("GLOB_lead_lag_asym_mean", "GLOB", "全局先后手不对称均值", "|lead_ij - lead_ji| 均值"),
+        ("GLOB_param_return_slope", "GLOB", "参数-收益斜率", "lookback 与收益回归斜率"),
+    ]
+    return pd.DataFrame(rows, columns=["metric", "level", "meaning", "formula"])
+
+
+def _build_feature_zscore_table(
+    direct_features_df: pd.DataFrame,
+    v2s_features_df: pd.DataFrame,
+    max_feature_columns: int,
+) -> pd.DataFrame:
+    direct_cols = [
+        "FDAY_L0_event_cumulative_return_mean",
+        "FDAY_L0_event_excess_return_mean",
+        "FDAY_L0_event_sharpe_ratio_mean",
+        "FDAY_L0_event_sortino_ratio_mean",
+        "FDAY_L0_event_calmar_ratio_mean",
+        "FDAY_L1_grid_trade_density_mean",
+        "FDAY_L1_grid_buy_ratio_mean",
+        "FDAY_L1_grid_signed_volume_sum_mean",
+        "FDAY_L8_param_crowding_index_same_direction_mean",
+        "FDAY_L8_param_lead_lag_score_mean",
+    ]
+    v2s_cols = [
+        "V2S_EV_cumulative_return_mean",
+        "V2S_EV_sharpe_ratio_mean",
+        "V2S_GRID_trade_density_mean",
+        "V2S_GRID_buy_ratio_mean",
+        "V2S_PARAM_crowding_index_same_direction_mean",
+        "V2S_PARAM_lead_lag_score_mean",
+    ]
+    sel_direct = [c for c in direct_cols if c in direct_features_df.columns]
+    sel_v2s = [c for c in v2s_cols if c in v2s_features_df.columns]
+
+    direct_part = direct_features_df[["agent_name", *sel_direct]].set_index("agent_name")
+    v2s_part = v2s_features_df[["agent_name", *sel_v2s]].set_index("agent_name")
+    matrix = pd.concat([direct_part, v2s_part], axis=1).replace([np.inf, -np.inf], np.nan).fillna(0.0)
+
+    std = matrix.std(axis=0, ddof=0)
+    zscore = (matrix - matrix.mean(axis=0)) / std.replace(0.0, np.nan)
+    zscore = zscore.fillna(0.0)
+    top_cols = zscore.abs().mean(axis=0).sort_values(ascending=False).head(max_feature_columns).index.tolist()
+    return zscore[top_cols]
+
+
+def build_abm_run_data(
+    full_process: dict[str, Any],
+    trade_df: pd.DataFrame,
+    agent_params: list[float] | np.ndarray | None = None,
+    config: PanelConfig | None = None,
+) -> ABMRunData:
+    cfg = PanelConfig() if config is None else config
+
+    market_ts = trade_df["exchtime"].astype(np.int64).to_numpy()
+    display_ts = restore_afternoon_time(market_ts) if cfg.restore_time else market_ts
+    market_dt = pd.to_datetime(display_ts, unit="ns")
+    market_price = trade_df["price"].astype(np.float64).to_numpy()
+    market_volume = trade_df["volume"].astype(np.float64).to_numpy()
+    market_flag = trade_df["flag"].astype(np.int32).to_numpy()
+
+    market_df = pd.DataFrame(
+        {
+            "timestamp_ns": display_ts,
+            "timestamp": market_dt,
+            "price": market_price,
+            "volume": market_volume,
+            "flag": market_flag,
+        }
+    )
+    market_df["buy_volume"] = np.where(market_df["flag"] == 66, market_df["volume"], 0.0)
+    market_df["sell_volume"] = np.where(market_df["flag"] == 83, market_df["volume"], 0.0)
+    market_df["bar_time"] = market_df["timestamp"].dt.floor(cfg.market_bar_rule)
+
+    market_bar_df = (
+        market_df.groupby("bar_time", sort=True)
+        .agg(
+            open=("price", "first"),
+            high=("price", "max"),
+            low=("price", "min"),
+            close=("price", "last"),
+            volume=("volume", "sum"),
+            buy_volume=("buy_volume", "sum"),
+            sell_volume=("sell_volume", "sum"),
+        )
+        .reset_index()
+    )
+
+    sim_results = full_process["sim_results"]
+    agent_names = [str(sim["name"]) for sim in sim_results]
+    n_agents = len(agent_names)
+    params = np.asarray(np.arange(1, n_agents + 1) if agent_params is None else agent_params, dtype=np.float64)
+    assert params.shape[0] == n_agents
+
+    trade_frames: list[pd.DataFrame] = []
+    agent_ts_list: list[np.ndarray] = []
+    agent_dir_list: list[np.ndarray] = []
+    for agent_idx, sim in enumerate(sim_results):
+        market_indices = np.asarray(sim["market_indices"], dtype=np.int64)
+        directions = np.asarray(sim["directions"], dtype=np.int32)
+        volumes = np.asarray(sim["volumes"], dtype=np.float64)
+        prices = np.asarray(sim["prices"], dtype=np.float64)
+
+        ts_ns = display_ts[market_indices]
+        ts = pd.to_datetime(ts_ns, unit="ns")
+        signed_volume = np.where(directions == 66, volumes, -volumes)
+        cash_flow = -signed_volume * prices
+        position = np.cumsum(signed_volume)
+        cash = np.cumsum(cash_flow)
+        position_value = position * prices
+        equity = cash + position_value
+        nav = 1.0 + equity / cfg.capital_base
+        peak = np.maximum.accumulate(nav)
+        drawdown = nav / peak - 1.0
+        inter_trade_ns = np.zeros_like(volumes)
+        if volumes.shape[0] > 1:
+            inter_trade_ns[1:] = np.diff(ts_ns).astype(np.float64)
+
+        frame = pd.DataFrame(
+            {
+                "agent_idx": agent_idx,
+                "agent_name": agent_names[agent_idx],
+                "agent_param": params[agent_idx],
+                "market_index": market_indices,
+                "timestamp_ns": ts_ns,
+                "timestamp": ts,
+                "direction": directions,
+                "volume": volumes,
+                "price": prices,
+                "signed_volume": signed_volume,
+                "cash_flow": cash_flow,
+                "position": position,
+                "cash": cash,
+                "position_value": position_value,
+                "equity": equity,
+                "nav": nav,
+                "drawdown": drawdown,
+                "inter_trade_ns": inter_trade_ns,
+            }
+        )
+        trade_frames.append(frame)
+        agent_ts_list.append(ts_ns.astype(np.int64))
+        agent_dir_list.append(directions.astype(np.int32))
+
+    agent_trades_df = pd.concat(trade_frames, axis=0, ignore_index=True)
+    agent_trades_df["time_bin"] = agent_trades_df["timestamp"].dt.floor(cfg.trade_heatmap_rule)
+
+    direct_features_df = full_process["per_agent_direct_scalar_df"].copy().reset_index(drop=True)
+    v2s_features_df = full_process["per_agent_vector_to_scalar_df"].copy().reset_index(drop=True)
+    global_features_df = full_process["global_interaction_df"].copy().reset_index(drop=True)
+    sim_summary_df = full_process["sim_summary_df"].copy().reset_index(drop=True)
+
+    return_tail = agent_trades_df.groupby("agent_name", sort=False).tail(1)[["agent_name", "nav"]]
+    max_dd = agent_trades_df.groupby("agent_name", sort=False)["drawdown"].min().abs().rename("max_drawdown")
+    sim_summary_df = sim_summary_df.merge(return_tail, how="left", on="agent_name")
+    sim_summary_df = sim_summary_df.merge(max_dd.reset_index(), how="left", on="agent_name")
+    sim_summary_df["total_return"] = sim_summary_df["nav"] - 1.0
+
+    sync_df, lead_df, lead_asym_df = _compute_pairwise_matrices(
+        agent_names=agent_names,
+        agent_ts=agent_ts_list,
+        agent_dirs=agent_dir_list,
+        sync_window_ns=cfg.sync_window_ms * 1_000_000,
+        lead_window_ns=cfg.lead_window_ms * 1_000_000,
+    )
+
+    feature_zscore_df = _build_feature_zscore_table(
+        direct_features_df=direct_features_df,
+        v2s_features_df=v2s_features_df,
+        max_feature_columns=cfg.max_feature_columns,
+    )
+
+    return ABMRunData(
+        market_df=market_df,
+        market_bar_df=market_bar_df,
+        agent_trades_df=agent_trades_df,
+        sim_summary_df=sim_summary_df,
+        direct_features_df=direct_features_df,
+        v2s_features_df=v2s_features_df,
+        global_features_df=global_features_df,
+        sync_matrix_df=sync_df,
+        lead_matrix_df=lead_df,
+        lead_asymmetry_df=lead_asym_df,
+        feature_zscore_df=feature_zscore_df,
+        feature_dictionary_df=_build_feature_dictionary(),
+        agent_names=agent_names,
+        agent_params=params,
+    )
+
+
+def _agent_color_map(agent_names: list[str]) -> dict[str, str]:
+    palette = [
+        "#1B4965",
+        "#E76F51",
+        "#2A9D8F",
+        "#F4A261",
+        "#264653",
+        "#9C6644",
+        "#6A4C93",
+        "#118AB2",
+        "#EF476F",
+        "#073B4C",
+    ]
+    return {name: palette[i % len(palette)] for i, name in enumerate(agent_names)}
+
+
+def _sample_market(market_df: pd.DataFrame, max_points: int) -> pd.DataFrame:
+    n = market_df.shape[0]
+    step = max(1, n // max_points)
+    return market_df.iloc[::step, :].reset_index(drop=True)
+
+
+def _sample_frame(frame: pd.DataFrame, max_points: int) -> pd.DataFrame:
+    n = frame.shape[0]
+    step = max(1, n // max_points)
+    return frame.iloc[::step, :].reset_index(drop=True)
+
+
+def build_abm_dashboard(run_data: ABMRunData, config: PanelConfig | None = None) -> go.Figure:
+    cfg = PanelConfig() if config is None else config
+    scatter_cls = go.Scattergl if cfg.use_webgl else go.Scatter
+    colors = _agent_color_map(run_data.agent_names)
+    summary = run_data.sim_summary_df.copy()
+    render_agents = (
+        summary.sort_values("n_trades", ascending=False)["agent_name"]
+        .head(cfg.max_agents_to_render)
+        .tolist()
+    )
+    render_set = set(render_agents)
+    hidden_agent_count = len(run_data.agent_names) - len(render_agents)
+
+    fig = make_subplots(
+        rows=7,
+        cols=2,
+        vertical_spacing=0.035,
+        horizontal_spacing=0.07,
+        row_heights=[0.16, 0.10, 0.13, 0.12, 0.12, 0.16, 0.21],
+        subplot_titles=[
+            "逐笔价格 + Agent 交易点",
+            "1分钟K线",
+            "市场成交量（主动买/卖）",
+            "Agent 交易量热力图",
+            "Agent 净值曲线",
+            "Agent 持仓曲线",
+            "Agent 现金曲线",
+            "Agent 回撤曲线",
+            "收益-风险散点",
+            "参数敏感性（lookback）",
+            "同步率矩阵",
+            "先后手不对称矩阵",
+            "Agent 买卖量对比",
+            "关键特征 Z-Score 热力图",
+        ],
+        specs=[
+            [{"type": "scatter"}, {"type": "candlestick"}],
+            [{"type": "bar"}, {"type": "heatmap"}],
+            [{"type": "scatter"}, {"type": "scatter"}],
+            [{"type": "scatter"}, {"type": "scatter"}],
+            [{"type": "scatter"}, {"type": "scatter"}],
+            [{"type": "heatmap"}, {"type": "heatmap"}],
+            [{"type": "bar"}, {"type": "heatmap"}],
+        ],
+    )
+
+    market_sample = _sample_market(run_data.market_df, cfg.max_market_points)
+    fig.add_trace(
+        scatter_cls(
+            x=market_sample["timestamp"],
+            y=market_sample["price"],
+            mode="lines",
+            name="逐笔价格",
+            line=dict(color="#1B263B", width=1.4),
+            hovertemplate="时间=%{x|%H:%M:%S.%L}<br>价格=%{y:.4f}<extra></extra>",
+        ),
+        row=1,
+        col=1,
+    )
+
+    for agent in render_agents:
+        sub = run_data.agent_trades_df[run_data.agent_trades_df["agent_name"] == agent]
+        buy = _sample_frame(sub[sub["direction"] == 66], cfg.max_trade_marker_points)
+        sell = _sample_frame(sub[sub["direction"] == 83], cfg.max_trade_marker_points)
+        fig.add_trace(
+            go.Scattergl(
+                x=buy["timestamp"],
+                y=buy["price"],
+                mode="markers",
+                marker=dict(symbol="triangle-up", color=colors[agent], size=7, opacity=0.75),
+                name=f"{agent} 买",
+                showlegend=False,
+                hovertemplate=f"{agent} 买入<br>时间=%{{x|%H:%M:%S.%L}}<br>价格=%{{y:.4f}}<extra></extra>",
+            ),
+            row=1,
+            col=1,
+        )
+        fig.add_trace(
+            go.Scattergl(
+                x=sell["timestamp"],
+                y=sell["price"],
+                mode="markers",
+                marker=dict(symbol="triangle-down", color=colors[agent], size=7, opacity=0.75),
+                name=f"{agent} 卖",
+                showlegend=False,
+                hovertemplate=f"{agent} 卖出<br>时间=%{{x|%H:%M:%S.%L}}<br>价格=%{{y:.4f}}<extra></extra>",
+            ),
+            row=1,
+            col=1,
+        )
+
+    bar_df = run_data.market_bar_df
+    fig.add_trace(
+        go.Candlestick(
+            x=bar_df["bar_time"],
+            open=bar_df["open"],
+            high=bar_df["high"],
+            low=bar_df["low"],
+            close=bar_df["close"],
+            increasing_line_color="#2A9D8F",
+            decreasing_line_color="#E76F51",
+            showlegend=False,
+            name="1分钟K线",
+        ),
+        row=1,
+        col=2,
+    )
+
+    fig.add_trace(
+        go.Bar(
+            x=bar_df["bar_time"],
+            y=bar_df["buy_volume"],
+            name="主动买量",
+            marker=dict(color="rgba(42, 157, 143, 0.75)"),
+            hovertemplate="时间=%{x|%H:%M}<br>主动买量=%{y:,.0f}<extra></extra>",
+        ),
+        row=2,
+        col=1,
+    )
+    fig.add_trace(
+        go.Bar(
+            x=bar_df["bar_time"],
+            y=-bar_df["sell_volume"],
+            name="主动卖量",
+            marker=dict(color="rgba(231, 111, 81, 0.75)"),
+            hovertemplate="时间=%{x|%H:%M}<br>主动卖量=%{y:,.0f}<extra></extra>",
+        ),
+        row=2,
+        col=1,
+    )
+
+    heat = (
+        run_data.agent_trades_df.pivot_table(
+            index="agent_name",
+            columns="time_bin",
+            values="volume",
+            aggfunc="sum",
+            fill_value=0.0,
+        )
+        .reindex(render_agents)
+        .fillna(0.0)
+    )
+    fig.add_trace(
+        go.Heatmap(
+            z=heat.values,
+            x=heat.columns,
+            y=heat.index,
+            colorscale="YlOrBr",
+            colorbar=dict(title="成交量", len=0.12, y=0.80, x=1.02),
+            hovertemplate="Agent=%{y}<br>时间=%{x|%H:%M}<br>成交量=%{z:,.0f}<extra></extra>",
+        ),
+        row=2,
+        col=2,
+    )
+
+    benchmark = bar_df["close"] / bar_df["close"].iloc[0]
+    fig.add_trace(
+        scatter_cls(
+            x=bar_df["bar_time"],
+            y=benchmark,
+            mode="lines",
+            name="标的净值",
+            line=dict(color="#111111", width=2, dash="dash"),
+            hovertemplate="标的净值=%{y:.4f}<extra></extra>",
+        ),
+        row=3,
+        col=1,
+    )
+
+    for agent in render_agents:
+        sub = run_data.agent_trades_df[run_data.agent_trades_df["agent_name"] == agent]
+        sampled = _sample_frame(sub, cfg.max_agent_curve_points)
+        fig.add_trace(
+            scatter_cls(
+                x=sampled["timestamp"],
+                y=sampled["nav"],
+                mode="lines",
+                name=agent,
+                line=dict(width=1.7, color=colors[agent]),
+                hovertemplate=f"{agent}<br>净值=%{{y:.4f}}<extra></extra>",
+            ),
+            row=3,
+            col=1,
+        )
+        fig.add_trace(
+            scatter_cls(
+                x=sampled["timestamp"],
+                y=sampled["position"],
+                mode="lines",
+                name=f"{agent} 持仓",
+                showlegend=False,
+                line=dict(width=1.4, color=colors[agent]),
+                hovertemplate=f"{agent}<br>持仓=%{{y:,.0f}}<extra></extra>",
+            ),
+            row=3,
+            col=2,
+        )
+        fig.add_trace(
+            scatter_cls(
+                x=sampled["timestamp"],
+                y=sampled["cash"],
+                mode="lines",
+                name=f"{agent} 现金",
+                showlegend=False,
+                line=dict(width=1.4, color=colors[agent]),
+                hovertemplate=f"{agent}<br>现金=%{{y:,.0f}}<extra></extra>",
+            ),
+            row=4,
+            col=1,
+        )
+        fig.add_trace(
+            scatter_cls(
+                x=sampled["timestamp"],
+                y=sampled["drawdown"],
+                mode="lines",
+                name=f"{agent} 回撤",
+                showlegend=False,
+                line=dict(width=1.4, color=colors[agent]),
+                hovertemplate=f"{agent}<br>回撤=%{{y:.2%}}<extra></extra>",
+            ),
+            row=4,
+            col=2,
+        )
+
+    summary = summary[summary["agent_name"].isin(render_set)].reset_index(drop=True)
+    param_map = dict(zip(run_data.agent_names, run_data.agent_params.tolist()))
+    summary["agent_param"] = summary["agent_name"].map(param_map).astype(np.float64)
+    fig.add_trace(
+        go.Scatter(
+            x=summary["total_return"],
+            y=summary["max_drawdown"],
+            mode="markers+text",
+            text=summary["agent_name"],
+            textposition="top center",
+            marker=dict(
+                size=np.clip(summary["n_trades"] / 8.0, 10, 32),
+                color=[colors[name] for name in summary["agent_name"]],
+                opacity=0.85,
+                line=dict(width=1, color="#111111"),
+            ),
+            name="收益风险",
+            showlegend=False,
+            hovertemplate="Agent=%{text}<br>总收益=%{x:.2%}<br>最大回撤=%{y:.2%}<extra></extra>",
+        ),
+        row=5,
+        col=1,
+    )
+
+    fig.add_trace(
+        go.Scatter(
+            x=summary["agent_param"],
+            y=summary["total_return"],
+            mode="markers+text",
+            text=summary["agent_name"],
+            textposition="top center",
+            marker=dict(
+                size=np.clip(summary["n_trades"] / 8.0, 10, 28),
+                color=[colors[name] for name in summary["agent_name"]],
+                line=dict(width=1, color="#111111"),
+            ),
+            name="参数敏感性",
+            showlegend=False,
+            hovertemplate="Agent=%{text}<br>参数=%{x}<br>总收益=%{y:.2%}<extra></extra>",
+        ),
+        row=5,
+        col=2,
+    )
+    if summary.shape[0] >= 2:
+        x_vals = summary["agent_param"].to_numpy(dtype=np.float64)
+        x_min = float(np.min(x_vals))
+        x_max = float(np.max(x_vals))
+        x_line = np.linspace(x_min, x_max, 200)
+        beta = np.polyfit(np.log(x_vals), summary["total_return"].to_numpy(), 1)
+        fig.add_trace(
+            go.Scatter(
+                x=x_line,
+                y=np.poly1d(beta)(np.log(x_line)),
+                mode="lines",
+                line=dict(color="#374151", width=1.4, dash="dash"),
+                showlegend=False,
+                hoverinfo="skip",
+            ),
+            row=5,
+            col=2,
+        )
+
+    fig.add_trace(
+        go.Heatmap(
+            z=run_data.sync_matrix_df.loc[render_agents, render_agents].values,
+            x=render_agents,
+            y=render_agents,
+            colorscale="Viridis",
+            zmin=0.0,
+            zmax=1.0,
+            colorbar=dict(title="同步率", len=0.12, y=0.36, x=1.02),
+            hovertemplate="%{y} vs %{x}<br>同步率=%{z:.3f}<extra></extra>",
+        ),
+        row=6,
+        col=1,
+    )
+    fig.add_trace(
+        go.Heatmap(
+            z=run_data.lead_asymmetry_df.loc[render_agents, render_agents].values,
+            x=render_agents,
+            y=render_agents,
+            colorscale="RdYlBu_r",
+            zmin=0.0,
+            zmax=1.0,
+            colorbar=dict(title="不对称", len=0.12, y=0.36, x=1.18),
+            hovertemplate="%{y} vs %{x}<br>不对称=%{z:.3f}<extra></extra>",
+        ),
+        row=6,
+        col=2,
+    )
+
+    fig.add_trace(
+        go.Bar(
+            x=summary["agent_name"],
+            y=summary["total_buy_volume"],
+            name="总买量",
+            marker=dict(color="rgba(42, 157, 143, 0.85)"),
+            hovertemplate="Agent=%{x}<br>总买量=%{y:,.0f}<extra></extra>",
+        ),
+        row=7,
+        col=1,
+    )
+    fig.add_trace(
+        go.Bar(
+            x=summary["agent_name"],
+            y=-summary["total_sell_volume"],
+            name="总卖量",
+            marker=dict(color="rgba(231, 111, 81, 0.85)"),
+            hovertemplate="Agent=%{x}<br>总卖量=%{y:,.0f}<extra></extra>",
+        ),
+        row=7,
+        col=1,
+    )
+
+    feature_map = run_data.feature_zscore_df.loc[render_agents].copy()
+    feature_map.columns = (
+        feature_map.columns.str.replace("FDAY_L0_event_", "L0_", regex=False)
+        .str.replace("FDAY_L1_grid_", "L1_", regex=False)
+        .str.replace("FDAY_L8_param_", "L8_", regex=False)
+        .str.replace("V2S_EV_", "VE_", regex=False)
+        .str.replace("V2S_GRID_", "VG_", regex=False)
+        .str.replace("V2S_PARAM_", "VP_", regex=False)
+    )
+    fig.add_trace(
+        go.Heatmap(
+            z=feature_map.values,
+            x=feature_map.columns,
+            y=feature_map.index,
+            colorscale="RdBu",
+            zmid=0.0,
+            colorbar=dict(title="Z", len=0.16, y=0.11, x=1.02),
+            hovertemplate="Agent=%{y}<br>特征=%{x}<br>Z=%{z:.3f}<extra></extra>",
+        ),
+        row=7,
+        col=2,
+    )
+
+    glob = run_data.global_features_df.iloc[0]
+    subtitle = (
+        f"sync_mean={glob['GLOB_sync_mean']:.3f} | "
+        f"lead_asym={glob['GLOB_lead_lag_asym_mean']:.3f} | "
+        f"param_slope={glob['GLOB_param_return_slope']:.6f}"
+    )
+    if hidden_agent_count > 0:
+        subtitle = subtitle + f" | hidden_agents={hidden_agent_count}"
+    fig.update_layout(
+        height=cfg.height,
+        template="plotly_white",
+        paper_bgcolor="#EEF2F7",
+        plot_bgcolor="#FFFFFF",
+        font=dict(family="Source Han Sans CN, Noto Sans CJK SC, sans-serif", size=11, color="#0F172A"),
+        hovermode="closest" if cfg.fast_mode else "x unified",
+        legend=dict(orientation="h", yanchor="bottom", y=1.005, xanchor="left", x=0.0),
+        title=dict(text=f"ABM 多Agent交易全景面板<br><sup>{subtitle}</sup>", x=0.5),
+        barmode="relative",
+    )
+
+    fig.update_xaxes(showgrid=True, gridcolor="#E2E8F0")
+    fig.update_yaxes(showgrid=True, gridcolor="#E2E8F0")
+    fig.update_xaxes(rangeslider_visible=False)
+    fig.update_xaxes(rangeslider_visible=cfg.show_rangeslider, row=1, col=1)
+    fig.update_yaxes(title_text="价格", row=1, col=1)
+    fig.update_yaxes(title_text="价格", row=1, col=2)
+    fig.update_yaxes(title_text="买卖量", row=2, col=1)
+    fig.update_yaxes(title_text="净值", row=3, col=1)
+    fig.update_yaxes(title_text="持仓", row=3, col=2)
+    fig.update_yaxes(title_text="现金", row=4, col=1)
+    fig.update_yaxes(title_text="回撤", tickformat=".0%", row=4, col=2)
+    fig.update_yaxes(title_text="最大回撤", tickformat=".0%", row=5, col=1)
+    fig.update_xaxes(title_text="总收益", tickformat=".0%", row=5, col=1)
+    fig.update_xaxes(title_text="lookback(ms)", type="log", row=5, col=2)
+    fig.update_yaxes(title_text="总收益", tickformat=".0%", row=5, col=2)
+
+    return fig
+
+
+def export_abm_dashboard_html(fig: go.Figure, output_path: str) -> None:
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+    fig.write_html(output_path, include_plotlyjs="cdn")
