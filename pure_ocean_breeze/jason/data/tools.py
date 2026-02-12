@@ -2204,7 +2204,10 @@ def abm_step_two(code,date,func,MOMENTUM_AGENT_SPEC,RUST_FEATURE_CONFIG,VECTOR_T
 
         sim_results = func(market, MOMENTUM_AGENT_SPEC)
         all_agent_market_indices, all_agent_directions, all_agent_volumes = _extract_all_agent_arrays(sim_results)
-        all_agent_params: List[float] = [float(v) for v in MOMENTUM_AGENT_SPEC["lookback_ms_list"]]
+        try:
+            all_agent_params: List[float] = [float(v) for v in MOMENTUM_AGENT_SPEC["lookback_ms_list"]]
+        except Exception:
+            all_agent_params=None
 
         per_agent_v2s_rows: List[pd.DataFrame] = []
         per_agent_direct_rows: List[pd.DataFrame] = []
@@ -2233,7 +2236,7 @@ def abm_step_two(code,date,func,MOMENTUM_AGENT_SPEC,RUST_FEATURE_CONFIG,VECTOR_T
         global_interaction_df = _calc_global_interaction_features(
             sim_results=sim_results,
             market_timestamps=market["market_timestamps"],
-            lookback_ms_list=MOMENTUM_AGENT_SPEC["lookback_ms_list"],
+            lookback_ms_list=MOMENTUM_AGENT_SPEC.get("lookback_ms_list",list(range(len(MOMENTUM_AGENT_SPEC["agent_names"])))),
             per_agent_direct_scalar_df=per_agent_direct_scalar_df,
             sync_window_ms=GLOBAL_FEATURE_CONFIG["sync_window_ms"],
             lead_window_ms=GLOBAL_FEATURE_CONFIG["lead_window_ms"],
@@ -2243,7 +2246,7 @@ def abm_step_two(code,date,func,MOMENTUM_AGENT_SPEC,RUST_FEATURE_CONFIG,VECTOR_T
             {
                 "agent_idx": np.arange(len(sim_results), dtype=np.int64),
                 "agent_name": MOMENTUM_AGENT_SPEC["agent_names"],
-                "lookback_ms": MOMENTUM_AGENT_SPEC["lookback_ms_list"],
+                "lookback_ms": MOMENTUM_AGENT_SPEC.get("lookback_ms_list",list(range(len(MOMENTUM_AGENT_SPEC["agent_names"])))),
                 "n_trades": [int(r["n_trades"]) for r in sim_results],
                 "total_buy_volume": [float(r["total_buy_volume"]) for r in sim_results],
                 "total_sell_volume": [float(r["total_sell_volume"]) for r in sim_results],
