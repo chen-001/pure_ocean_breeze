@@ -1084,7 +1084,7 @@ class pure_moonnight(object):
         self.shen = pure_moon(freq=freq)
         self.shen.set_basic_data()
         self.shen.set_factor_df_date_as_index(factors)
-        if self.shen.factor_cover>0.9 and self.shen.factor_nunique>1000:
+        if self.shen.factor_cover>0.8 and self.shen.factor_nunique>1000:
             self.shen.prerpare()
             self.shen.run(
                 groups_num=groups_num,
@@ -1094,6 +1094,13 @@ class pure_moonnight(object):
                 alt_name=alt_name,
                 show_alt_chart=show_alt_chart,
             )
+        else:
+            reasons = []
+            if self.shen.factor_cover <= 0.8:
+                reasons.append(f"因子覆盖率过低: {self.shen.factor_cover:.2%} (要求>80%)")
+            if self.shen.factor_nunique <= 1000:
+                reasons.append(f"因子唯一值过少: {self.shen.factor_nunique} (要求>1000)")
+            raise ValueError(f"因子质量不满足要求: {'; '.join(reasons)}")
 
 
 
