@@ -1813,6 +1813,104 @@ def get_features_factors(
     return res, names
 
 
+def get_features_names(
+    col_names: list,
+    with_abs=False,
+    with_max_min=False,
+    with_corr=True,
+    with_percentiles=True,
+    with_lag_autocorr=1,
+    with_threshold_counts=True,
+    with_period_compare=True,
+    with_lyapunov_exponent=True,
+    with_complexity=True,
+    append_for_corr_cols: list = None,
+):
+    """
+    Generates the same feature names as get_features_factors, without computing any values.
+
+    Parameters:
+        col_names (list): List of column name strings (equivalent to df.columns.tolist()).
+        append_for_corr_cols (list, optional): Extra column names appended for correlation
+            (equivalent to append_for_corr.columns.tolist()). Default is None.
+        Other parameters: Same as get_features_factors.
+
+    Returns:
+        names (list): List of feature names in the same order as get_features_factors.
+    """
+    names = []
+
+    def append_names(suffixes):
+        for suffix in suffixes:
+            names.extend([f"{col}_{suffix}" for col in col_names])
+
+    # Level 1: Basic statistics
+    append_names(['mean', 'median', 'std', 'skew', 'kurt'])
+
+    if with_max_min:
+        append_names(['max', 'min', 'range'])
+
+    # Level 2: Percentiles
+    if with_percentiles:
+        append_names(['p5', 'p25', 'p75', 'p95', 'iqr', 'cv'])
+
+    # Level 3: Autocorrelations
+    n_lags = min(max(1, with_lag_autocorr), 3)
+    for lag_num in range(1, n_lags + 1):
+        append_names([f'autocorr{lag_num}', f'autocorr{lag_num}_abs'])
+
+    # Level 3: Trend
+    names.extend([f"{col}_trend" for col in col_names])
+
+    # Level 3: Period comparison
+    if with_period_compare:
+        append_names(['period_diff', 'period_ratio'])
+
+    # Level 4: Threshold means
+    if with_threshold_counts:
+        append_names(['mean_above_p90', 'mean_below_p10'])
+
+    # Level 5: Correlations
+    if with_corr:
+        if append_for_corr_cols is not None:
+            all_corr_cols = list(col_names) + list(append_for_corr_cols)
+        else:
+            all_corr_cols = list(col_names)
+        n = len(all_corr_cols)
+        corr_names = []
+        for i in range(n):
+            for j in range(i + 1, n):
+                corr_names.append(f"{all_corr_cols[i]}_corr_{all_corr_cols[j]}")
+        names.extend(corr_names)
+
+        if with_abs:
+            names.extend([f"{name}_abs" for name in corr_names])
+
+    # Absolute values
+    if with_abs:
+        append_names(['mean_abs', 'median_abs', 'std_abs', 'skew_abs', 'kurt_abs'])
+
+        if with_max_min:
+            append_names(['max_abs', 'min_abs'])
+
+        if with_percentiles:
+            append_names(['p5_abs', 'p25_abs', 'p75_abs', 'p95_abs', 'iqr_abs', 'cv_abs'])
+
+        names.extend([f"{col}_trend_abs" for col in col_names])
+
+        if with_period_compare:
+            append_names(['period_diff_abs', 'period_ratio_abs'])
+
+    # Level 6: Complexity metrics
+    if with_lyapunov_exponent:
+        append_names(['lyapunov'])
+
+    if with_complexity:
+        append_names(['lz_complexity', 'entropy_1d', 'max_range_product'])
+
+    return names
+
+
 def common_columns_index(df1:pd.DataFrame, df2:pd.DataFrame):
     common_cols = df1.columns.intersection(df2.columns)
     common_index = df1.index.intersection(df2.index)
