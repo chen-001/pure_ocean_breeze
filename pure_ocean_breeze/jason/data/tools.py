@@ -1545,6 +1545,142 @@ def adjust_afternoon(df: pd.DataFrame,only_inday:int=1) -> pd.DataFrame:
         df=pd.concat([df1,df2]).reset_index()
     return df
 
+def get_features_factors_single(
+    df: pd.DataFrame,
+    with_abs=False,
+    with_max_min=False,
+    with_percentiles=True,
+    with_lag_autocorr=1,
+    with_threshold_counts=True,
+    with_period_compare=True,
+    with_lyapunov_exponent=True,
+    with_complexity=True,
+):
+    """
+    与 get_features_factors 相同，但只保留每列独立计算的指标（去掉列间相关性）。
+    每个指标保留为 Series（index 为 df 的列名），不展开为 list。
+
+    Returns:
+        res (list[pd.Series]): 每个元素是一个 Series，index 为 df 的列名。
+        names (list[str]): 对应的指标名，如 'mean', 'std' 等。
+    """
+    res = []
+    names = []
+
+    # Level 1: Basic statistics
+    means = df.mean()
+    medians = df.median()
+    stds = df.std()
+    skews = df.skew()
+    kurts = df.kurt()
+
+    res.extend([means, medians, stds, skews, kurts])
+    names.extend(['mean', 'median', 'std', 'skew', 'kurt'])
+
+    if with_max_min:
+        maxs = df.max()
+        mins = df.min()
+        ranges = maxs - mins
+        res.extend([maxs, mins, ranges])
+        names.extend(['max', 'min', 'range'])
+
+    # Level 2: Distribution features
+    if with_percentiles:
+        p5s = df.quantile(0.05)
+        p25s = df.quantile(0.25)
+        p75s = df.quantile(0.75)
+        p95s = df.quantile(0.95)
+        iqrs = p75s - p25s
+        cvs = stds / (means.abs() + 1e-8)
+        res.extend([p5s, p25s, p75s, p95s, iqrs, cvs])
+        names.extend(['p5', 'p25', 'p75', 'p95', 'iqr', 'cv'])
+
+    # Level 3: Temporal dynamics
+    n_lags = min(max(1, with_lag_autocorr), 3)
+    for lag in range(1, n_lags + 1):
+        ac = rp.corrwith(df.reset_index(drop=True), df.reset_index(drop=True).shift(lag), 0, use_single_thread=True)
+        res.append(ac)
+        names.append(f'autocorr{lag}')
+        res.append(ac.abs())
+        names.append(f'autocorr{lag}_abs')
+
+    trends = rp.trend_2d(df.to_numpy(float), 0)
+    trends_series = pd.Series(trends, index=df.columns)
+    res.append(trends_series)
+    names.append('trend')
+
+    if with_period_compare:
+        n_rows = len(df)
+        split_point = n_rows // 3
+        first_period_means = df.iloc[:split_point].mean()
+        last_period_means = df.iloc[-split_point:].mean()
+        period_diffs = last_period_means - first_period_means
+        period_ratios = last_period_means / (first_period_means.abs() + 1e-8)
+        res.extend([period_diffs, period_ratios])
+        names.extend(['period_diff', 'period_ratio'])
+
+    # Level 4: Threshold analysis
+    if with_threshold_counts:
+        p90s = df.quantile(0.90)
+        p10s = df.quantile(0.10)
+        mean_above_p90 = df[df > p90s].mean().fillna(0)
+        mean_below_p10 = df[df < p10s].mean().fillna(0)
+        res.extend([mean_above_p90, mean_below_p10])
+        names.extend(['mean_above_p90', 'mean_below_p10'])
+
+    # Absolute values
+    if with_abs:
+        res.extend([means.abs(), medians.abs(), stds.abs(), skews.abs(), kurts.abs()])
+        names.extend(['mean_abs', 'median_abs', 'std_abs', 'skew_abs', 'kurt_abs'])
+        if with_max_min:
+            res.extend([maxs.abs(), mins.abs()])
+            names.extend(['max_abs', 'min_abs'])
+        if with_percentiles:
+            res.extend([p5s.abs(), p25s.abs(), p75s.abs(), p95s.abs(), iqrs.abs(), cvs.abs()])
+            names.extend(['p5_abs', 'p25_abs', 'p75_abs', 'p95_abs', 'iqr_abs', 'cv_abs'])
+        res.append(trends_series.abs())
+        names.append('trend_abs')
+        if with_period_compare:
+            res.extend([period_diffs.abs(), period_ratios.abs()])
+            names.extend(['period_diff_abs', 'period_ratio_abs'])
+
+    # Level 6: Complexity metrics
+    if with_lyapunov_exponent:
+        def calc_lyapunov(s: pd.Series):
+            try:
+                return rp.calculate_lyapunov_exponent(s.to_numpy(float))['lyapunov_exponent']
+            except:
+                return np.nan
+        res.append(df.apply(calc_lyapunov))
+        names.append('lyapunov')
+
+    if with_complexity:
+        def calc_lz_complexity(s: pd.Series):
+            try:
+                return rp.lz_complexity(s.to_numpy(float), [0.33, 0.66])
+            except:
+                return np.nan
+
+        def calc_entropy(s: pd.Series):
+            try:
+                n_bins = int(np.ceil(np.log2(len(s)))) + 1
+                return rp.calculate_binned_entropy_1d(s.to_numpy(float), n_bins=n_bins)
+            except:
+                return np.nan
+
+        def calc_max_range_product(s: pd.Series):
+            try:
+                x, y, _ = rp.find_max_range_product(s.to_numpy(float))
+                return abs(x - y) / s.shape[0]
+            except:
+                return np.nan
+
+        res.extend([df.apply(calc_lz_complexity), df.apply(calc_entropy), df.apply(calc_max_range_product)])
+        names.extend(['lz_complexity', 'entropy_1d', 'max_range_product'])
+
+    return res, names
+
+
 def get_features_factors(
     df: pd.DataFrame,
     with_abs=False,
@@ -1950,7 +2086,7 @@ def read_trade(symbol:str, date:int,with_retreat:int=0)->pd.DataFrame:
     df.exchtime=pd.to_timedelta(df.exchtime/1e6,unit='s')+pd.Timestamp('1970-01-01 08:00:00')
     return df
 
-def read_market(symbol:str, date:int)->pd.DataFrame:
+def read_market(symbol:str, date:int,with_high_low_limited=0)->pd.DataFrame:
     file_name = "%s_%d_%s.csv" % (symbol, date, "market_data")
     file_path = os.path.join("/ssd_data/stock", str(date), "market_data", file_name)
     df= pd.read_csv(
@@ -1961,6 +2097,8 @@ def read_market(symbol:str, date:int)->pd.DataFrame:
         low_memory=False,
     )
     df.exchtime=pd.to_timedelta(df.exchtime/1e6,unit='s')+pd.Timestamp('1970-01-01 08:00:00')
+    if not with_high_low_limited:
+        df=df[(df.ask_prc1!=0) & (df.bid_prc1!=0)]
     return df
 
 def read_market_pair(symbol:str, date:int)->tuple[pd.DataFrame,pd.DataFrame]:
