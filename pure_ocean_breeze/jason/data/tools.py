@@ -1531,19 +1531,7 @@ def de_cross_special_for_barra_weekly1(
         return yresid
     
 def adjust_afternoon(df: pd.DataFrame,only_inday:int=1) -> pd.DataFrame:
-    start='09:30:00' if only_inday else '09:00:00'
-    end='14:57:00' if only_inday else '15:00:00'
-    if df.index.name=='exchtime':
-        df1=df.between_time(start,'11:30:00')
-        df2=df.between_time('13:00:00',end)
-        df2.index=df2.index-pd.Timedelta(minutes=90)
-        df=pd.concat([df1,df2])
-    elif 'exchtime' in df.columns:
-        df1=df.set_index('exchtime').between_time(start,'11:30:00')
-        df2=df.set_index('exchtime').between_time('13:00:00',end)
-        df2.index=df2.index-pd.Timedelta(minutes=90)
-        df=pd.concat([df1,df2]).reset_index()
-    return df
+    return rp.adjust_afternoon(df, only_inday)
 
 def get_features_factors_single(
     df: pd.DataFrame,
@@ -1556,129 +1544,17 @@ def get_features_factors_single(
     with_lyapunov_exponent=True,
     with_complexity=True,
 ):
-    """
-    与 get_features_factors 相同，但只保留每列独立计算的指标（去掉列间相关性）。
-    每个指标保留为 Series（index 为 df 的列名），不展开为 list。
-
-    Returns:
-        res (list[pd.Series]): 每个元素是一个 Series，index 为 df 的列名。
-        names (list[str]): 对应的指标名，如 'mean', 'std' 等。
-    """
-    res = []
-    names = []
-
-    # Level 1: Basic statistics
-    means = df.mean()
-    medians = df.median()
-    stds = df.std()
-    skews = df.skew()
-    kurts = df.kurt()
-
-    res.extend([means, medians, stds, skews, kurts])
-    names.extend(['mean', 'median', 'std', 'skew', 'kurt'])
-
-    if with_max_min:
-        maxs = df.max()
-        mins = df.min()
-        ranges = maxs - mins
-        res.extend([maxs, mins, ranges])
-        names.extend(['max', 'min', 'range'])
-
-    # Level 2: Distribution features
-    if with_percentiles:
-        p5s = df.quantile(0.05)
-        p25s = df.quantile(0.25)
-        p75s = df.quantile(0.75)
-        p95s = df.quantile(0.95)
-        iqrs = p75s - p25s
-        cvs = stds / (means.abs() + 1e-8)
-        res.extend([p5s, p25s, p75s, p95s, iqrs, cvs])
-        names.extend(['p5', 'p25', 'p75', 'p95', 'iqr', 'cv'])
-
-    # Level 3: Temporal dynamics
-    n_lags = min(max(1, with_lag_autocorr), 3)
-    for lag in range(1, n_lags + 1):
-        ac = rp.corrwith(df.reset_index(drop=True), df.reset_index(drop=True).shift(lag), 0, use_single_thread=True)
-        res.append(ac)
-        names.append(f'autocorr{lag}')
-        res.append(ac.abs())
-        names.append(f'autocorr{lag}_abs')
-
-    trends = rp.trend_2d(df.to_numpy(float), 0)
-    trends_series = pd.Series(trends, index=df.columns)
-    res.append(trends_series)
-    names.append('trend')
-
-    if with_period_compare:
-        n_rows = len(df)
-        split_point = n_rows // 3
-        first_period_means = df.iloc[:split_point].mean()
-        last_period_means = df.iloc[-split_point:].mean()
-        period_diffs = last_period_means - first_period_means
-        period_ratios = last_period_means / (first_period_means.abs() + 1e-8)
-        res.extend([period_diffs, period_ratios])
-        names.extend(['period_diff', 'period_ratio'])
-
-    # Level 4: Threshold analysis
-    if with_threshold_counts:
-        p90s = df.quantile(0.90)
-        p10s = df.quantile(0.10)
-        mean_above_p90 = df[df > p90s].mean().fillna(0)
-        mean_below_p10 = df[df < p10s].mean().fillna(0)
-        res.extend([mean_above_p90, mean_below_p10])
-        names.extend(['mean_above_p90', 'mean_below_p10'])
-
-    # Absolute values
-    if with_abs:
-        res.extend([means.abs(), medians.abs(), stds.abs(), skews.abs(), kurts.abs()])
-        names.extend(['mean_abs', 'median_abs', 'std_abs', 'skew_abs', 'kurt_abs'])
-        if with_max_min:
-            res.extend([maxs.abs(), mins.abs()])
-            names.extend(['max_abs', 'min_abs'])
-        if with_percentiles:
-            res.extend([p5s.abs(), p25s.abs(), p75s.abs(), p95s.abs(), iqrs.abs(), cvs.abs()])
-            names.extend(['p5_abs', 'p25_abs', 'p75_abs', 'p95_abs', 'iqr_abs', 'cv_abs'])
-        res.append(trends_series.abs())
-        names.append('trend_abs')
-        if with_period_compare:
-            res.extend([period_diffs.abs(), period_ratios.abs()])
-            names.extend(['period_diff_abs', 'period_ratio_abs'])
-
-    # Level 6: Complexity metrics
-    if with_lyapunov_exponent:
-        def calc_lyapunov(s: pd.Series):
-            try:
-                return rp.calculate_lyapunov_exponent(s.to_numpy(float))['lyapunov_exponent']
-            except:
-                return np.nan
-        res.append(df.apply(calc_lyapunov))
-        names.append('lyapunov')
-
-    if with_complexity:
-        def calc_lz_complexity(s: pd.Series):
-            try:
-                return rp.lz_complexity(s.to_numpy(float), [0.33, 0.66])
-            except:
-                return np.nan
-
-        def calc_entropy(s: pd.Series):
-            try:
-                n_bins = int(np.ceil(np.log2(len(s)))) + 1
-                return rp.calculate_binned_entropy_1d(s.to_numpy(float), n_bins=n_bins)
-            except:
-                return np.nan
-
-        def calc_max_range_product(s: pd.Series):
-            try:
-                x, y, _ = rp.find_max_range_product(s.to_numpy(float))
-                return abs(x - y) / s.shape[0]
-            except:
-                return np.nan
-
-        res.extend([df.apply(calc_lz_complexity), df.apply(calc_entropy), df.apply(calc_max_range_product)])
-        names.extend(['lz_complexity', 'entropy_1d', 'max_range_product'])
-
-    return res, names
+    return rp.get_features_factors_single(
+        df=df,
+        with_abs=with_abs,
+        with_max_min=with_max_min,
+        with_percentiles=with_percentiles,
+        with_lag_autocorr=with_lag_autocorr,
+        with_threshold_counts=with_threshold_counts,
+        with_period_compare=with_period_compare,
+        with_lyapunov_exponent=with_lyapunov_exponent,
+        with_complexity=with_complexity,
+    )
 
 
 def get_features_factors(
@@ -1694,259 +1570,19 @@ def get_features_factors(
     with_complexity=True,  # NEW: Optional complexity metrics (slower but informative)
     append_for_corr:pd.DataFrame=None
 ):
-    """
-    Extracts a comprehensive set of statistical features and their names from a pandas DataFrame.
-
-    Parameters:
-        df (pd.DataFrame): Input DataFrame containing numerical data for feature extraction.
-        with_abs (bool, optional): If True, includes the absolute values of the computed statistics. Default is True.
-        with_max_min (bool, optional): If True, includes the maximum and minimum values (and their absolute values if with_abs is True). Default is False.
-        with_corr (bool, optional): If True, includes pairwise correlations between columns. Default is True.
-        with_percentiles (bool, optional): If True, includes percentile statistics (P5, P25, P75, P95). Default is True.
-        with_lag_autocorr (int, optional): Number of autocorrelation lags to compute (1-5). Default is 1.
-        with_threshold_counts (bool, optional): If True, counts threshold crossings (>P90, >P95, <P10, <P5). Default is True.
-        with_period_compare (bool, optional): If True, compares first vs last period statistics. Default is True.
-        with_complexity (bool, optional): If True, includes complexity metrics (Lyapunov exponent, LZ complexity, entropy, max range product). Computationally expensive. Default is False.
-
-    Returns:
-        res (list): List of computed feature values in the order specified by 'names'.
-        names (list): List of feature names corresponding to the computed values.
-
-    Features extracted include:
-        Level 1 - Basic Statistics:
-            - Mean, median, standard deviation, skewness, kurtosis
-            - Maximum, minimum, range
-
-        Level 2 - Distribution Features:
-            - Percentiles (P5, P25, P75, P95)
-            - Interquartile range (IQR = P75 - P25)
-            - Coefficient of variation (CV = std/mean)
-
-        Level 3 - Temporal Dynamics:
-            - Autocorrelations (lag 1 to N)
-            - Linear trend (OLS regression slope)
-            - First vs last period comparison (e.g., last 1/3 vs first 1/3 mean)
-
-        Level 4 - Threshold Analysis:
-            - Threshold crossing counts (>P90, >P95, <P10, <P5)
-            - Excess mean above P90
-            - Shortfall mean below P10
-
-        Level 5 - Correlations (if with_corr=True and df has multiple columns):
-            - Pairwise Pearson correlations
-            - Absolute correlations
-
-        Level 6 - Complexity Metrics (if with_complexity=True):
-            - Lyapunov exponent (chaos indicator)
-            - LZ complexity (sequence compressibility)
-            - Shannon entropy (information content)
-            - Max range product (normalized)
-    """
-    # Level 1: Basic statistics
-    means = df.mean()
-    medians = df.median()
-    stds = df.std()
-    skews = df.skew()
-    kurts = df.kurt()
-
-    # Level 1 with_abs variants (define upfront to avoid reference issues)
-    if with_abs:
-        means_abs = means.abs()
-        medians_abs = medians.abs()
-        stds_abs = stds.abs()
-        skews_abs = skews.abs()
-        kurts_abs = kurts.abs()
-
-    if with_max_min:
-        maxs = df.max()
-        mins = df.min()
-        ranges = maxs - mins  # Range
-        if with_abs:
-            maxs_abs = maxs.abs()
-            mins_abs = mins.abs()
-            ranges_abs = ranges.abs()
-
-    # Level 2: Distribution features
-    if with_percentiles:
-        p5s = df.quantile(0.05)
-        p25s = df.quantile(0.25)
-        p75s = df.quantile(0.75)
-        p95s = df.quantile(0.95)
-        iqrs = p75s - p25s  # Interquartile range
-        cvs = stds / (means.abs() + 1e-8)  # Coefficient of variation
-        if with_abs:
-            p5s_abs = p5s.abs()
-            p25s_abs = p25s.abs()
-            p75s_abs = p75s.abs()
-            p95s_abs = p95s.abs()
-            iqrs_abs = iqrs.abs()
-            cvs_abs = cvs.abs()
-
-    # Level 3: Temporal dynamics
-    # Autocorrelations (lag 1 to N, limited to 3 for speed)
-    n_lags = min(max(1, with_lag_autocorr), 3)
-    autocorrs = []
-    autocorrs_abs = []
-    for lag in range(1, n_lags + 1):
-        ac = rp.corrwith(df.reset_index(drop=True), df.reset_index(drop=True).shift(lag), 0, use_single_thread=True)
-        autocorrs.append(ac)
-        autocorrs_abs.append(ac.abs())
-
-    # Linear trend (OLS regression slope)
-    trends = rp.trend_2d(df.to_numpy(float), 0)
-    if with_abs:
-        trends_abs = [abs(i) for i in trends]
-
-    # Period comparison (first 1/3 vs last 1/3)
-    if with_period_compare:
-        n_rows = len(df)
-        split_point = n_rows // 3
-        first_period_means = df.iloc[:split_point].mean()
-        last_period_means = df.iloc[-split_point:].mean()
-        period_diffs = last_period_means - first_period_means
-        period_ratios = last_period_means / (first_period_means.abs() + 1e-8)
-        if with_abs:
-            period_diffs_abs = period_diffs.abs()
-            period_ratios_abs = period_ratios.abs()
-
-    # Level 4: Threshold analysis
-    if with_threshold_counts:
-        p90s = df.quantile(0.90)
-        p10s = df.quantile(0.10)
-
-        # Mean of values above/below threshold
-        mean_above_p90 = df[df > p90s].mean().fillna(0)
-        mean_below_p10 = df[df < p10s].mean().fillna(0)
-
-    # Assemble results and names
-    res = []
-    names = []
-    col_names = df.columns.tolist()
-
-    # Helper function to append results and names
-    def append_results(series_list, name_suffixes):
-        for series, suffix in zip(series_list, name_suffixes):
-            res.extend(series.tolist())
-            names.extend([f"{col}_{suffix}" for col in col_names])
-
-    # Level 1: Basic statistics
-    append_results([means, medians, stds, skews, kurts],
-                   ['mean', 'median', 'std', 'skew', 'kurt'])
-
-    if with_max_min:
-        append_results([maxs, mins, ranges],
-                       ['max', 'min', 'range'])
-
-    # Level 2: Percentiles
-    if with_percentiles:
-        append_results([p5s, p25s, p75s, p95s, iqrs, cvs],
-                       ['p5', 'p25', 'p75', 'p95', 'iqr', 'cv'])
-
-    # Level 3: Autocorrelations
-    for lag_idx, (ac, ac_abs) in enumerate(zip(autocorrs, autocorrs_abs)):
-        lag_num = lag_idx + 1
-        append_results([ac, ac_abs],
-                       [f'autocorr{lag_num}', f'autocorr{lag_num}_abs'])
-
-    # Level 3: Trend
-    res.extend(trends)
-    names.extend([f"{col}_trend" for col in col_names])
-
-    # Level 3: Period comparison
-    if with_period_compare:
-        append_results([period_diffs, period_ratios],
-                       ['period_diff', 'period_ratio'])
-
-    # Level 4: Threshold means
-    if with_threshold_counts:
-        append_results([mean_above_p90, mean_below_p10],
-                       ['mean_above_p90', 'mean_below_p10'])
-
-    # Level 5: Correlations
-    if with_corr:
-        if append_for_corr is not None:
-            df0=pd.concat([df,append_for_corr],axis=1)
-        else:
-            df0=df.copy()
-        corrs_matrix = rp.fast_correlation_matrix_v2_df(df0, max_workers=1)
-        n = corrs_matrix.shape[0]
-        i_idx, j_idx = np.triu_indices(n, 1)
-        row_names = corrs_matrix.index[i_idx]
-        col_names_corr = corrs_matrix.columns[j_idx]
-        corr_values = corrs_matrix.to_numpy()[i_idx, j_idx]
-
-        corr_names = [f"{row}_corr_{col}" for row, col in zip(row_names, col_names_corr)]
-        res.extend(corr_values.tolist())
-        names.extend(corr_names)
-
-        if with_abs:
-            res.extend(np.abs(corr_values).tolist())
-            names.extend([f"{name}_abs" for name in corr_names])
-
-    # Absolute values (for all base statistics)
-    if with_abs:
-        append_results([means_abs, medians_abs, stds_abs, skews_abs, kurts_abs],
-                       ['mean_abs', 'median_abs', 'std_abs', 'skew_abs', 'kurt_abs'])
-
-        if with_max_min:
-            append_results([maxs_abs, mins_abs],
-                           ['max_abs', 'min_abs'])
-
-        if with_percentiles:
-            append_results([p5s_abs, p25s_abs, p75s_abs, p95s_abs, iqrs_abs, cvs_abs],
-                           ['p5_abs', 'p25_abs', 'p75_abs', 'p95_abs', 'iqr_abs', 'cv_abs'])
-
-        res.extend(trends_abs)
-        names.extend([f"{col}_trend_abs" for col in col_names])
-
-        if with_period_compare:
-            append_results([period_diffs_abs, period_ratios_abs],
-                           ['period_diff_abs', 'period_ratio_abs'])
-
-    # Level 6: Complexity metrics (computationally expensive, optional)
-    if with_lyapunov_exponent:
-        # Define complexity calculation functions
-        def calc_lyapunov(series: pd.Series):
-            try:
-                return rp.calculate_lyapunov_exponent(series.to_numpy(float))['lyapunov_exponent']
-            except:
-                return np.nan
-            
-        lyapunovs = df.apply(calc_lyapunov)
-        append_results([lyapunovs],['lyapunov'])
-    
-    if with_complexity:
-
-        def calc_lz_complexity(series: pd.Series):
-            try:
-                return rp.lz_complexity(series.to_numpy(float),[0.33,0.66])
-            except:
-                return np.nan
-
-        def calc_entropy(series: pd.Series):
-            try:
-                n_bins=int(np.ceil(np.log2(len(series)))) + 1
-                return rp.calculate_binned_entropy_1d(series.to_numpy(float),n_bins=n_bins)
-            except:
-                return np.nan
-
-        def calc_max_range_product(series: pd.Series):
-            try:
-                x, y, _ = rp.find_max_range_product(series.to_numpy(float))
-                return abs(x - y) / series.shape[0]
-            except:
-                return np.nan
-
-        # Calculate complexity metrics for each column
-        
-        lz_complexities = df.apply(calc_lz_complexity)
-        entropies = df.apply(calc_entropy)
-        max_range_products = df.apply(calc_max_range_product)
-
-        append_results([lz_complexities, entropies, max_range_products],
-                        ['lz_complexity', 'entropy_1d', 'max_range_product'])
-
-    return res, names
+    return rp.get_features_factors(
+        df=df,
+        with_abs=with_abs,
+        with_max_min=with_max_min,
+        with_corr=with_corr,
+        with_percentiles=with_percentiles,
+        with_lag_autocorr=with_lag_autocorr,
+        with_threshold_counts=with_threshold_counts,
+        with_period_compare=with_period_compare,
+        with_lyapunov_exponent=with_lyapunov_exponent,
+        with_complexity=with_complexity,
+        append_for_corr=append_for_corr,
+    )
 
 
 def get_features_names(
@@ -1962,89 +1598,19 @@ def get_features_names(
     with_complexity=True,
     append_for_corr_cols: list = None,
 ):
-    """
-    Generates the same feature names as get_features_factors, without computing any values.
-
-    Parameters:
-        col_names (list): List of column name strings (equivalent to df.columns.tolist()).
-        append_for_corr_cols (list, optional): Extra column names appended for correlation
-            (equivalent to append_for_corr.columns.tolist()). Default is None.
-        Other parameters: Same as get_features_factors.
-
-    Returns:
-        names (list): List of feature names in the same order as get_features_factors.
-    """
-    names = []
-
-    def append_names(suffixes):
-        for suffix in suffixes:
-            names.extend([f"{col}_{suffix}" for col in col_names])
-
-    # Level 1: Basic statistics
-    append_names(['mean', 'median', 'std', 'skew', 'kurt'])
-
-    if with_max_min:
-        append_names(['max', 'min', 'range'])
-
-    # Level 2: Percentiles
-    if with_percentiles:
-        append_names(['p5', 'p25', 'p75', 'p95', 'iqr', 'cv'])
-
-    # Level 3: Autocorrelations
-    n_lags = min(max(1, with_lag_autocorr), 3)
-    for lag_num in range(1, n_lags + 1):
-        append_names([f'autocorr{lag_num}', f'autocorr{lag_num}_abs'])
-
-    # Level 3: Trend
-    names.extend([f"{col}_trend" for col in col_names])
-
-    # Level 3: Period comparison
-    if with_period_compare:
-        append_names(['period_diff', 'period_ratio'])
-
-    # Level 4: Threshold means
-    if with_threshold_counts:
-        append_names(['mean_above_p90', 'mean_below_p10'])
-
-    # Level 5: Correlations
-    if with_corr:
-        if append_for_corr_cols is not None:
-            all_corr_cols = list(col_names) + list(append_for_corr_cols)
-        else:
-            all_corr_cols = list(col_names)
-        n = len(all_corr_cols)
-        corr_names = []
-        for i in range(n):
-            for j in range(i + 1, n):
-                corr_names.append(f"{all_corr_cols[i]}_corr_{all_corr_cols[j]}")
-        names.extend(corr_names)
-
-        if with_abs:
-            names.extend([f"{name}_abs" for name in corr_names])
-
-    # Absolute values
-    if with_abs:
-        append_names(['mean_abs', 'median_abs', 'std_abs', 'skew_abs', 'kurt_abs'])
-
-        if with_max_min:
-            append_names(['max_abs', 'min_abs'])
-
-        if with_percentiles:
-            append_names(['p5_abs', 'p25_abs', 'p75_abs', 'p95_abs', 'iqr_abs', 'cv_abs'])
-
-        names.extend([f"{col}_trend_abs" for col in col_names])
-
-        if with_period_compare:
-            append_names(['period_diff_abs', 'period_ratio_abs'])
-
-    # Level 6: Complexity metrics
-    if with_lyapunov_exponent:
-        append_names(['lyapunov'])
-
-    if with_complexity:
-        append_names(['lz_complexity', 'entropy_1d', 'max_range_product'])
-
-    return names
+    return rp.get_features_names(
+        col_names=col_names,
+        with_abs=with_abs,
+        with_max_min=with_max_min,
+        with_corr=with_corr,
+        with_percentiles=with_percentiles,
+        with_lag_autocorr=with_lag_autocorr,
+        with_threshold_counts=with_threshold_counts,
+        with_period_compare=with_period_compare,
+        with_lyapunov_exponent=with_lyapunov_exponent,
+        with_complexity=with_complexity,
+        append_for_corr_cols=append_for_corr_cols,
+    )
 
 
 def common_columns_index(df1:pd.DataFrame, df2:pd.DataFrame):
@@ -2061,99 +1627,13 @@ def common_columns_indexs(dfs:list[pd.DataFrame]):
     return [df.loc[common_index, common_cols] for df in dfs]
 
 def read_trade(symbol:str, date:int,with_retreat:int=0)->pd.DataFrame:
-    file_name = "%s_%d_%s.csv" % (symbol, date, "transaction")
-    file_path = os.path.join("/ssd_data/stock", str(date), "transaction", file_name)
-    df= pd.read_csv(
-        file_path,
-        dtype={"symbol": str},
-        usecols=[
-            "exchtime",
-            "price",
-            "volume",
-            "turnover",
-            "flag",
-            "index",
-            "localtime",
-            "ask_order",
-            "bid_order",
-        ],
-        memory_map=True,
-        engine="c",
-        low_memory=False,
-    )
-    if not with_retreat:
-        df=df[df.flag!=32]
-    df.exchtime=pd.to_timedelta(df.exchtime/1e6,unit='s')+pd.Timestamp('1970-01-01 08:00:00')
-    return df
+    return rp.read_trade(symbol, date, with_retreat)
 
 def read_market(symbol:str, date:int,with_high_low_limited=0)->pd.DataFrame:
-    file_name = "%s_%d_%s.csv" % (symbol, date, "market_data")
-    file_path = os.path.join("/ssd_data/stock", str(date), "market_data", file_name)
-    df= pd.read_csv(
-        file_path,
-        dtype={"symbol": str},
-        memory_map=True,
-        engine="c",
-        low_memory=False,
-    )
-    df.exchtime=pd.to_timedelta(df.exchtime/1e6,unit='s')+pd.Timestamp('1970-01-01 08:00:00')
-    if not with_high_low_limited:
-        df=df[(df.ask_prc1!=0) & (df.bid_prc1!=0)]
-    return df
+    return rp.read_market(symbol, date, with_high_low_limited)
 
 def read_market_pair(symbol:str, date:int)->tuple[pd.DataFrame,pd.DataFrame]:
-    df=read_market(symbol,date)
-    df = df[df.last_prc != 0]
-    ask_prc_cols = [f"ask_prc{i}" for i in range(1, 11)]
-    ask_vol_cols = [f"ask_vol{i}" for i in range(1, 11)]
-    asks = pd.concat(
-        [
-            pd.melt(
-                df[ask_prc_cols + ["exchtime"]],
-                id_vars=["exchtime"],
-                value_name="price",
-            )
-            .rename(columns={"variable": "number"})
-            .set_index("exchtime"),
-            pd.melt(
-                df[ask_vol_cols + ["exchtime"]],
-                id_vars=["exchtime"],
-                value_name="vol",
-            )
-            .drop(columns=["variable"])
-            .set_index("exchtime"),
-        ],
-        axis=1,
-    )
-    asks=asks[asks.price!=0]
-    asks.number=asks.number.str.slice(7).astype(int)
-    asks=asks.reset_index().sort_values(by=["exchtime", "number"]).reset_index(drop=True)
-    
-    bid_prc_cols = [f"bid_prc{i}" for i in range(1, 11)]
-    bid_vol_cols = [f"bid_vol{i}" for i in range(1, 11)]
-    bids = pd.concat(
-        [
-            pd.melt(
-                df[bid_prc_cols + ["exchtime"]],
-                id_vars=["exchtime"],
-                value_name="price",
-            )
-            .rename(columns={"variable": "number"})
-            .set_index("exchtime"),
-            pd.melt(
-                df[bid_vol_cols + ["exchtime"]],
-                id_vars=["exchtime"],
-                value_name="vol",
-            )
-            .drop(columns=["variable"])
-            .set_index("exchtime"),
-        ],
-        axis=1,
-    )
-    bids=bids[bids.price!=0]
-    bids.number=bids.number.str.slice(7).astype(int)
-    bids=bids.reset_index().sort_values(by=["exchtime", "number"]).reset_index(drop=True)
-    return asks, bids
+    return rp.read_market_pair(symbol, date)
 
 def abm_step_two(code,date,func,MOMENTUM_AGENT_SPEC,RUST_FEATURE_CONFIG,VECTOR_TO_SCALAR_CONFIG,GLOBAL_FEATURE_CONFIG,NS_PER_SEC):
     def _pair_window_same_direction_rate(
