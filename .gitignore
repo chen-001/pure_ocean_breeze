@@ -10,3 +10,4 @@ __pycache__
 *.pyc
 */*/*/__pycache__/*
 .checkpoints/
+.mindfs/*
